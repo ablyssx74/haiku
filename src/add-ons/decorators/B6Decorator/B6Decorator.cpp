@@ -56,7 +56,15 @@
 // (ablyss/xfwm4-themes-4.10.0/themes/b6). The frame and text colors are
 // the same for both focus states in that theme; only the tab and the
 // grab bar dim when a window loses focus.
-static const rgb_color kFrameColor        = { 238, 238, 230, 255 }; // #EEEEE6
+//
+// kFrameColor is a deliberate departure from the theme's own sampled
+// frame color (a light warm grey, #EEEEE6): forcing just the border's
+// outermost pixel to black left a bright near-white highlight ring
+// (from the "+64" offset below) sitting right next to it, which still
+// read as an overall white/light border. Darkening the whole base
+// color, rather than patching individual shades, is what actually
+// gives the window the solid black-ish outline that was asked for.
+static const rgb_color kFrameColor        = { 35, 35, 35, 255 };
 
 static const rgb_color kActiveTabLight    = { 255, 255,  80, 255 }; // #FFFF50
 static const rgb_color kActiveTabColor    = { 255, 221,  25, 255 }; // #FFDD19
@@ -336,17 +344,14 @@ B6Decorator::GetComponentColors(Component component, uint8 highlight,
 					_colors[i].blue = 255;
 				}
 			} else {
-				// kFrameColor is a light warm grey, so even the darkest
-				// shade the offsets above produce (_colors[5]) only
-				// reaches a middling grey -- nowhere near the crisp
-				// black edge Haiku's default decorator outlines its
-				// windows with. _DrawFrame() always strokes the true
-				// outer edge of the top/left border with _colors[0] and
-				// of the bottom/right border with _colors[5] (see its
-				// "(4 - i) == 4 ? 5 : (4 - i)" index there), so forcing
-				// just those two to pure black gives the window a solid
-				// black outline while _colors[1..4] still carry the
-				// bevel gradient toward the content.
+				// _DrawFrame() always strokes the true outer edge of the
+				// top/left border with _colors[0] and of the bottom/
+				// right border with _colors[5] (see its
+				// "(4 - i) == 4 ? 5 : (4 - i)" index there); pin those
+				// two to pure black explicitly, on top of the dark
+				// kFrameColor base above, so the window's outermost
+				// pixel is always solid black regardless of how that
+				// base is tuned later.
 				_colors[0] = kTextColor;
 				_colors[5] = kTextColor;
 			}
