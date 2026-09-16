@@ -934,12 +934,15 @@ B6Decorator::_DrawFlag(BRect overhang, const BRect& tabRect, bool leftSide,
 
 	// The outline is stitched together from an arc and two straight
 	// lines, which (being separate draw calls) don't always meet at the
-	// exact same pixel: a slightly larger stroke radius makes sure the
-	// arc fully covers the fill's edge instead of leaving a sliver of
-	// unstroked fill poking past it, and overlapping the arc's span and
-	// the lines' start points by a few pixels/degrees closes the gap
-	// that otherwise shows as a stray dot where the cap meets the tab's
-	// top/bottom edge.
+	// exact same pixel. A larger stroke radius used to be used here to
+	// make sure the arc fully covered the fill's edge, but that shifted
+	// the arc's peak away from tabRect.top/bottom, leaving a visible
+	// step where the curve met the straight line right next to it --
+	// worse than the sliver of fill it was covering for. The stroke now
+	// matches the fill's own capRect exactly (so its peak lands exactly
+	// on tabRect.top/bottom, flush with the straight line), and instead
+	// only overlaps the arc's span and the lines' start points by a few
+	// degrees/pixels to close that seam.
 	//
 	// Uses the tab's own bevel/shadow tones (the gradient's own start
 	// and end colors above) rather than COLOR_TAB_FRAME_LIGHT/DARK: the
@@ -947,9 +950,7 @@ B6Decorator::_DrawFlag(BRect overhang, const BRect& tabRect, bool leftSide,
 	// which reads as a much harsher, higher-contrast line against the
 	// yellow fill than an outline drawn from colors already in the
 	// gradient it's outlining.
-	const float kStrokeOverscan = 2.0f;
-	BRect strokeRect = capRect.InsetByCopy(-kStrokeOverscan,
-		-kStrokeOverscan);
+	const BRect& strokeRect = capRect;
 	float capNear = leftSide ? capCenter.x - 3 : capCenter.x + 3;
 
 	fDrawingEngine->SetHighColor(colors[COLOR_TAB_BEVEL]);
