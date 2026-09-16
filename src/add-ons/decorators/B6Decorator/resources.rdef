@@ -1,0 +1,10 @@
+resource("be:decor:info") message('deco') {
+	"name"				= "b6",
+	"authors"			= "DarkWyrm, Stephan Aßmus, Clemens Zeidler, ablyssx74",
+	"short_descr"		= "Yellow-tabbed decorator styled after the b6 xfwm4 theme",
+	"long_descr"		= "A decorator with a yellow title tab, black title text and lavender buttons, styled after the \"b6\" xfwm4 theme (itself inspired by a leaked BeOS build). Based on BeDecorator, so it keeps stack & tile support and a resizable bottom-right grab bar on every window look.",
+	"lic_url"			= "",
+	"lic_name"			= "MIT",
+	"support_url"		= "http://www.haiku-os.org/",
+	float "version"		= 1.0
+};
