@@ -778,11 +778,26 @@ B6Decorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 			BRect(capCenter.x, tabRect.top, tabRect.left + 1, tabRect.bottom),
 			gradient);
 
+		// The outline is stitched together from an arc and two straight
+		// lines, which (being separate draw calls) don't always meet at
+		// the exact same pixel: a slightly larger stroke radius makes
+		// sure the arc fully covers the fill's edge instead of leaving a
+		// sliver of unstroked fill poking past it, and overlapping the
+		// arc's span and the lines' start points by a few pixels/degrees
+		// closes the gap that otherwise shows as a stray dot where the
+		// cap meets the tab's top edge.
+		const float kStrokeOverscan = 1.0f;
+		BRect strokeRect = capRect.InsetByCopy(-kStrokeOverscan,
+			-kStrokeOverscan);
+
 		fDrawingEngine->SetHighColor(colors[COLOR_TAB_FRAME_LIGHT]);
-		fDrawingEngine->DrawArc(capRect, 90.0f, 180.0f, false);
-		fDrawingEngine->StrokeLine(BPoint(capCenter.x, tabRect.top),
+		fDrawingEngine->DrawArc(strokeRect, 85.0f, 100.0f, false);
+		fDrawingEngine->StrokeLine(BPoint(capCenter.x - 2, tabRect.top),
 			BPoint(tabRect.left, tabRect.top), colors[COLOR_TAB_FRAME_LIGHT]);
-		fDrawingEngine->StrokeLine(BPoint(capCenter.x, tabRect.bottom),
+
+		fDrawingEngine->SetHighColor(colors[COLOR_TAB_FRAME_DARK]);
+		fDrawingEngine->DrawArc(strokeRect, 175.0f, 100.0f, false);
+		fDrawingEngine->StrokeLine(BPoint(capCenter.x - 2, tabRect.bottom),
 			BPoint(tabRect.left, tabRect.bottom),
 			colors[COLOR_TAB_FRAME_DARK]);
 	}
