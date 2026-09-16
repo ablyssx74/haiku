@@ -193,14 +193,12 @@ B6Decorator::B6Decorator(DesktopSettings& settings, BRect rect,
 		kTopLeftActiveHeight, kTopLeftActiveBits);
 	fTopLeftInactiveBitmap = _CreateBitmapFromRGBA(kTopLeftInactiveWidth,
 		kTopLeftInactiveHeight, kTopLeftInactiveBits);
-	fGrabBarActiveBitmap = _CreateBitmapFromRGBA(kGrabBarActiveWidth,
-		kGrabBarActiveHeight, kGrabBarActiveBits);
-	fGrabBarInactiveBitmap = _CreateBitmapFromRGBA(kGrabBarInactiveWidth,
-		kGrabBarInactiveHeight, kGrabBarInactiveBits);
-		// b6 theme artwork; drawn directly instead of procedurally so the
-		// tab corner and grab bar keep the theme's exact curved/beveled
-		// shape. NULL is handled gracefully (falls back to a plain shape)
-		// if any of these couldn't be allocated.
+		// b6 theme tab corner artwork, drawn directly instead of
+		// procedurally so it keeps the theme's exact curved/beveled
+		// shape. NULL is handled gracefully (the overlay is skipped) if
+		// it couldn't be allocated. The grab bar is drawn procedurally
+		// as a rounded quarter-circle instead (see _DrawGrabBar()), so
+		// it has no bitmap counterpart.
 
 	if (fCloseBitmap == NULL || fBigZoomBitmap == NULL
 		|| fSmallZoomBitmap == NULL || fGlintBitmap == NULL) {
@@ -232,12 +230,6 @@ B6Decorator::~B6Decorator()
 
 	if (fTopLeftInactiveBitmap != NULL)
 		fTopLeftInactiveBitmap->ReleaseReference();
-
-	if (fGrabBarActiveBitmap != NULL)
-		fGrabBarActiveBitmap->ReleaseReference();
-
-	if (fGrabBarInactiveBitmap != NULL)
-		fGrabBarInactiveBitmap->ReleaseReference();
 }
 
 
@@ -358,7 +350,85 @@ B6Decorator::GetComponentColors(Component component, uint8 highlight,
 }
 
 
+/*!	\brief Extends hit-testing to the tab's overhang area.
+
+	The overhang (see _OverhangRect()) is drawn above the tab's normal
+	tabRect but isn't part of it, so the base implementation's
+	tab->tabRect.Contains(where) check would miss clicks and drags
+	there. Treat a hit anywhere in the overhang as a hit on the tab.
+*/
+Decorator::Region
+B6Decorator::RegionAt(BPoint where, int32& tabIndex) const
+{
+	Region region = TabDecorator::RegionAt(where, tabIndex);
+	if (region != REGION_NONE)
+		return region;
+
+	if (fTabList.CountItems() == 1) {
+		Decorator::Tab* tab = fTabList.ItemAt(0);
+		BRect overhang = _OverhangRect(tab);
+		if (overhang.IsValid() && overhang.Contains(where)) {
+			tabIndex = 0;
+			return REGION_TAB;
+		}
+	}
+
+	return REGION_NONE;
+}
+
+
 // #pragma mark - Protected methods
+
+
+/*!	\brief Grows the tracked tab region to include the corner overhang.
+
+	Haiku's redraw and move tracking (footprint, dirty regions on move,
+	etc.) all key off fTabsRegion/fTitleBarRect rather than the tab's
+	drawn pixels. Without this, the overhang the b6 theme's corner
+	artwork pokes above the tab would leave stale pixels behind when a
+	window is dragged, since the desktop wouldn't know it needs to
+	repaint that sliver.
+*/
+void
+B6Decorator::_DoTabLayout()
+{
+	TabDecorator::_DoTabLayout();
+
+	if (fTabList.CountItems() != 1)
+		return;
+
+	BRect overhang = _OverhangRect(fTabList.ItemAt(0));
+	if (!overhang.IsValid())
+		return;
+
+	fTabsRegion.Include(overhang);
+	fTitleBarRect = fTitleBarRect | overhang;
+}
+
+
+/*!	\brief The area above a single tab's tabRect where the b6 theme's
+		curved corner artwork is allowed to overhang, scaled off the
+		tab's own (font-dependent) height so it stays proportional.
+		Invalid (and the overhang skipped) for stacked tabs and for
+		kLeftTitledWindowLook, where a top-left overhang doesn't apply.
+*/
+BRect
+B6Decorator::_OverhangRect(Decorator::Tab* tab) const
+{
+	if (tab == NULL || !tab->tabRect.IsValid()
+		|| tab->look == kLeftTitledWindowLook
+		|| fTabList.CountItems() != 1) {
+		return BRect(0, 0, -1, -1);
+	}
+
+	const BRect& tabRect = tab->tabRect;
+	float overhangHeight = tabRect.Height() * 0.5f;
+	float cornerWidth = std::min(tabRect.Height() * (14.0f / 24.0f),
+		tabRect.Width() * 0.6f);
+
+	return BRect(tabRect.left, tabRect.top - overhangHeight,
+		tabRect.left + cornerWidth - 1, tabRect.top - 1);
+}
 
 
 void
@@ -525,8 +595,9 @@ B6Decorator::_DrawFrame(BRect invalid)
 	// Draw the resize/grab bar in the bottom right corner if we're
 	// supposed to. Unlike BeDecorator, this bar is drawn for every
 	// resizable window look, not just document windows, and uses the
-	// b6 theme's own bottom-right-active/inactive.xpm artwork, enlarged
-	// ("extended") well past its native 19x19 size for visibility.
+	// a rounded purple quarter-circle grab handle, enlarged ("extended")
+	// well past the b6 theme's own 19x19 bottom-right-active/inactive.xpm
+	// bracket, which is sharp-cornered rather than rounded.
 	if (!(fTopTab->flags & B_NOT_RESIZABLE)) {
 		switch ((int)fTopTab->look) {
 			case B_DOCUMENT_WINDOW_LOOK:
@@ -553,20 +624,15 @@ B6Decorator::_DrawFrame(BRect invalid)
 				rgb_color shadow = focus
 					? kActiveButtonShadow : kInactiveButtonShadow;
 
-				ServerBitmap* bitmap = focus
-					? fGrabBarActiveBitmap : fGrabBarInactiveBitmap;
-
 				if (RegionHighlight(REGION_RIGHT_BOTTOM_CORNER)
 						== HIGHLIGHT_RESIZE_BORDER) {
 					base = (rgb_color){ 40, 40, 220, 255 };
 					light = (rgb_color){ 130, 130, 255, 255 };
 					shadow = (rgb_color){ 0, 0, 140, 255 };
-					bitmap = NULL;
-						// dye the corner blue during an active resize
-						// drag instead of using the themed artwork
+						// dye the corner blue during an active resize drag
 				}
 
-				_DrawGrabBar(grabRect, bitmap, base, light, shadow);
+				_DrawGrabBar(grabRect, base, light, shadow);
 				break;
 			}
 
@@ -592,10 +658,17 @@ B6Decorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 	STRACE(("_DrawTab(%.1f, %.1f, %.1f, %.1f)\n",
 			invalid.left, invalid.top, invalid.right, invalid.bottom));
 	const BRect& tabRect = tab->tabRect;
+	BRect overhang = _OverhangRect(tab);
+		// the area above tabRect the corner artwork is allowed to poke
+		// into; see _OverhangRect() and _DoTabLayout()
+
 	// If a window has a tab, this will draw it and any buttons which are
-	// in it.
-	if (!tabRect.IsValid() || !invalid.Intersects(tabRect))
+	// in it. The overhang is checked too since it can be dirty on its
+	// own (e.g. a targeted repaint) without tabRect itself being dirty.
+	if (!tabRect.IsValid()
+		|| (!invalid.Intersects(tabRect) && !invalid.Intersects(overhang))) {
 		return;
+	}
 
 	ComponentColors colors;
 	_GetComponentColors(COMPONENT_TAB, colors, tab);
@@ -648,21 +721,20 @@ B6Decorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 	}
 
 	// Overlay the b6 theme's curved corner artwork (top-left-active/
-	// inactive.xpm) on the left end of the tab, stretched to fit the
-	// current tab height. It is drawn on top of the flat fill above
-	// (rather than replacing it) so any transparent pixels around the
-	// curve simply reveal the ordinary flat tab color beneath, which is
-	// safe regardless of how tall the tab ends up being for the current
-	// font. This gives the tab its beveled, overhanging silhouette
-	// instead of a plain rectangular corner.
-	if (tab->look != kLeftTitledWindowLook) {
+	// inactive.xpm) on the left end of the tab, extending up into the
+	// overhang area above tabRect (see _OverhangRect()/_DoTabLayout()).
+	// It is drawn on top of the flat fill above rather than replacing
+	// it, so the transparent pixels around the curve simply reveal the
+	// ordinary flat tab color within tabRect; above tabRect, they reveal
+	// whatever is normally behind the window there, since that sliver
+	// is otherwise outside the window entirely. This gives the tab its
+	// beveled silhouette that pokes up past a plain rectangular corner.
+	if (overhang.IsValid()) {
 		ServerBitmap* corner = tab->buttonFocus
 			? fTopLeftActiveBitmap : fTopLeftInactiveBitmap;
 		if (corner != NULL) {
-			float cornerWidth
-				= std::min((float)kTopLeftActiveWidth, tabRect.Width() * 0.6f);
-			BRect destRect(tabRect.left, tabRect.top,
-				tabRect.left + cornerWidth - 1, tabRect.bottom);
+			BRect destRect(overhang.left, overhang.top, overhang.right,
+				tabRect.bottom);
 
 			drawing_mode oldMode;
 			fDrawingEngine->SetDrawingMode(B_OP_OVER, oldMode);
@@ -908,32 +980,31 @@ B6Decorator::_DrawButtonBitmap(ServerBitmap* bitmap, bool direct, BRect rect)
 
 
 /*!
-	\brief Draws the bottom-right grab bar. When \a bitmap is given, the
-		actual b6 theme artwork (bottom-right-active/inactive.xpm, an "L"
-		shaped bracket hugging the corner) is stretched to fill \a rect,
-		which is drawn considerably larger than the bitmap's native 19x19
-		size to make it a prominent, "extended" grab handle. When
-		\a bitmap is NULL (out of memory, or an active resize-border
-		highlight wants distinct feedback), a plain diagonal gradient is
-		drawn instead.
-	\param rect The area to draw the grab bar into.
-	\param bitmap The themed grab bar artwork to stretch into \a rect, or
-		NULL to fall back to a plain gradient.
-	\param base The base (mid) color of the gradient fallback.
-	\param light The light color of the gradient fallback.
-	\param shadow The shadow color of the gradient fallback.
+	\brief Draws a truly rounded grab bar in the bottom-right corner: a
+		quarter-circle disc, tapering smoothly toward the window content,
+		rather than the b6 theme's own sharp-mitred bottom-right-active/
+		inactive.xpm bracket.
+
+		The trick is drawing a full circle whose bounding box is twice
+		\a rect's size and centered on \a rect's outer (bottom-right)
+		corner: only the quarter of it that falls inside the window
+		(inside \a rect, and clipped to the window bounds beyond that)
+		is ever visible, which is exactly the rounded quarter we want,
+		with no need for arbitrary path/clipping support.
+
+	\param rect The bounding box for the grab bar; its bottom-right
+		corner is the disc's center.
+	\param base The base (mid) color of the diagonal gradient fill.
+	\param light The light color, at \a rect's top-left.
+	\param shadow The shadow color, at \a rect's bottom-right.
 */
 void
-B6Decorator::_DrawGrabBar(BRect rect, ServerBitmap* bitmap, rgb_color base,
-	rgb_color light, rgb_color shadow)
+B6Decorator::_DrawGrabBar(BRect rect, rgb_color base, rgb_color light,
+	rgb_color shadow)
 {
-	if (bitmap != NULL) {
-		drawing_mode oldMode;
-		fDrawingEngine->SetDrawingMode(B_OP_OVER, oldMode);
-		fDrawingEngine->DrawBitmap(bitmap, bitmap->Bounds(), rect);
-		fDrawingEngine->SetDrawingMode(oldMode);
-		return;
-	}
+	float diameter = rect.Width() * 2.0f;
+	BRect circle(rect.right - diameter + 1, rect.bottom - diameter + 1,
+		rect.right, rect.bottom);
 
 	BGradientLinear gradient;
 	gradient.SetStart(rect.LeftTop());
@@ -942,20 +1013,11 @@ B6Decorator::_DrawGrabBar(BRect rect, ServerBitmap* bitmap, rgb_color base,
 	gradient.AddColor(base, 140);
 	gradient.AddColor(shadow, 255);
 
-	fDrawingEngine->FillRect(rect, gradient);
+	fDrawingEngine->DrawEllipse(circle, true, gradient);
 
 	static const rgb_color kOutline = (rgb_color){ 41, 41, 41, 255 };
-	fDrawingEngine->StrokeLine(rect.LeftTop(), rect.RightTop(), kOutline);
-	fDrawingEngine->StrokeLine(rect.LeftTop(), rect.LeftBottom(), kOutline);
-
-	// diagonal ridge lines, like a classic resize grip
-	for (float offset = 5.0f; offset < rect.Width() - 3.0f; offset += 5.0f) {
-		BPoint start(rect.right - offset, rect.bottom - 1);
-		BPoint end(rect.right - 1, rect.bottom - offset);
-		fDrawingEngine->StrokeLine(start, end, shadow);
-		fDrawingEngine->StrokeLine(BPoint(start.x + 1, start.y),
-			BPoint(end.x, end.y + 1), light);
-	}
+	fDrawingEngine->SetHighColor(kOutline);
+	fDrawingEngine->DrawArc(circle, 0.0f, 360.0f, false);
 }
 
 
