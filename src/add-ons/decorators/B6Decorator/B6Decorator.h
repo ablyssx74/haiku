@@ -81,6 +81,8 @@ private:
 									ComponentColors _colors,
 									Decorator::Tab* tab = NULL);
 			BRect				_OverhangRect(Decorator::Tab* tab) const;
+			void				_IncludeFlagRegion(BRegion& region,
+									Decorator::Tab* tab) const;
 
 private:
 			status_t			fCStatus;
