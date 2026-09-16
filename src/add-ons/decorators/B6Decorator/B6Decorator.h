@@ -44,6 +44,7 @@ public:
 
 protected:
 	virtual	void				_DoTabLayout();
+	virtual	void				_ResizeBy(BPoint offset, BRegion* dirty);
 
 	virtual	void				_DrawFrame(BRect rect);
 
@@ -76,9 +77,6 @@ private:
 									Component item, bool down, int32 width,
 									int32 height);
 			ServerBitmap* 		_CreateTemporaryBitmap(BRect bounds) const;
-			ServerBitmap*		_CreateBitmapFromRGBA(int32 width,
-									int32 height,
-									const unsigned char* bgraData) const;
 			void				_GetComponentColors(Component component,
 									ComponentColors _colors,
 									Decorator::Tab* tab = NULL);
@@ -91,13 +89,6 @@ private:
 			ServerBitmap*		fBigZoomBitmap;
 			ServerBitmap*		fSmallZoomBitmap;
 			ServerBitmap*		fGlintBitmap;
-
-			// b6 theme tab corner artwork, taken directly from the b6
-			// xfwm4 theme's bitmaps, that overhangs the window's
-			// top-left edge (see _OverhangRect()). The grab bar is
-			// drawn procedurally instead (see _DrawGrabBar()).
-			ServerBitmap*		fTopLeftActiveBitmap;
-			ServerBitmap*		fTopLeftInactiveBitmap;
 };
 
 
