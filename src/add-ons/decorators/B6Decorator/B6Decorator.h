@@ -40,7 +40,11 @@ public:
 									uint8 highlight, ComponentColors _colors,
 									Decorator::Tab* tab = NULL);
 
+	virtual	Region				RegionAt(BPoint where, int32& tab) const;
+
 protected:
+	virtual	void				_DoTabLayout();
+
 	virtual	void				_DrawFrame(BRect rect);
 
 	virtual	void				_DrawTab(Decorator::Tab* tab, BRect rect);
@@ -66,8 +70,7 @@ private:
 									rgb_color colorC, rgb_color colorD);
 			void				_DrawButtonBitmap(ServerBitmap* bitmap,
 									bool direct, BRect rect);
-			void				_DrawGrabBar(BRect rect,
-									ServerBitmap* bitmap, rgb_color base,
+			void				_DrawGrabBar(BRect rect, rgb_color base,
 									rgb_color light, rgb_color shadow);
 			ServerBitmap*		_GetBitmapForButton(Decorator::Tab* tab,
 									Component item, bool down, int32 width,
@@ -79,6 +82,7 @@ private:
 			void				_GetComponentColors(Component component,
 									ComponentColors _colors,
 									Decorator::Tab* tab = NULL);
+			BRect				_OverhangRect(Decorator::Tab* tab) const;
 
 private:
 			status_t			fCStatus;
@@ -88,13 +92,12 @@ private:
 			ServerBitmap*		fSmallZoomBitmap;
 			ServerBitmap*		fGlintBitmap;
 
-			// b6 theme artwork: the curved tab corner that overhangs the
-			// window's top-left edge, and the bottom-right grab bar,
-			// taken directly from the b6 xfwm4 theme's bitmaps.
+			// b6 theme tab corner artwork, taken directly from the b6
+			// xfwm4 theme's bitmaps, that overhangs the window's
+			// top-left edge (see _OverhangRect()). The grab bar is
+			// drawn procedurally instead (see _DrawGrabBar()).
 			ServerBitmap*		fTopLeftActiveBitmap;
 			ServerBitmap*		fTopLeftInactiveBitmap;
-			ServerBitmap*		fGrabBarActiveBitmap;
-			ServerBitmap*		fGrabBarInactiveBitmap;
 };
 
 
