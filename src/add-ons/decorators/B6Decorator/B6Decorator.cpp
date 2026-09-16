@@ -19,6 +19,8 @@
 
 #include "B6Decorator.h"
 
+#include "B6DecoratorBitmaps.h"
+
 #include <algorithm>
 #include <cmath>
 #include <new>
@@ -50,10 +52,6 @@
 #else
 #	define STRACE(x) ;
 #endif
-
-
-static const float kBorderResizeLength = 22.0;
-static const float kResizeKnobSize = 18.0;
 
 
 // b6 theme palette, sampled from the xfwm4 "b6" theme bitmaps
@@ -191,6 +189,19 @@ B6Decorator::B6Decorator(DesktopSettings& settings, BRect rect,
 	fGlintBitmap = _CreateTemporaryBitmap(BRect(0, 0, 2, 2));
 		// glint bitmap is used by close and zoom buttons
 
+	fTopLeftActiveBitmap = _CreateBitmapFromRGBA(kTopLeftActiveWidth,
+		kTopLeftActiveHeight, kTopLeftActiveBits);
+	fTopLeftInactiveBitmap = _CreateBitmapFromRGBA(kTopLeftInactiveWidth,
+		kTopLeftInactiveHeight, kTopLeftInactiveBits);
+	fGrabBarActiveBitmap = _CreateBitmapFromRGBA(kGrabBarActiveWidth,
+		kGrabBarActiveHeight, kGrabBarActiveBits);
+	fGrabBarInactiveBitmap = _CreateBitmapFromRGBA(kGrabBarInactiveWidth,
+		kGrabBarInactiveHeight, kGrabBarInactiveBits);
+		// b6 theme artwork; drawn directly instead of procedurally so the
+		// tab corner and grab bar keep the theme's exact curved/beveled
+		// shape. NULL is handled gracefully (falls back to a plain shape)
+		// if any of these couldn't be allocated.
+
 	if (fCloseBitmap == NULL || fBigZoomBitmap == NULL
 		|| fSmallZoomBitmap == NULL || fGlintBitmap == NULL) {
 		fCStatus = B_NO_MEMORY;
@@ -215,6 +226,18 @@ B6Decorator::~B6Decorator()
 
 	if (fGlintBitmap != NULL)
 		fGlintBitmap->ReleaseReference();
+
+	if (fTopLeftActiveBitmap != NULL)
+		fTopLeftActiveBitmap->ReleaseReference();
+
+	if (fTopLeftInactiveBitmap != NULL)
+		fTopLeftInactiveBitmap->ReleaseReference();
+
+	if (fGrabBarActiveBitmap != NULL)
+		fGrabBarActiveBitmap->ReleaseReference();
+
+	if (fGrabBarInactiveBitmap != NULL)
+		fGrabBarInactiveBitmap->ReleaseReference();
 }
 
 
@@ -500,47 +523,50 @@ B6Decorator::_DrawFrame(BRect invalid)
 	}
 
 	// Draw the resize/grab bar in the bottom right corner if we're
-	// supposed to. Unlike BeDecorator, this fancy ridged bar is drawn
-	// for every resizable window look, not just document windows,
-	// echoing the b6 theme's bottom-right-active/inactive.xpm handle.
+	// supposed to. Unlike BeDecorator, this bar is drawn for every
+	// resizable window look, not just document windows, and uses the
+	// b6 theme's own bottom-right-active/inactive.xpm artwork, enlarged
+	// ("extended") well past its native 19x19 size for visibility.
 	if (!(fTopTab->flags & B_NOT_RESIZABLE)) {
-		bool focus = fTopTab != NULL && IsFocus(fTopTab);
-
-		rgb_color base = focus ? kActiveButtonColor : kInactiveButtonColor;
-		rgb_color light = focus ? kActiveButtonLight : kInactiveButtonLight;
-		rgb_color shadow = focus
-			? kActiveButtonShadow : kInactiveButtonShadow;
-
-		if (RegionHighlight(REGION_RIGHT_BOTTOM_CORNER)
-				== HIGHLIGHT_RESIZE_BORDER) {
-			base = (rgb_color){ 40, 40, 220, 255 };
-			light = (rgb_color){ 130, 130, 255, 255 };
-			shadow = (rgb_color){ 0, 0, 140, 255 };
-		}
-
 		switch ((int)fTopTab->look) {
 			case B_DOCUMENT_WINDOW_LOOK:
-			{
-				if (!invalid.Intersects(fResizeRect))
-					break;
-
-				_DrawGrabBar(fResizeRect, focus, base, light, shadow);
-				break;
-			}
-
 			case B_TITLED_WINDOW_LOOK:
 			case B_FLOATING_WINDOW_LOOK:
 			case B_MODAL_WINDOW_LOOK:
 			case kLeftTitledWindowLook:
 			{
-				BRect grabRect(fRightBorder.right - kBorderResizeLength,
-					fBottomBorder.bottom - kBorderResizeLength,
-					fRightBorder.right - 1, fBottomBorder.bottom - 1);
+				static const float kGrabBarSize = 30.0f;
+				BPoint corner(fRightBorder.right - 1,
+					fBottomBorder.bottom - 1);
+				BRect grabRect(corner.x - kGrabBarSize + 1,
+					corner.y - kGrabBarSize + 1, corner.x, corner.y);
 
 				if (!invalid.Intersects(grabRect))
 					break;
 
-				_DrawGrabBar(grabRect, focus, base, light, shadow);
+				bool focus = fTopTab != NULL && IsFocus(fTopTab);
+
+				rgb_color base = focus
+					? kActiveButtonColor : kInactiveButtonColor;
+				rgb_color light = focus
+					? kActiveButtonLight : kInactiveButtonLight;
+				rgb_color shadow = focus
+					? kActiveButtonShadow : kInactiveButtonShadow;
+
+				ServerBitmap* bitmap = focus
+					? fGrabBarActiveBitmap : fGrabBarInactiveBitmap;
+
+				if (RegionHighlight(REGION_RIGHT_BOTTOM_CORNER)
+						== HIGHLIGHT_RESIZE_BORDER) {
+					base = (rgb_color){ 40, 40, 220, 255 };
+					light = (rgb_color){ 130, 130, 255, 255 };
+					shadow = (rgb_color){ 0, 0, 140, 255 };
+					bitmap = NULL;
+						// dye the corner blue during an active resize
+						// drag instead of using the themed artwork
+				}
+
+				_DrawGrabBar(grabRect, bitmap, base, light, shadow);
 				break;
 			}
 
@@ -619,6 +645,30 @@ B6Decorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 	} else {
 		fDrawingEngine->FillRect(BRect(tabRect.left + 2, tabRect.top + 2,
 			tabRect.right, tabRect.bottom - 2), colors[COLOR_TAB]);
+	}
+
+	// Overlay the b6 theme's curved corner artwork (top-left-active/
+	// inactive.xpm) on the left end of the tab, stretched to fit the
+	// current tab height. It is drawn on top of the flat fill above
+	// (rather than replacing it) so any transparent pixels around the
+	// curve simply reveal the ordinary flat tab color beneath, which is
+	// safe regardless of how tall the tab ends up being for the current
+	// font. This gives the tab its beveled, overhanging silhouette
+	// instead of a plain rectangular corner.
+	if (tab->look != kLeftTitledWindowLook) {
+		ServerBitmap* corner = tab->buttonFocus
+			? fTopLeftActiveBitmap : fTopLeftInactiveBitmap;
+		if (corner != NULL) {
+			float cornerWidth
+				= std::min((float)kTopLeftActiveWidth, tabRect.Width() * 0.6f);
+			BRect destRect(tabRect.left, tabRect.top,
+				tabRect.left + cornerWidth - 1, tabRect.bottom);
+
+			drawing_mode oldMode;
+			fDrawingEngine->SetDrawingMode(B_OP_OVER, oldMode);
+			fDrawingEngine->DrawBitmap(corner, corner->Bounds(), destRect);
+			fDrawingEngine->SetDrawingMode(oldMode);
+		}
 	}
 
 	_DrawTitle(tab, tabRect);
@@ -858,20 +908,33 @@ B6Decorator::_DrawButtonBitmap(ServerBitmap* bitmap, bool direct, BRect rect)
 
 
 /*!
-	\brief Draws the ridged bottom-right grab bar, echoing the diagonal
-		handle bitmap of the b6 theme (bottom-right-active/inactive.xpm).
-	\param rect The area of the grab bar, matching the resize hit region.
-	\param focus Whether the window currently has focus; ridge lines are
-		only drawn for a focused window, matching the b6 theme's dot
-		pattern behavior in BeDecorator.
-	\param base The base (mid) color of the diagonal gradient.
-	\param light The light color, used at the top-left and for ridges.
-	\param shadow The shadow color, used at the bottom-right and for ridges.
+	\brief Draws the bottom-right grab bar. When \a bitmap is given, the
+		actual b6 theme artwork (bottom-right-active/inactive.xpm, an "L"
+		shaped bracket hugging the corner) is stretched to fill \a rect,
+		which is drawn considerably larger than the bitmap's native 19x19
+		size to make it a prominent, "extended" grab handle. When
+		\a bitmap is NULL (out of memory, or an active resize-border
+		highlight wants distinct feedback), a plain diagonal gradient is
+		drawn instead.
+	\param rect The area to draw the grab bar into.
+	\param bitmap The themed grab bar artwork to stretch into \a rect, or
+		NULL to fall back to a plain gradient.
+	\param base The base (mid) color of the gradient fallback.
+	\param light The light color of the gradient fallback.
+	\param shadow The shadow color of the gradient fallback.
 */
 void
-B6Decorator::_DrawGrabBar(BRect rect, bool focus, rgb_color base,
+B6Decorator::_DrawGrabBar(BRect rect, ServerBitmap* bitmap, rgb_color base,
 	rgb_color light, rgb_color shadow)
 {
+	if (bitmap != NULL) {
+		drawing_mode oldMode;
+		fDrawingEngine->SetDrawingMode(B_OP_OVER, oldMode);
+		fDrawingEngine->DrawBitmap(bitmap, bitmap->Bounds(), rect);
+		fDrawingEngine->SetDrawingMode(oldMode);
+		return;
+	}
+
 	BGradientLinear gradient;
 	gradient.SetStart(rect.LeftTop());
 	gradient.SetEnd(rect.RightBottom());
@@ -881,14 +944,9 @@ B6Decorator::_DrawGrabBar(BRect rect, bool focus, rgb_color base,
 
 	fDrawingEngine->FillRect(rect, gradient);
 
-	// separate the handle from the window content with a dark edge
-	// along the top and left, similar to the theme's bitmap outline
 	static const rgb_color kOutline = (rgb_color){ 41, 41, 41, 255 };
 	fDrawingEngine->StrokeLine(rect.LeftTop(), rect.RightTop(), kOutline);
 	fDrawingEngine->StrokeLine(rect.LeftTop(), rect.LeftBottom(), kOutline);
-
-	if (!focus)
-		return;
 
 	// diagonal ridge lines, like a classic resize grip
 	for (float offset = 5.0f; offset < rect.Width() - 3.0f; offset += 5.0f) {
@@ -1385,6 +1443,35 @@ B6Decorator::_CreateTemporaryBitmap(BRect bounds) const
 
 	memset(bitmap->Bits(), 0, bitmap->BitsLength());
 		// background opacity is 0
+
+	return bitmap;
+}
+
+
+/*!	\brief Builds a ServerBitmap from a raw B_RGBA32 (B, G, R, A byte
+		order) pixel array, as generated from the b6 theme's bitmaps.
+*/
+ServerBitmap*
+B6Decorator::_CreateBitmapFromRGBA(int32 width, int32 height,
+	const unsigned char* bgraData) const
+{
+	UtilityBitmap* bitmap = new(std::nothrow) UtilityBitmap(
+		BRect(0, 0, width - 1, height - 1), B_RGBA32, 0);
+	if (bitmap == NULL)
+		return NULL;
+
+	if (!bitmap->IsValid()) {
+		delete bitmap;
+		return NULL;
+	}
+
+	size_t length = (size_t)width * height * 4;
+	if (bitmap->BitsLength() < length) {
+		delete bitmap;
+		return NULL;
+	}
+
+	memcpy(bitmap->Bits(), bgraData, length);
 
 	return bitmap;
 }

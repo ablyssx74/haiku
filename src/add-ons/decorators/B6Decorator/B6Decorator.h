@@ -66,13 +66,16 @@ private:
 									rgb_color colorC, rgb_color colorD);
 			void				_DrawButtonBitmap(ServerBitmap* bitmap,
 									bool direct, BRect rect);
-			void				_DrawGrabBar(BRect rect, bool focus,
-									rgb_color base, rgb_color light,
-									rgb_color shadow);
+			void				_DrawGrabBar(BRect rect,
+									ServerBitmap* bitmap, rgb_color base,
+									rgb_color light, rgb_color shadow);
 			ServerBitmap*		_GetBitmapForButton(Decorator::Tab* tab,
 									Component item, bool down, int32 width,
 									int32 height);
 			ServerBitmap* 		_CreateTemporaryBitmap(BRect bounds) const;
+			ServerBitmap*		_CreateBitmapFromRGBA(int32 width,
+									int32 height,
+									const unsigned char* bgraData) const;
 			void				_GetComponentColors(Component component,
 									ComponentColors _colors,
 									Decorator::Tab* tab = NULL);
@@ -84,6 +87,14 @@ private:
 			ServerBitmap*		fBigZoomBitmap;
 			ServerBitmap*		fSmallZoomBitmap;
 			ServerBitmap*		fGlintBitmap;
+
+			// b6 theme artwork: the curved tab corner that overhangs the
+			// window's top-left edge, and the bottom-right grab bar,
+			// taken directly from the b6 xfwm4 theme's bitmaps.
+			ServerBitmap*		fTopLeftActiveBitmap;
+			ServerBitmap*		fTopLeftInactiveBitmap;
+			ServerBitmap*		fGrabBarActiveBitmap;
+			ServerBitmap*		fGrabBarInactiveBitmap;
 };
 
 
