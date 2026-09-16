@@ -71,18 +71,25 @@ private:
 									rgb_color colorC, rgb_color colorD);
 			void				_DrawButtonBitmap(ServerBitmap* bitmap,
 									bool direct, BRect rect);
+			void				_DrawFlag(BRect overhang,
+									const BRect& tabRect, bool leftSide,
+									ComponentColors colors);
 			void				_DrawGrabBar(BRect rect, rgb_color base,
 									rgb_color light, rgb_color shadow);
 			ServerBitmap*		_GetBitmapForButton(Decorator::Tab* tab,
 									Component item, bool down, int32 width,
 									int32 height);
+			void				_MaskToCircle(ServerBitmap* bitmap,
+									int32 width, int32 height) const;
 			ServerBitmap* 		_CreateTemporaryBitmap(BRect bounds) const;
 			void				_GetComponentColors(Component component,
 									ComponentColors _colors,
 									Decorator::Tab* tab = NULL);
-			BRect				_OverhangRect(Decorator::Tab* tab) const;
+			BRect				_OverhangRect(Decorator::Tab* tab,
+									bool leftSide) const;
 			void				_IncludeFlagRegion(BRegion& region,
-									Decorator::Tab* tab) const;
+									Decorator::Tab* tab, bool leftSide) const;
+			void				_RepositionButtons(Decorator::Tab* tab) const;
 
 private:
 			status_t			fCStatus;
