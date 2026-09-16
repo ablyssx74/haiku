@@ -71,6 +71,8 @@ private:
 									rgb_color colorC, rgb_color colorD);
 			void				_DrawButtonBitmap(ServerBitmap* bitmap,
 									bool direct, BRect rect);
+			void				_DrawButtonHalo(BRect rect,
+									Decorator::Tab* tab);
 			void				_DrawFlag(BRect overhang,
 									const BRect& tabRect, bool leftSide,
 									ComponentColors colors);
