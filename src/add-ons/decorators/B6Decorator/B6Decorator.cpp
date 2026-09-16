@@ -385,7 +385,7 @@ B6Decorator::_DoTabLayout()
 	if (!overhang.IsValid())
 		return;
 
-	fTabsRegion.Include(overhang);
+	_IncludeFlagRegion(fTabsRegion, fTabList.ItemAt(0));
 	fTitleBarRect = fTitleBarRect | overhang;
 }
 
@@ -417,7 +417,7 @@ B6Decorator::_ResizeBy(BPoint offset, BRegion* dirty)
 	if (!overhang.IsValid())
 		return;
 
-	fTabsRegion.Include(overhang);
+	_IncludeFlagRegion(fTabsRegion, fTabList.ItemAt(0));
 	fTitleBarRect = fTitleBarRect | overhang;
 
 	if (dirty != NULL) {
@@ -449,6 +449,52 @@ B6Decorator::_OverhangRect(Decorator::Tab* tab) const
 
 	return BRect(tabRect.left - overhangWidth, tabRect.top,
 		tabRect.left - 1, tabRect.bottom);
+}
+
+
+/*!	\brief Adds the flag's actual (rounded-cap) silhouette to \a region,
+		one thin horizontal strip per pixel row, rather than its
+		rectangular bounding box.
+
+		fTabsRegion feeds GetFootprint(), which the desktop uses to
+		decide what's "this window's" opaque, owned area -- so anything
+		included there is excluded from the desktop's own drawing
+		underneath it. _DrawTab()'s flag only ever paints the rounded
+		cap itself, not its full bounding square, so including the
+		square here would claim territory this decorator never actually
+		paints: exactly the unpainted (black) corners next to the cap
+		that a rectangular fTabsRegion.Include(overhang) produced.
+		Matching the tracked region to the painted shape keeps the
+		untouched corners outside the window's claimed area entirely, so
+		the desktop keeps drawing its own background there instead.
+*/
+void
+B6Decorator::_IncludeFlagRegion(BRegion& region, Decorator::Tab* tab) const
+{
+	BRect overhang = _OverhangRect(tab);
+	if (!overhang.IsValid())
+		return;
+
+	const BRect& tabRect = tab->tabRect;
+	float capRadius = tabRect.Height() / 2.0f;
+	float capCenterX = overhang.left + capRadius;
+	float capCenterY = (tabRect.top + tabRect.bottom) / 2.0f;
+
+	// the straight body is already a plain rect
+	region.Include(BRect(capCenterX, tabRect.top, tabRect.left - 1,
+		tabRect.bottom));
+
+	// the rounded cap, approximated one row at a time from how far left
+	// the circle actually extends at that row (x = sqrt(r^2 - dy^2))
+	int32 top = (int32)floorf(tabRect.top);
+	int32 bottom = (int32)ceilf(tabRect.bottom);
+	for (int32 y = top; y <= bottom; y++) {
+		float dy = (y + 0.5f) - capCenterY;
+		if (fabsf(dy) >= capRadius)
+			continue;
+		float dx = sqrtf(capRadius * capRadius - dy * dy);
+		region.Include(BRect(capCenterX - dx, y, capCenterX, y));
+	}
 }
 
 
@@ -786,18 +832,18 @@ B6Decorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 		// arc's span and the lines' start points by a few pixels/degrees
 		// closes the gap that otherwise shows as a stray dot where the
 		// cap meets the tab's top edge.
-		const float kStrokeOverscan = 1.0f;
+		const float kStrokeOverscan = 2.0f;
 		BRect strokeRect = capRect.InsetByCopy(-kStrokeOverscan,
 			-kStrokeOverscan);
 
 		fDrawingEngine->SetHighColor(colors[COLOR_TAB_FRAME_LIGHT]);
-		fDrawingEngine->DrawArc(strokeRect, 85.0f, 100.0f, false);
-		fDrawingEngine->StrokeLine(BPoint(capCenter.x - 2, tabRect.top),
+		fDrawingEngine->DrawArc(strokeRect, 80.0f, 110.0f, false);
+		fDrawingEngine->StrokeLine(BPoint(capCenter.x - 3, tabRect.top),
 			BPoint(tabRect.left, tabRect.top), colors[COLOR_TAB_FRAME_LIGHT]);
 
 		fDrawingEngine->SetHighColor(colors[COLOR_TAB_FRAME_DARK]);
-		fDrawingEngine->DrawArc(strokeRect, 175.0f, 100.0f, false);
-		fDrawingEngine->StrokeLine(BPoint(capCenter.x - 2, tabRect.bottom),
+		fDrawingEngine->DrawArc(strokeRect, 170.0f, 110.0f, false);
+		fDrawingEngine->StrokeLine(BPoint(capCenter.x - 3, tabRect.bottom),
 			BPoint(tabRect.left, tabRect.bottom),
 			colors[COLOR_TAB_FRAME_DARK]);
 	}
