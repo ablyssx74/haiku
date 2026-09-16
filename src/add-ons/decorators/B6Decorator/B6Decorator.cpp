@@ -335,6 +335,20 @@ B6Decorator::GetComponentColors(Component component, uint8 highlight,
 					_colors[i].green = std::max((int)_colors[i].green - 80, 0);
 					_colors[i].blue = 255;
 				}
+			} else {
+				// kFrameColor is a light warm grey, so even the darkest
+				// shade the offsets above produce (_colors[5]) only
+				// reaches a middling grey -- nowhere near the crisp
+				// black edge Haiku's default decorator outlines its
+				// windows with. _DrawFrame() always strokes the true
+				// outer edge of the top/left border with _colors[0] and
+				// of the bottom/right border with _colors[5] (see its
+				// "(4 - i) == 4 ? 5 : (4 - i)" index there), so forcing
+				// just those two to pure black gives the window a solid
+				// black outline while _colors[1..4] still carry the
+				// bevel gradient toward the content.
+				_colors[0] = kTextColor;
+				_colors[5] = kTextColor;
 			}
 			break;
 		}
