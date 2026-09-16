@@ -44,6 +44,7 @@ public:
 
 protected:
 	virtual	void				_DoTabLayout();
+	virtual	void				_ResizeBy(BPoint offset, BRegion* dirty);
 
 	virtual	void				_DrawFrame(BRect rect);
 

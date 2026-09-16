@@ -406,6 +406,44 @@ B6Decorator::_DoTabLayout()
 }
 
 
+/*!	\brief Keeps the overhang tracked (and repainted) across a resize.
+
+	TabDecorator::_ResizeBy() has a fast path for the common single-tab
+	case that recomputes tab->tabRect directly and calls the private
+	_LayoutTabItems() itself, rather than going through _DoTabLayout().
+	That means our _DoTabLayout() override above never runs during a
+	resize, so without this, the overhang region would silently stop
+	being tracked (and stale pixels would linger) after the first
+	resize. Re-derive and re-include it here instead, and add both its
+	old and new position to \a dirty so it actually gets redrawn.
+*/
+void
+B6Decorator::_ResizeBy(BPoint offset, BRegion* dirty)
+{
+	BRect oldOverhang;
+	if (fTabList.CountItems() == 1)
+		oldOverhang = _OverhangRect(fTabList.ItemAt(0));
+
+	TabDecorator::_ResizeBy(offset, dirty);
+
+	if (fTabList.CountItems() != 1)
+		return;
+
+	BRect overhang = _OverhangRect(fTabList.ItemAt(0));
+	if (!overhang.IsValid())
+		return;
+
+	fTabsRegion.Include(overhang);
+	fTitleBarRect = fTitleBarRect | overhang;
+
+	if (dirty != NULL) {
+		if (oldOverhang.IsValid())
+			dirty->Include(oldOverhang);
+		dirty->Include(overhang);
+	}
+}
+
+
 /*!	\brief The area above a single tab's tabRect where the b6 theme's
 		curved corner artwork is allowed to overhang, scaled off the
 		tab's own (font-dependent) height so it stays proportional.
@@ -985,12 +1023,16 @@ B6Decorator::_DrawButtonBitmap(ServerBitmap* bitmap, bool direct, BRect rect)
 		rather than the b6 theme's own sharp-mitred bottom-right-active/
 		inactive.xpm bracket.
 
-		The trick is drawing a full circle whose bounding box is twice
-		\a rect's size and centered on \a rect's outer (bottom-right)
-		corner: only the quarter of it that falls inside the window
-		(inside \a rect, and clipped to the window bounds beyond that)
-		is ever visible, which is exactly the rounded quarter we want,
-		with no need for arbitrary path/clipping support.
+		The trick is drawing a full circle of radius rect.Width(),
+		centered exactly on \a rect's outer (bottom-right) corner point:
+		only the quarter of it that falls inside the window (inside
+		\a rect, and clipped to the window bounds beyond that) is ever
+		visible, which is exactly the rounded quarter we want, with no
+		need for arbitrary path/clipping support. DrawEllipse() centers
+		the circle in the *middle* of the BRect passed to it, not at one
+		of its corners, so the bounding box below is built out from the
+		corner point in both directions rather than up and to the left
+		of it, to get the center where we actually want it.
 
 	\param rect The bounding box for the grab bar; its bottom-right
 		corner is the disc's center.
@@ -1002,9 +1044,10 @@ void
 B6Decorator::_DrawGrabBar(BRect rect, rgb_color base, rgb_color light,
 	rgb_color shadow)
 {
-	float diameter = rect.Width() * 2.0f;
-	BRect circle(rect.right - diameter + 1, rect.bottom - diameter + 1,
-		rect.right, rect.bottom);
+	BPoint center = rect.RightBottom();
+	float radius = rect.Width();
+	BRect circle(center.x - radius, center.y - radius,
+		center.x + radius, center.y + radius);
 
 	BGradientLinear gradient;
 	gradient.SetStart(rect.LeftTop());
