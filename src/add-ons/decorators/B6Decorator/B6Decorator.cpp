@@ -76,6 +76,14 @@ static const rgb_color kInactiveButtonColor = { 200, 203, 234, 255 }; // #C8CBEA
 static const rgb_color kInactiveButtonLight = { 225, 227, 251, 255 }; // #E1E3FB
 static const rgb_color kInactiveButtonShadow = { 170, 172, 197, 255 }; // #AAACC5
 
+// Geometry shared between the tab's flag caps (see _OverhangRect()) and
+// the close/zoom button placement (see _GetButtonSizeAndOffset()), so a
+// button and the cap it sits in always stay concentric regardless of
+// the tab's own (font-dependent) height.
+static const float kFlagCapRadiusRatio = 0.5f;
+static const float kFlagOverhangRatio = 0.8f;
+static const float kFlagButtonDiameterRatio = 0.75f;
+
 
 static const unsigned char f = 0xff; // way to write 0xff shorter
 
@@ -334,12 +342,12 @@ B6Decorator::GetComponentColors(Component component, uint8 highlight,
 }
 
 
-/*!	\brief Extends hit-testing to the tab's overhang area.
+/*!	\brief Extends hit-testing to the tab's two flag overhangs.
 
-	The overhang (see _OverhangRect()) is drawn above the tab's normal
-	tabRect but isn't part of it, so the base implementation's
+	The overhangs (see _OverhangRect()) extend past the tab's normal
+	tabRect but aren't part of it, so the base implementation's
 	tab->tabRect.Contains(where) check would miss clicks and drags
-	there. Treat a hit anywhere in the overhang as a hit on the tab.
+	there. Treat a hit anywhere in either overhang as a hit on the tab.
 */
 Decorator::Region
 B6Decorator::RegionAt(BPoint where, int32& tabIndex) const
@@ -350,8 +358,10 @@ B6Decorator::RegionAt(BPoint where, int32& tabIndex) const
 
 	if (fTabList.CountItems() == 1) {
 		Decorator::Tab* tab = fTabList.ItemAt(0);
-		BRect overhang = _OverhangRect(tab);
-		if (overhang.IsValid() && overhang.Contains(where)) {
+		BRect left = _OverhangRect(tab, true);
+		BRect right = _OverhangRect(tab, false);
+		if ((left.IsValid() && left.Contains(where))
+			|| (right.IsValid() && right.Contains(where))) {
 			tabIndex = 0;
 			return REGION_TAB;
 		}
@@ -364,14 +374,13 @@ B6Decorator::RegionAt(BPoint where, int32& tabIndex) const
 // #pragma mark - Protected methods
 
 
-/*!	\brief Grows the tracked tab region to include the corner overhang.
+/*!	\brief Grows the tracked tab region to include both flag overhangs.
 
 	Haiku's redraw and move tracking (footprint, dirty regions on move,
 	etc.) all key off fTabsRegion/fTitleBarRect rather than the tab's
-	drawn pixels. Without this, the overhang the b6 theme's corner
-	artwork pokes above the tab would leave stale pixels behind when a
-	window is dragged, since the desktop wouldn't know it needs to
-	repaint that sliver.
+	drawn pixels. Without this, the flags the b6 theme's corner artwork
+	pokes past the tab would leave stale pixels behind when a window is
+	dragged, since the desktop wouldn't know it needs to repaint them.
 */
 void
 B6Decorator::_DoTabLayout()
@@ -381,62 +390,85 @@ B6Decorator::_DoTabLayout()
 	if (fTabList.CountItems() != 1)
 		return;
 
-	BRect overhang = _OverhangRect(fTabList.ItemAt(0));
-	if (!overhang.IsValid())
+	Decorator::Tab* tab = fTabList.ItemAt(0);
+	BRect left = _OverhangRect(tab, true);
+	BRect right = _OverhangRect(tab, false);
+	if (!left.IsValid() && !right.IsValid())
 		return;
 
-	_IncludeFlagRegion(fTabsRegion, fTabList.ItemAt(0));
-	fTitleBarRect = fTitleBarRect | overhang;
+	_RepositionButtons(tab);
+	_IncludeFlagRegion(fTabsRegion, tab, true);
+	_IncludeFlagRegion(fTabsRegion, tab, false);
+	if (left.IsValid())
+		fTitleBarRect = fTitleBarRect | left;
+	if (right.IsValid())
+		fTitleBarRect = fTitleBarRect | right;
 }
 
 
-/*!	\brief Keeps the overhang tracked (and repainted) across a resize.
+/*!	\brief Keeps both flag overhangs tracked (and repainted) across a
+		resize.
 
 	TabDecorator::_ResizeBy() has a fast path for the common single-tab
 	case that recomputes tab->tabRect directly and calls the private
 	_LayoutTabItems() itself, rather than going through _DoTabLayout().
 	That means our _DoTabLayout() override above never runs during a
-	resize, so without this, the overhang region would silently stop
+	resize, so without this, the overhang regions would silently stop
 	being tracked (and stale pixels would linger) after the first
-	resize. Re-derive and re-include it here instead, and add both its
-	old and new position to \a dirty so it actually gets redrawn.
+	resize. Re-derive and re-include them here instead, and add both
+	their old and new position to \a dirty so they actually get
+	redrawn.
 */
 void
 B6Decorator::_ResizeBy(BPoint offset, BRegion* dirty)
 {
-	BRect oldOverhang;
-	if (fTabList.CountItems() == 1)
-		oldOverhang = _OverhangRect(fTabList.ItemAt(0));
+	BRect oldLeft, oldRight;
+	if (fTabList.CountItems() == 1) {
+		oldLeft = _OverhangRect(fTabList.ItemAt(0), true);
+		oldRight = _OverhangRect(fTabList.ItemAt(0), false);
+	}
 
 	TabDecorator::_ResizeBy(offset, dirty);
 
 	if (fTabList.CountItems() != 1)
 		return;
 
-	BRect overhang = _OverhangRect(fTabList.ItemAt(0));
-	if (!overhang.IsValid())
+	Decorator::Tab* tab = fTabList.ItemAt(0);
+	BRect left = _OverhangRect(tab, true);
+	BRect right = _OverhangRect(tab, false);
+	if (!left.IsValid() && !right.IsValid())
 		return;
 
-	_IncludeFlagRegion(fTabsRegion, fTabList.ItemAt(0));
-	fTitleBarRect = fTitleBarRect | overhang;
+	_RepositionButtons(tab);
+	_IncludeFlagRegion(fTabsRegion, tab, true);
+	_IncludeFlagRegion(fTabsRegion, tab, false);
+	if (left.IsValid())
+		fTitleBarRect = fTitleBarRect | left;
+	if (right.IsValid())
+		fTitleBarRect = fTitleBarRect | right;
 
 	if (dirty != NULL) {
-		if (oldOverhang.IsValid())
-			dirty->Include(oldOverhang);
-		dirty->Include(overhang);
+		if (oldLeft.IsValid())
+			dirty->Include(oldLeft);
+		if (oldRight.IsValid())
+			dirty->Include(oldRight);
+		if (left.IsValid())
+			dirty->Include(left);
+		if (right.IsValid())
+			dirty->Include(right);
 	}
 }
 
 
-/*!	\brief The area to the left of a single tab's tabRect where the
-		"flag" (see _DrawTab()) is allowed to extend past the window's
-		left edge, scaled off the tab's own (font-dependent) height so
-		it stays proportional. Invalid (and the flag skipped) for
-		stacked tabs and for kLeftTitledWindowLook, where a horizontal
-		flag doesn't apply.
+/*!	\brief The area to the left (\a leftSide true) or right (false) of
+		a single tab's tabRect where a "flag" (see _DrawTab()) is
+		allowed to extend past the window's edge, scaled off the tab's
+		own (font-dependent) height so it stays proportional. Invalid
+		(and the corresponding flag skipped) for stacked tabs and for
+		kLeftTitledWindowLook, where a horizontal flag doesn't apply.
 */
 BRect
-B6Decorator::_OverhangRect(Decorator::Tab* tab) const
+B6Decorator::_OverhangRect(Decorator::Tab* tab, bool leftSide) const
 {
 	if (tab == NULL || !tab->tabRect.IsValid()
 		|| tab->look == kLeftTitledWindowLook
@@ -445,47 +477,60 @@ B6Decorator::_OverhangRect(Decorator::Tab* tab) const
 	}
 
 	const BRect& tabRect = tab->tabRect;
-	float overhangWidth = tabRect.Height() * 0.8f;
+	float overhangWidth = tabRect.Height() * kFlagOverhangRatio;
 
-	return BRect(tabRect.left - overhangWidth, tabRect.top,
-		tabRect.left - 1, tabRect.bottom);
+	if (leftSide) {
+		return BRect(tabRect.left - overhangWidth, tabRect.top,
+			tabRect.left - 1, tabRect.bottom);
+	}
+
+	return BRect(tabRect.right + 1, tabRect.top,
+		tabRect.right + overhangWidth, tabRect.bottom);
 }
 
 
-/*!	\brief Adds the flag's actual (rounded-cap) silhouette to \a region,
+/*!	\brief Adds a flag's actual (rounded-cap) silhouette to \a region,
 		one thin horizontal strip per pixel row, rather than its
 		rectangular bounding box.
 
 		fTabsRegion feeds GetFootprint(), which the desktop uses to
 		decide what's "this window's" opaque, owned area -- so anything
 		included there is excluded from the desktop's own drawing
-		underneath it. _DrawTab()'s flag only ever paints the rounded
-		cap itself, not its full bounding square, so including the
-		square here would claim territory this decorator never actually
-		paints: exactly the unpainted (black) corners next to the cap
-		that a rectangular fTabsRegion.Include(overhang) produced.
+		underneath it. _DrawTab()'s flags only ever paint the rounded
+		caps themselves, not their full bounding squares, so including
+		the squares here would claim territory this decorator never
+		actually paints: exactly the unpainted (black) corners next to
+		a cap that a rectangular fTabsRegion.Include(overhang) produced.
 		Matching the tracked region to the painted shape keeps the
 		untouched corners outside the window's claimed area entirely, so
 		the desktop keeps drawing its own background there instead.
 */
 void
-B6Decorator::_IncludeFlagRegion(BRegion& region, Decorator::Tab* tab) const
+B6Decorator::_IncludeFlagRegion(BRegion& region, Decorator::Tab* tab,
+	bool leftSide) const
 {
-	BRect overhang = _OverhangRect(tab);
+	BRect overhang = _OverhangRect(tab, leftSide);
 	if (!overhang.IsValid())
 		return;
 
 	const BRect& tabRect = tab->tabRect;
 	float capRadius = tabRect.Height() / 2.0f;
-	float capCenterX = overhang.left + capRadius;
+	float capCenterX = leftSide ? overhang.left + capRadius
+		: overhang.right - capRadius;
 	float capCenterY = (tabRect.top + tabRect.bottom) / 2.0f;
+	float bodyEdge = leftSide ? tabRect.left : tabRect.right;
 
 	// the straight body is already a plain rect
-	region.Include(BRect(capCenterX, tabRect.top, tabRect.left - 1,
-		tabRect.bottom));
+	if (leftSide)
+		region.Include(BRect(capCenterX, tabRect.top, bodyEdge - 1,
+			tabRect.bottom));
+	else
+		region.Include(BRect(bodyEdge + 1, tabRect.top, capCenterX,
+			tabRect.bottom));
 
-	// the rounded cap, approximated one row at a time from how far left
-	// the circle actually extends at that row (x = sqrt(r^2 - dy^2))
+	// the rounded cap, approximated one row at a time from how far the
+	// circle actually extends past capCenterX at that row
+	// (x = sqrt(r^2 - dy^2))
 	int32 top = (int32)floorf(tabRect.top);
 	int32 bottom = (int32)ceilf(tabRect.bottom);
 	for (int32 y = top; y <= bottom; y++) {
@@ -493,7 +538,10 @@ B6Decorator::_IncludeFlagRegion(BRegion& region, Decorator::Tab* tab) const
 		if (fabsf(dy) >= capRadius)
 			continue;
 		float dx = sqrtf(capRadius * capRadius - dy * dy);
-		region.Include(BRect(capCenterX - dx, y, capCenterX, y));
+		if (leftSide)
+			region.Include(BRect(capCenterX - dx, y, capCenterX, y));
+		else
+			region.Include(BRect(capCenterX, y, capCenterX + dx, y));
 	}
 }
 
@@ -725,38 +773,45 @@ B6Decorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 	STRACE(("_DrawTab(%.1f, %.1f, %.1f, %.1f)\n",
 			invalid.left, invalid.top, invalid.right, invalid.bottom));
 	const BRect& tabRect = tab->tabRect;
-	BRect overhang = _OverhangRect(tab);
-		// the area above tabRect the corner artwork is allowed to poke
-		// into; see _OverhangRect() and _DoTabLayout()
+	BRect leftOverhang = _OverhangRect(tab, true);
+	BRect rightOverhang = _OverhangRect(tab, false);
+		// the areas past tabRect's left/right edges the flag caps are
+		// allowed to poke into; see _OverhangRect() and _DoTabLayout()
+	bool hasLeft = leftOverhang.IsValid();
+	bool hasRight = rightOverhang.IsValid();
 
 	// If a window has a tab, this will draw it and any buttons which are
-	// in it. The overhang is checked too since it can be dirty on its
-	// own (e.g. a targeted repaint) without tabRect itself being dirty.
+	// in it. The overhangs are checked too since either can be dirty on
+	// its own (e.g. a targeted repaint) without tabRect itself being
+	// dirty.
 	if (!tabRect.IsValid()
-		|| (!invalid.Intersects(tabRect) && !invalid.Intersects(overhang))) {
+		|| (!invalid.Intersects(tabRect) && !invalid.Intersects(leftOverhang)
+			&& !invalid.Intersects(rightOverhang))) {
 		return;
 	}
 
 	ComponentColors colors;
 	_GetComponentColors(COMPONENT_TAB, colors, tab);
 
-	// When there's a valid overhang, it supplies its own left edge (a
-	// rounded flag cap, see below) instead of the plain vertical line a
-	// tab normally starts with, and the top edge/bevel extend to meet
-	// it instead of starting at tabRect.left.
-	bool hasOverhang = overhang.IsValid();
-	float frameLeft = hasOverhang ? overhang.left : tabRect.left;
+	// Where there's a valid overhang, it supplies its own left/right
+	// edge (a rounded flag cap, see _DrawFlag()) instead of the plain
+	// vertical line a tab normally starts/ends with, and the top/bevel
+	// edges extend to meet it instead of stopping at tabRect.left/right.
+	float frameLeft = hasLeft ? leftOverhang.left : tabRect.left;
+	float frameRight = hasRight ? rightOverhang.right : tabRect.right;
 
 	// outer frame
-	if (!hasOverhang) {
+	if (!hasLeft) {
 		fDrawingEngine->StrokeLine(tabRect.LeftTop(), tabRect.LeftBottom(),
 			colors[COLOR_TAB_FRAME_LIGHT]);
 	}
 	fDrawingEngine->StrokeLine(BPoint(frameLeft, tabRect.top),
-		tabRect.RightTop(), colors[COLOR_TAB_FRAME_LIGHT]);
+		BPoint(frameRight, tabRect.top), colors[COLOR_TAB_FRAME_LIGHT]);
 	if (tab->look != kLeftTitledWindowLook) {
-		fDrawingEngine->StrokeLine(tabRect.RightTop(), tabRect.RightBottom(),
-			colors[COLOR_TAB_FRAME_DARK]);
+		if (!hasRight) {
+			fDrawingEngine->StrokeLine(tabRect.RightTop(),
+				tabRect.RightBottom(), colors[COLOR_TAB_FRAME_DARK]);
+		}
 	} else {
 		fDrawingEngine->StrokeLine(tabRect.LeftBottom(),
 			tabRect.RightBottom(), colors[COLOR_TAB_FRAME_DARK]);
@@ -767,21 +822,24 @@ B6Decorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 		tabBotton -= 1;
 
 	// bevel
-	if (!hasOverhang) {
+	if (!hasLeft) {
 		fDrawingEngine->StrokeLine(BPoint(tabRect.left + 1, tabRect.top + 1),
 			BPoint(tabRect.left + 1,
 				tabBotton - (tab->look == kLeftTitledWindowLook ? 1 : 0)),
 			colors[COLOR_TAB_BEVEL]);
 	}
 	fDrawingEngine->StrokeLine(BPoint(frameLeft + 1, tabRect.top + 1),
-		BPoint(tabRect.right - (tab->look == kLeftTitledWindowLook ? 0 : 1),
+		BPoint(frameRight - (tab->look == kLeftTitledWindowLook ? 0 : 1),
 			tabRect.top + 1),
 		colors[COLOR_TAB_BEVEL]);
 
 	if (tab->look != kLeftTitledWindowLook) {
-		fDrawingEngine->StrokeLine(BPoint(tabRect.right - 1, tabRect.top + 2),
-			BPoint(tabRect.right - 1, tabBotton),
-			colors[COLOR_TAB_SHADOW]);
+		if (!hasRight) {
+			fDrawingEngine->StrokeLine(
+				BPoint(tabRect.right - 1, tabRect.top + 2),
+				BPoint(tabRect.right - 1, tabBotton),
+				colors[COLOR_TAB_SHADOW]);
+		}
 	} else {
 		fDrawingEngine->StrokeLine(
 			BPoint(tabRect.left + 2, tabRect.bottom - 1),
@@ -798,59 +856,87 @@ B6Decorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 			tabRect.right, tabRect.bottom - 2), colors[COLOR_TAB]);
 	}
 
-	// A rounded "flag" extending the tab out past the window's left
-	// edge (see _OverhangRect()/_DoTabLayout()): a semicircular cap at
-	// the overhang's outer edge plus a straight body connecting it to
-	// tabRect. This is original artwork rather than a reproduction of
-	// the b6 theme's own top-left-active/inactive.xpm, which is a
-	// vertical (taller-than-tab) ribbon shape with no horizontal
-	// counterpart to draw from.
-	if (hasOverhang) {
-		float capRadius = tabRect.Height() / 2.0f;
-		BPoint capCenter(overhang.left + capRadius,
-			(tabRect.top + tabRect.bottom) / 2.0f);
-		BRect capRect(capCenter.x - capRadius, capCenter.y - capRadius,
-			capCenter.x + capRadius, capCenter.y + capRadius);
-
-		BGradientLinear gradient;
-		gradient.SetStart(BPoint(overhang.left, tabRect.top));
-		gradient.SetEnd(BPoint(tabRect.left, tabRect.bottom));
-		gradient.AddColor(colors[COLOR_TAB_BEVEL], 0);
-		gradient.AddColor(colors[COLOR_TAB], 140);
-		gradient.AddColor(colors[COLOR_TAB_SHADOW], 255);
-
-		fDrawingEngine->DrawEllipse(capRect, true, gradient);
-		fDrawingEngine->FillRect(
-			BRect(capCenter.x, tabRect.top, tabRect.left + 1, tabRect.bottom),
-			gradient);
-
-		// The outline is stitched together from an arc and two straight
-		// lines, which (being separate draw calls) don't always meet at
-		// the exact same pixel: a slightly larger stroke radius makes
-		// sure the arc fully covers the fill's edge instead of leaving a
-		// sliver of unstroked fill poking past it, and overlapping the
-		// arc's span and the lines' start points by a few pixels/degrees
-		// closes the gap that otherwise shows as a stray dot where the
-		// cap meets the tab's top edge.
-		const float kStrokeOverscan = 2.0f;
-		BRect strokeRect = capRect.InsetByCopy(-kStrokeOverscan,
-			-kStrokeOverscan);
-
-		fDrawingEngine->SetHighColor(colors[COLOR_TAB_FRAME_LIGHT]);
-		fDrawingEngine->DrawArc(strokeRect, 80.0f, 110.0f, false);
-		fDrawingEngine->StrokeLine(BPoint(capCenter.x - 3, tabRect.top),
-			BPoint(tabRect.left, tabRect.top), colors[COLOR_TAB_FRAME_LIGHT]);
-
-		fDrawingEngine->SetHighColor(colors[COLOR_TAB_FRAME_DARK]);
-		fDrawingEngine->DrawArc(strokeRect, 170.0f, 110.0f, false);
-		fDrawingEngine->StrokeLine(BPoint(capCenter.x - 3, tabRect.bottom),
-			BPoint(tabRect.left, tabRect.bottom),
-			colors[COLOR_TAB_FRAME_DARK]);
-	}
+	_DrawFlag(leftOverhang, tabRect, true, colors);
+	_DrawFlag(rightOverhang, tabRect, false, colors);
 
 	_DrawTitle(tab, tabRect);
 
 	_DrawButtons(tab, invalid);
+}
+
+
+/*!	\brief Draws one rounded "flag" extending the tab out past the
+		window's left (\a leftSide true) or right (false) edge (see
+		_OverhangRect()/_DoTabLayout()): a semicircular cap at the
+		overhang's outer edge plus a straight body connecting it to
+		\a tabRect. This is original artwork rather than a reproduction
+		of the b6 theme's own top-left-active/inactive.xpm, which is a
+		vertical (taller-than-tab) ribbon shape with no horizontal
+		counterpart to draw from. Does nothing if \a overhang is invalid
+		(see _OverhangRect()).
+*/
+void
+B6Decorator::_DrawFlag(BRect overhang, const BRect& tabRect, bool leftSide,
+	ComponentColors colors)
+{
+	if (!overhang.IsValid())
+		return;
+
+	float capRadius = tabRect.Height() / 2.0f;
+	float capCenterX = leftSide ? overhang.left + capRadius
+		: overhang.right - capRadius;
+	BPoint capCenter(capCenterX, (tabRect.top + tabRect.bottom) / 2.0f);
+	BRect capRect(capCenter.x - capRadius, capCenter.y - capRadius,
+		capCenter.x + capRadius, capCenter.y + capRadius);
+	float bodyEdge = leftSide ? tabRect.left : tabRect.right;
+
+	BGradientLinear gradient;
+	if (leftSide) {
+		gradient.SetStart(BPoint(overhang.left, tabRect.top));
+		gradient.SetEnd(BPoint(tabRect.left, tabRect.bottom));
+	} else {
+		gradient.SetStart(BPoint(overhang.right, tabRect.top));
+		gradient.SetEnd(BPoint(tabRect.right, tabRect.bottom));
+	}
+	gradient.AddColor(colors[COLOR_TAB_BEVEL], 0);
+	gradient.AddColor(colors[COLOR_TAB], 140);
+	gradient.AddColor(colors[COLOR_TAB_SHADOW], 255);
+
+	fDrawingEngine->DrawEllipse(capRect, true, gradient);
+	if (leftSide) {
+		fDrawingEngine->FillRect(
+			BRect(capCenter.x, tabRect.top, bodyEdge + 1, tabRect.bottom),
+			gradient);
+	} else {
+		fDrawingEngine->FillRect(
+			BRect(bodyEdge - 1, tabRect.top, capCenter.x, tabRect.bottom),
+			gradient);
+	}
+
+	// The outline is stitched together from an arc and two straight
+	// lines, which (being separate draw calls) don't always meet at the
+	// exact same pixel: a slightly larger stroke radius makes sure the
+	// arc fully covers the fill's edge instead of leaving a sliver of
+	// unstroked fill poking past it, and overlapping the arc's span and
+	// the lines' start points by a few pixels/degrees closes the gap
+	// that otherwise shows as a stray dot where the cap meets the tab's
+	// top/bottom edge.
+	const float kStrokeOverscan = 2.0f;
+	BRect strokeRect = capRect.InsetByCopy(-kStrokeOverscan,
+		-kStrokeOverscan);
+	float capNear = leftSide ? capCenter.x - 3 : capCenter.x + 3;
+
+	fDrawingEngine->SetHighColor(colors[COLOR_TAB_FRAME_LIGHT]);
+	fDrawingEngine->DrawArc(strokeRect, leftSide ? 80.0f : 350.0f, 110.0f,
+		false);
+	fDrawingEngine->StrokeLine(BPoint(capNear, tabRect.top),
+		BPoint(bodyEdge, tabRect.top), colors[COLOR_TAB_FRAME_LIGHT]);
+
+	fDrawingEngine->SetHighColor(colors[COLOR_TAB_FRAME_DARK]);
+	fDrawingEngine->DrawArc(strokeRect, leftSide ? 170.0f : 260.0f, 110.0f,
+		false);
+	fDrawingEngine->StrokeLine(BPoint(capNear, tabRect.bottom),
+		BPoint(bodyEdge, tabRect.bottom), colors[COLOR_TAB_FRAME_DARK]);
 }
 
 
@@ -988,7 +1074,59 @@ B6Decorator::_GetButtonSizeAndOffset(const BRect& tabRect, float* _offset,
 	*_offset = 5.0f;
 	*_inset = 0.0f;
 
-	*_size = std::max(0.0f, tabSize - 7.0f);
+	if (fTopTab->look == kLeftTitledWindowLook) {
+		*_size = std::max(0.0f, tabSize - 7.0f);
+		return;
+	}
+
+	// Sized to match the round buttons _RepositionButtons() centers on
+	// the flag caps; this only affects the framework's own min/max tab
+	// size bookkeeping; the buttons' actual final position is set by
+	// _RepositionButtons() after layout, decoupled from this offset.
+	float capRadius = tabSize * kFlagCapRadiusRatio;
+	*_size = std::max(0.0f, capRadius * 2.0f * kFlagButtonDiameterRatio);
+}
+
+
+/*!	\brief Centers the close/zoom buttons on their respective flag caps
+		(see _OverhangRect()/_DrawFlag()) instead of leaving them at the
+		position TabDecorator::_LayoutTabItems() (which only knows how
+		to inset a button the same offset from both the tab's edge and
+		its top, and can't be pointed further out than tabRect at all)
+		puts them at. Left alone (falling back to the standard in-tab
+		position) for kLeftTitledWindowLook or when there's no valid cap
+		on that side -- stacked tabs, or B_NOT_CLOSABLE/B_NOT_ZOOMABLE.
+*/
+void
+B6Decorator::_RepositionButtons(Decorator::Tab* tab) const
+{
+	if (tab == NULL || tab->look == kLeftTitledWindowLook
+		|| !tab->tabRect.IsValid()) {
+		return;
+	}
+
+	const BRect& tabRect = tab->tabRect;
+	float capRadius = tabRect.Height() * kFlagCapRadiusRatio;
+	float buttonRadius = capRadius * kFlagButtonDiameterRatio;
+	float centerY = (tabRect.top + tabRect.bottom) / 2.0f;
+
+	if ((tab->flags & B_NOT_CLOSABLE) == 0) {
+		BRect left = _OverhangRect(tab, true);
+		if (left.IsValid()) {
+			float centerX = left.left + capRadius;
+			tab->closeRect.Set(centerX - buttonRadius, centerY - buttonRadius,
+				centerX + buttonRadius, centerY + buttonRadius);
+		}
+	}
+
+	if ((tab->flags & B_NOT_ZOOMABLE) == 0) {
+		BRect right = _OverhangRect(tab, false);
+		if (right.IsValid()) {
+			float centerX = right.right - capRadius;
+			tab->zoomRect.Set(centerX - buttonRadius, centerY - buttonRadius,
+				centerX + buttonRadius, centerY + buttonRadius);
+		}
+	}
 }
 
 
@@ -1576,9 +1714,15 @@ B6Decorator::_GetBitmapForButton(Decorator::Tab* tab, Component item,
 	}
 
 	UtilityBitmap* bitmap = sBitmapDrawingEngine->ExportToBitmap(width, height,
-		B_RGB32);
+		B_RGBA32);
 	if (bitmap == NULL)
 		return NULL;
+
+	_MaskToCircle(bitmap, width, height);
+		// b6 buttons are round: reuses the existing square bevel/shadow
+		// drawing above unchanged, and just punches out the corners
+		// outside the button's inscribed circle afterward, so the flag
+		// cap's own background shows through them instead
 
 	// bitmap ready, put it into the list
 	decorator_bitmap* entry = new(std::nothrow) decorator_bitmap;
@@ -1597,6 +1741,38 @@ B6Decorator::_GetBitmapForButton(Decorator::Tab* tab, Component item,
 	entry->next = sBitmapList;
 	sBitmapList = entry;
 	return bitmap;
+}
+
+
+/*!	\brief Punches out the corners of a square button bitmap outside its
+		inscribed circle (setting their alpha to 0), so a bevel drawn as
+		a plain square (as _GetBitmapForButton() draws it, unmodified)
+		reads as a round button once composited with B_OP_OVER: the
+		masked-out corners simply reveal whatever is drawn underneath,
+		i.e. the flag cap's own background.
+*/
+void
+B6Decorator::_MaskToCircle(ServerBitmap* bitmap, int32 width,
+	int32 height) const
+{
+	if (bitmap == NULL)
+		return;
+
+	uint8* bits = bitmap->Bits();
+	int32 bytesPerRow = bitmap->BytesPerRow();
+	float radius = std::min(width, height) / 2.0f;
+	float centerX = width / 2.0f;
+	float centerY = height / 2.0f;
+
+	for (int32 y = 0; y < height; y++) {
+		uint8* row = bits + y * bytesPerRow;
+		for (int32 x = 0; x < width; x++) {
+			float dx = (x + 0.5f) - centerX;
+			float dy = (y + 0.5f) - centerY;
+			row[x * 4 + 3]
+				= (dx * dx + dy * dy <= radius * radius) ? 255 : 0;
+		}
+	}
 }
 
 
