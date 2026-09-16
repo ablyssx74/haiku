@@ -36,6 +36,7 @@ AddFilesToPackage add-ons control_look :
 
 # Decorators
 AddFilesToPackage add-ons decorators :
+	B6Decorator
 	BeDecorator
 	FlatDecorator
 	;
