@@ -8,8 +8,8 @@
  *		John Scipione, jscipione@gmail.com
  *		Clemens Zeidler, haiku@clemens-zeidler.de
  */
-#ifndef B6_DECORATOR_H
-#define B6_DECORATOR_H
+#ifndef B6_BETA_DECORATOR_H
+#define B6_BETA_DECORATOR_H
 
 
 #include "DecorManager.h"
@@ -20,9 +20,9 @@ class Desktop;
 class ServerBitmap;
 
 
-class B6DecorAddOn : public DecorAddOn {
+class B6BetaDecorAddOn : public DecorAddOn {
 public:
-								B6DecorAddOn(image_id id, const char* name);
+								B6BetaDecorAddOn(image_id id, const char* name);
 
 protected:
 	virtual Decorator*			_AllocateDecorator(DesktopSettings& settings,
@@ -30,11 +30,11 @@ protected:
 };
 
 
-class B6Decorator: public SATDecorator {
+class B6BetaDecorator: public SATDecorator {
 public:
-								B6Decorator(DesktopSettings& settings,
+								B6BetaDecorator(DesktopSettings& settings,
 									BRect frame, Desktop* desktop);
-	virtual						~B6Decorator();
+	virtual						~B6BetaDecorator();
 
 	virtual	void				GetComponentColors(Component component,
 									uint8 highlight, ComponentColors _colors,
@@ -71,18 +71,27 @@ private:
 									rgb_color colorC, rgb_color colorD);
 			void				_DrawButtonBitmap(ServerBitmap* bitmap,
 									bool direct, BRect rect);
+			void				_DrawButtonHalo(BRect rect,
+									Decorator::Tab* tab);
+			void				_DrawFlag(BRect overhang,
+									const BRect& tabRect, bool leftSide,
+									ComponentColors colors);
 			void				_DrawGrabBar(BRect rect, rgb_color base,
 									rgb_color light, rgb_color shadow);
 			ServerBitmap*		_GetBitmapForButton(Decorator::Tab* tab,
 									Component item, bool down, int32 width,
 									int32 height);
+			void				_MaskToCircle(ServerBitmap* bitmap,
+									int32 width, int32 height) const;
 			ServerBitmap* 		_CreateTemporaryBitmap(BRect bounds) const;
 			void				_GetComponentColors(Component component,
 									ComponentColors _colors,
 									Decorator::Tab* tab = NULL);
-			BRect				_OverhangRect(Decorator::Tab* tab) const;
+			BRect				_OverhangRect(Decorator::Tab* tab,
+									bool leftSide) const;
 			void				_IncludeFlagRegion(BRegion& region,
-									Decorator::Tab* tab) const;
+									Decorator::Tab* tab, bool leftSide) const;
+			void				_RepositionButtons(Decorator::Tab* tab) const;
 
 private:
 			status_t			fCStatus;
@@ -94,4 +103,4 @@ private:
 };
 
 
-#endif	// B6_DECORATOR_H
+#endif	// B6_BETA_DECORATOR_H
