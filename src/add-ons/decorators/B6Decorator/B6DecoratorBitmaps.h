@@ -2,8 +2,8 @@
  * Copyright 2001-2014 Haiku, Inc. All rights reserved.
  * Distributed under the terms of the MIT License.
  *
- * Pixel data below is generated from the b6 xfwm4 theme's bitmaps
- * (ablyss/xfwm4-themes-4.10.0/themes/b6/*.xpm), converted to raw
+ * Pixel data below is generated from the b6 xfwm4 theme's xpm bitmaps
+ * (under ablyss/xfwm4-themes-4.10.0/themes/b6/), converted to raw
  * B_RGBA32 (B, G, R, A byte order) pixel arrays.
  */
 #ifndef B6_DECORATOR_BITMAPS_H
