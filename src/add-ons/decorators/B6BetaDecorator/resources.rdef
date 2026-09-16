@@ -1,0 +1,10 @@
+resource("be:decor:info") message('deco') {
+	"name"				= "b6-beta",
+	"authors"			= "DarkWyrm, Stephan Aßmus, Clemens Zeidler, ablyssx74",
+	"short_descr"		= "Experimental yellow-tabbed decorator styled after the b6 xfwm4 theme",
+	"long_descr"		= "The experimental branch of the b6 decorator: a yellow title tab with black text, lavender round buttons in rounded flag caps on both edges of the tab, a black window border, and a rounded bottom-right grab bar. Based on BeDecorator, so it keeps stack & tile support. See the \"b6\" decorator for the simpler, settled version this branched from.",
+	"lic_url"			= "",
+	"lic_name"			= "MIT",
+	"support_url"		= "http://www.haiku-os.org/",
+	float "version"		= 1.0
+};
