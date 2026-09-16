@@ -335,6 +335,20 @@ B6Decorator::GetComponentColors(Component component, uint8 highlight,
 					_colors[i].green = std::max((int)_colors[i].green - 80, 0);
 					_colors[i].blue = 255;
 				}
+			} else {
+				// kFrameColor is a light warm grey, so even the darkest
+				// shade the offsets above produce (_colors[5]) only
+				// reaches a middling grey -- nowhere near the crisp
+				// black edge Haiku's default decorator outlines its
+				// windows with. _DrawFrame() always strokes the true
+				// outer edge of the top/left border with _colors[0] and
+				// of the bottom/right border with _colors[5] (see its
+				// "(4 - i) == 4 ? 5 : (4 - i)" index there), so forcing
+				// just those two to pure black gives the window a solid
+				// black outline while _colors[1..4] still carry the
+				// bevel gradient toward the content.
+				_colors[0] = kTextColor;
+				_colors[5] = kTextColor;
 			}
 			break;
 		}
@@ -921,22 +935,29 @@ B6Decorator::_DrawFlag(BRect overhang, const BRect& tabRect, bool leftSide,
 	// the lines' start points by a few pixels/degrees closes the gap
 	// that otherwise shows as a stray dot where the cap meets the tab's
 	// top/bottom edge.
+	//
+	// Uses the tab's own bevel/shadow tones (the gradient's own start
+	// and end colors above) rather than COLOR_TAB_FRAME_LIGHT/DARK: the
+	// frame colors are a grey derived independently of the tab color,
+	// which reads as a much harsher, higher-contrast line against the
+	// yellow fill than an outline drawn from colors already in the
+	// gradient it's outlining.
 	const float kStrokeOverscan = 2.0f;
 	BRect strokeRect = capRect.InsetByCopy(-kStrokeOverscan,
 		-kStrokeOverscan);
 	float capNear = leftSide ? capCenter.x - 3 : capCenter.x + 3;
 
-	fDrawingEngine->SetHighColor(colors[COLOR_TAB_FRAME_LIGHT]);
+	fDrawingEngine->SetHighColor(colors[COLOR_TAB_BEVEL]);
 	fDrawingEngine->DrawArc(strokeRect, leftSide ? 80.0f : 350.0f, 110.0f,
 		false);
 	fDrawingEngine->StrokeLine(BPoint(capNear, tabRect.top),
-		BPoint(bodyEdge, tabRect.top), colors[COLOR_TAB_FRAME_LIGHT]);
+		BPoint(bodyEdge, tabRect.top), colors[COLOR_TAB_BEVEL]);
 
-	fDrawingEngine->SetHighColor(colors[COLOR_TAB_FRAME_DARK]);
+	fDrawingEngine->SetHighColor(colors[COLOR_TAB_SHADOW]);
 	fDrawingEngine->DrawArc(strokeRect, leftSide ? 170.0f : 260.0f, 110.0f,
 		false);
 	fDrawingEngine->StrokeLine(BPoint(capNear, tabRect.bottom),
-		BPoint(bodyEdge, tabRect.bottom), colors[COLOR_TAB_FRAME_DARK]);
+		BPoint(bodyEdge, tabRect.bottom), colors[COLOR_TAB_SHADOW]);
 }
 
 
@@ -1022,6 +1043,7 @@ B6Decorator::_DrawClose(Decorator::Tab* _tab, bool direct, BRect rect)
 		tab->closeBitmaps[index] = bitmap;
 	}
 
+	_DrawButtonHalo(rect, tab);
 	_DrawButtonBitmap(bitmap, direct, rect);
 }
 
@@ -1053,6 +1075,7 @@ B6Decorator::_DrawZoom(Decorator::Tab* _tab, bool direct, BRect rect)
 		tab->zoomBitmaps[index] = bitmap;
 	}
 
+	_DrawButtonHalo(rect, tab);
 	_DrawButtonBitmap(bitmap, direct, rect);
 }
 
@@ -1219,6 +1242,29 @@ B6Decorator::_DrawButtonBitmap(ServerBitmap* bitmap, bool direct, BRect rect)
 	fDrawingEngine->DrawBitmap(bitmap, rect.OffsetToCopy(0, 0), rect);
 	fDrawingEngine->SetDrawingMode(oldMode);
 	fDrawingEngine->SetCopyToFrontEnabled(copyToFrontEnabled);
+}
+
+
+/*!	\brief Draws a soft shadow-toned disc slightly larger than a
+		close/zoom button, underneath it, before _DrawButtonBitmap()
+		draws the (antialiased, but still not pixel-identical to the
+		cap's own circle) button bitmap on top.
+
+		The button's circular mask (_MaskToCircle()) and the flag cap's
+		circle (_DrawFlag()) are two independently rasterized circles
+		that are only meant to be concentric, not identical pixel for
+		pixel; any stray gap between them would otherwise show the
+		cap's flat yellow through it. This halo means such a gap shows
+		a soft shadow tone instead.
+*/
+void
+B6Decorator::_DrawButtonHalo(BRect rect, Decorator::Tab* tab)
+{
+	ComponentColors colors;
+	_GetComponentColors(COMPONENT_TAB, colors, tab);
+
+	fDrawingEngine->SetHighColor(colors[COLOR_TAB_SHADOW]);
+	fDrawingEngine->DrawEllipse(rect.InsetByCopy(-1.0f, -1.0f), true);
 }
 
 
@@ -1764,13 +1810,24 @@ B6Decorator::_MaskToCircle(ServerBitmap* bitmap, int32 width,
 	float centerX = width / 2.0f;
 	float centerY = height / 2.0f;
 
+	// Feather the last pixel of the radius into a soft, antialiased
+	// edge instead of a hard on/off cutoff: a jagged cut against the
+	// smoothly (natively) antialiased cap fill it sits on reads as a
+	// harsh line even though neither side is drawn in a harsh color.
+	const float kFeather = 1.0f;
+
 	for (int32 y = 0; y < height; y++) {
 		uint8* row = bits + y * bytesPerRow;
 		for (int32 x = 0; x < width; x++) {
 			float dx = (x + 0.5f) - centerX;
 			float dy = (y + 0.5f) - centerY;
-			row[x * 4 + 3]
-				= (dx * dx + dy * dy <= radius * radius) ? 255 : 0;
+			float distance = sqrtf(dx * dx + dy * dy);
+			float alpha = (radius + kFeather / 2.0f - distance) / kFeather;
+			if (alpha < 0.0f)
+				alpha = 0.0f;
+			else if (alpha > 1.0f)
+				alpha = 1.0f;
+			row[x * 4 + 3] = (uint8)(alpha * 255.0f);
 		}
 	}
 }
