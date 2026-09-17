@@ -4578,27 +4578,45 @@ ServerWindow::_ResizeToFullScreen()
 status_t
 ServerWindow::_EnableDirectWindowMode()
 {
+	// hrecord/nvidia-haiku BDirectWindow investigation: this window's
+	// client (a BDirectWindow) got SupportsWindowMode()==true from its
+	// accelerant but DirectConnected() never fired -- narrowing down which
+	// of this function's three early-outs is silently refusing it, since a
+	// live Debugger attach to app_server froze the desktop before a
+	// breakpoint could even be set. Safe to remove once that's answered.
+	debug_printf("hrecord: _EnableDirectWindowMode() called, "
+		"fDirectWindowInfo.IsSet()=%d\n", fDirectWindowInfo.IsSet());
+
 	if (fDirectWindowInfo.IsSet()) {
 		// already in direct window mode
 		return B_ERROR;
 	}
 
-	if (fDesktop->HWInterface()->FrontBuffer() == NULL) {
+	RenderingBuffer* frontBuffer = fDesktop->HWInterface()->FrontBuffer();
+	debug_printf("hrecord: HWInterface()->FrontBuffer() = %p\n", frontBuffer);
+	if (frontBuffer == NULL) {
 		// direct window mode not supported
+		debug_printf("hrecord: -> B_UNSUPPORTED (no front buffer)\n");
 		return B_UNSUPPORTED;
 	}
 
 	fDirectWindowInfo.SetTo(new(std::nothrow) DirectWindowInfo);
-	if (!fDirectWindowInfo.IsSet())
+	if (!fDirectWindowInfo.IsSet()) {
+		debug_printf("hrecord: -> B_NO_MEMORY (DirectWindowInfo alloc "
+			"failed)\n");
 		return B_NO_MEMORY;
+	}
 
 	status_t status = fDirectWindowInfo->InitCheck();
+	debug_printf("hrecord: DirectWindowInfo::InitCheck() = 0x%08" B_PRIx32
+		" (%s)\n", status, strerror(status));
 	if (status != B_OK) {
 		fDirectWindowInfo.Unset();
 
 		return status;
 	}
 
+	debug_printf("hrecord: -> B_OK\n");
 	return B_OK;
 }
 
