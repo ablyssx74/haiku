@@ -4426,6 +4426,12 @@ ServerWindow::HandleDirectConnection(int32 bufferState, int32 driverState)
 {
 	ASSERT_MULTI_LOCKED(fDesktop->WindowLocker());
 
+	// hrecord/nvidia-haiku BDirectWindow investigation: see _ShowWindow()'s
+	// own debug_printf. Safe to remove once answered.
+	debug_printf("hrecord: HandleDirectConnection() called, "
+		"fDirectWindowInfo.IsSet()=%d, bufferState=0x%" B_PRIx32 "\n",
+		fDirectWindowInfo.IsSet(), bufferState);
+
 	if (!fDirectWindowInfo.IsSet())
 		return;
 
@@ -4436,6 +4442,9 @@ ServerWindow::HandleDirectConnection(int32 bufferState, int32 driverState)
 		(direct_buffer_state)bufferState, (direct_driver_state)driverState,
 		fDesktop->HWInterface()->FrontBuffer(), fWindow->Frame(),
 		fWindow->VisibleContentRegion());
+
+	debug_printf("hrecord: DirectWindowInfo::SetState() = 0x%08" B_PRIx32
+		" (%s)\n", status, strerror(status));
 
 	if (status != B_OK) {
 		char errorString[256];

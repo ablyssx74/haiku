@@ -3203,6 +3203,13 @@ Desktop::_ShowWindow(Window* window, bool affectsOtherWindows)
 	} else
 		MarkDirty(dirty);
 
+	// hrecord/nvidia-haiku BDirectWindow investigation: confirmed
+	// _EnableDirectWindowMode() succeeds (fDirectWindowInfo gets set) but
+	// DirectConnected() never fires client-side -- checking whether this
+	// gate is even seeing that. Safe to remove once answered.
+	debug_printf("hrecord: _ShowWindow() HasDirectFrameBufferAccess() = %d\n",
+		window->ServerWindow()->HasDirectFrameBufferAccess());
+
 	if (window->ServerWindow()->HasDirectFrameBufferAccess()) {
 		window->ServerWindow()->HandleDirectConnection(
 			B_DIRECT_START | B_BUFFER_RESET);
