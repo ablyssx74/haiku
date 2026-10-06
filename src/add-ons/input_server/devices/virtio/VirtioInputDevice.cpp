@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include <Application.h>
+#include <Autolock.h>
 #include <Directory.h>
 #include <Entry.h>
 #include <EvdevKeymap.h>
@@ -364,20 +365,13 @@ KeyboardHandler::KeyboardHandler(VirtioInputDevice* dev, const char* name)
 	:
 	VirtioInputHandler(dev, name, B_KEYBOARD_DEVICE),
 	fPendingUnmappedCount(0),
+	fActiveDeadKey(0),
+	fRepeatKey(0),
 	fRepeatThread(-1),
 	fRepeatThreadSem(-1)
 {
 	TRACE("+KeyboardHandler()\n");
-	{
-		// TODO: Similar to B_KEY_MAP_CHANGED below?
-		key_map *keyMap = NULL;
-		char *chars = NULL;
-		get_key_map(&keyMap, &chars);
-		fKeyMap.SetTo(keyMap);
-		fChars.SetTo(chars);
-	}
-	TRACE("  fKeymap: %p\n", fKeyMap.Get());
-	TRACE("  fChars: %p\n", fChars.Get());
+	fKeymap.SetToCurrent();
 	get_key_repeat_delay(&fRepeatDelay);
 	get_key_repeat_rate (&fRepeatRate);
 	TRACE("  fRepeatDelay: %" B_PRIdBIGTIME "\n", fRepeatDelay);
@@ -398,8 +392,10 @@ void
 KeyboardHandler::Reset()
 {
 	memset(&fNewState, 0, sizeof(KeyboardState));
+	fNewState.modifiers = fKeymap.Map().lock_settings & (B_CAPS_LOCK | B_NUM_LOCK | B_SCROLL_LOCK);
 	memcpy(&fState, &fNewState, sizeof(KeyboardState));
 	fPendingUnmappedCount = 0;
+	fActiveDeadKey = 0;
 	_StopRepeating();
 }
 
@@ -408,15 +404,19 @@ status_t
 KeyboardHandler::Control(uint32 command, BMessage* message)
 {
 	switch (command) {
-		case B_KEY_MAP_CHANGED: {
-			BAutolock lock(fKeyMapLock);
-			key_map *keyMap = NULL;
-			char *chars = NULL;
-			get_key_map(&keyMap, &chars);
-			if (keyMap == NULL || chars == NULL)
-				return B_NO_MEMORY;
-			fKeyMap.SetTo(keyMap);
-			fChars.SetTo(chars);
+		case B_KEY_MAP_CHANGED:
+		case B_KEY_LOCKS_CHANGED:
+		{
+			BAutolock lock(fKeymapLock);
+			status_t status = fKeymap.SetToCurrent();
+			if (status != B_OK)
+				return status;
+
+			uint32 locks = fKeymap.Map().lock_settings & (B_CAPS_LOCK | B_NUM_LOCK | B_SCROLL_LOCK);
+			fState.modifiers
+				= (fState.modifiers & ~(B_CAPS_LOCK | B_NUM_LOCK | B_SCROLL_LOCK)) | locks;
+			fActiveDeadKey = 0;
+
 			return B_OK;
 		}
 		case B_KEY_REPEAT_DELAY_CHANGED:
@@ -470,60 +470,25 @@ KeyboardHandler::_IsKeyPressed(const KeyboardState &state, uint32 key)
 
 
 void
-KeyboardHandler::_KeyString(uint32 code, char *str, size_t len)
-{
-	// TODO: This could get replaced by BKeymap::GetChars.
-	char *ch;
-	switch (fNewState.modifiers & (
-		B_SHIFT_KEY | B_CONTROL_KEY | B_OPTION_KEY | B_CAPS_LOCK)) {
-		case B_OPTION_KEY | B_CAPS_LOCK | B_SHIFT_KEY:
-			ch = fChars.Get() + fKeyMap->option_caps_shift_map[code];
-			break;
-		case B_OPTION_KEY | B_CAPS_LOCK:
-			ch = fChars.Get() + fKeyMap->option_caps_map[code];
-			break;
-		case B_OPTION_KEY | B_SHIFT_KEY:
-			ch = fChars.Get() + fKeyMap->option_shift_map[code];
-			break;
-		case B_OPTION_KEY:
-			ch = fChars.Get() + fKeyMap->option_map[code];
-			break;
-		case B_CAPS_LOCK  | B_SHIFT_KEY:
-			ch = fChars.Get() + fKeyMap->caps_shift_map[code];
-			break;
-		case B_CAPS_LOCK:
-			ch = fChars.Get() + fKeyMap->caps_map[code];
-			break;
-		case B_SHIFT_KEY:
-			ch = fChars.Get() + fKeyMap->shift_map[code];
-			break;
-		default:
-			if ((fNewState.modifiers & B_CONTROL_KEY) != 0)
-				ch = fChars.Get() + fKeyMap->control_map[code];
-			else
-				ch = fChars.Get() + fKeyMap->normal_map[code];
-	}
-	if (len > 0) {
-		uint32 i;
-		for (i = 0; (i < (uint32)ch[0]) && (i < len - 1); i++)
-			str[i] = ch[i + 1];
-		str[i] = '\0';
-	}
-}
-
-
-void
 KeyboardHandler::_StartRepeating(BMessage* msg)
 {
 	if (fRepeatThread >= B_OK)
 		_StopRepeating();
 
 	fRepeatMsg = *msg;
+
+	fRepeatThreadSem = create_sem(0, "repeat thread sem");
+	if (fRepeatThreadSem < B_OK)
+		return;
+
 	fRepeatThread = spawn_thread(_RepeatThread, "repeat thread",
 		B_REAL_TIME_DISPLAY_PRIORITY + 4, this);
-	fRepeatThreadSem = create_sem(0, "repeat thread sem");
-	if (fRepeatThread >= B_OK)
-		resume_thread(fRepeatThread);
+	if (fRepeatThread < B_OK) {
+		delete_sem(fRepeatThreadSem);
+		fRepeatThreadSem = -1;
+		return;
+	}
+	resume_thread(fRepeatThread);
 }
 
 
@@ -537,6 +502,7 @@ KeyboardHandler::_StopRepeating()
 		fRepeatThread = -1;
 		delete_sem(fRepeatThreadSem);
 		fRepeatThreadSem = -1;
+		fRepeatKey = 0;
 	}
 }
 
@@ -549,7 +515,7 @@ KeyboardHandler::_RepeatThread(void *arg)
 
 	res = acquire_sem_etc(h->fRepeatThreadSem, 1, B_RELATIVE_TIMEOUT,
 		h->fRepeatDelay);
-	if (res >= B_OK)
+	if (res != B_TIMED_OUT)
 		return B_OK;
 
 	while (true) {
@@ -565,7 +531,7 @@ KeyboardHandler::_RepeatThread(void *arg)
 
 		res = acquire_sem_etc(h->fRepeatThreadSem, 1, B_RELATIVE_TIMEOUT,
 			(bigtime_t)10000000 / h->fRepeatRate);
-		if (res >= B_OK)
+		if (res != B_TIMED_OUT)
 			return B_OK;
 	}
 }
@@ -574,10 +540,28 @@ KeyboardHandler::_RepeatThread(void *arg)
 status_t
 KeyboardHandler::_SendKeyEvent(uint32 key, bool pressed)
 {
-	char str[5];
-	str[0] = '\0';
-	if (key < 128)
-		_KeyString(key, str, sizeof(str));
+	uint8 newDeadKey = 0;
+	if (fActiveDeadKey == 0 || !pressed)
+		newDeadKey = fKeymap.ActiveDeadKey(key, fNewState.modifiers);
+
+	char* string = NULL;
+	char* rawString = NULL;
+	int32 numBytes = 0, rawNumBytes = 0;
+
+	ArrayDeleter<char> stringDeleter;
+	if (newDeadKey == 0) {
+		fKeymap.GetChars(key, fNewState.modifiers, fActiveDeadKey, &string, &numBytes);
+		stringDeleter.SetTo(string);
+	}
+	fKeymap.GetChars(key, 0, 0, &rawString, &rawNumBytes);
+	ArrayDeleter<char> rawStringDeleter(rawString);
+
+	if (newDeadKey != 0) {
+		if (pressed)
+			fActiveDeadKey = newDeadKey;
+	} else if (pressed && fActiveDeadKey != 0 && fKeymap.Modifier(key) == 0) {
+		fActiveDeadKey = 0;
+	}
 
 	ObjectDeleter<BMessage> msg(new(std::nothrow) BMessage());
 	if (msg.IsSet()) {
@@ -585,36 +569,35 @@ KeyboardHandler::_SendKeyEvent(uint32 key, bool pressed)
 		msg->AddInt32("key", key);
 		msg->AddInt32("modifiers", fNewState.modifiers);
 		msg->AddData("states", B_UINT8_TYPE, fNewState.keys, 16);
+		if (numBytes > 0)
+			msg->AddString("bytes", string);
+		for (int32 i = 0; i < numBytes; i++)
+			msg->AddInt8("byte", string[i]);
 
-		if (str[0] != '\0') {
-			char rawCh;
-			if (fChars.Get()[fKeyMap->normal_map[key]] != 0)
-				rawCh = fChars.Get()[fKeyMap->normal_map[key] + 1];
-			else
-				rawCh = str[0];
-
-			for (uint8 i = 0; str[i] != '\0'; ++i)
-				msg->AddInt8("byte", str[i]);
-
-			msg->AddString("bytes", str);
-			msg->AddInt32("raw_char", rawCh);
+		if (rawNumBytes <= 0 && numBytes > 0) {
+			rawString = string;
+			rawNumBytes = 1;
 		}
+		if (rawNumBytes > 0)
+			msg->AddInt32("raw_char", static_cast<uint32>(static_cast<uint8>(rawString[0]) & 0x7f));
 
 		if (pressed) {
-			if (str[0] != '\0')
+			if (numBytes > 0)
 				msg->what = B_KEY_DOWN;
 			else
 				msg->what = B_UNMAPPED_KEY_DOWN;
 
 			msg->AddInt32("be:key_repeat", 1);
 			_StartRepeating(msg.Get());
+			fRepeatKey = key;
 		} else {
-			if (str[0] != '\0')
+			if (numBytes > 0)
 				msg->what = B_KEY_UP;
 			else
 				msg->what = B_UNMAPPED_KEY_UP;
 
-			_StopRepeating();
+			if (key == fRepeatKey)
+				_StopRepeating();
 		}
 
 		status_t err = Device()->EnqueueMessage(msg.Get());
@@ -631,36 +614,40 @@ void
 KeyboardHandler::_StateChanged()
 {
 	uint32 i, j;
-	BAutolock locker(fKeyMapLock);
+	BAutolock locker(fKeymapLock);
 
 	fNewState.modifiers = fState.modifiers
 		& (B_CAPS_LOCK | B_SCROLL_LOCK | B_NUM_LOCK);
 
-	if (_IsKeyPressed(fNewState, fKeyMap->left_shift_key))
-		fNewState.modifiers |= B_SHIFT_KEY   | B_LEFT_SHIFT_KEY;
-	if (_IsKeyPressed(fNewState, fKeyMap->right_shift_key))
-		fNewState.modifiers |= B_SHIFT_KEY   | B_RIGHT_SHIFT_KEY;
-	if (_IsKeyPressed(fNewState, fKeyMap->left_command_key))
+	if (_IsKeyPressed(fNewState, fKeymap.Map().left_shift_key))
+		fNewState.modifiers |= B_SHIFT_KEY | B_LEFT_SHIFT_KEY;
+	if (_IsKeyPressed(fNewState, fKeymap.Map().right_shift_key))
+		fNewState.modifiers |= B_SHIFT_KEY | B_RIGHT_SHIFT_KEY;
+	if (_IsKeyPressed(fNewState, fKeymap.Map().left_command_key))
 		fNewState.modifiers |= B_COMMAND_KEY | B_LEFT_COMMAND_KEY;
-	if (_IsKeyPressed(fNewState, fKeyMap->right_command_key))
+	if (_IsKeyPressed(fNewState, fKeymap.Map().right_command_key))
 		fNewState.modifiers |= B_COMMAND_KEY | B_RIGHT_COMMAND_KEY;
-	if (_IsKeyPressed(fNewState, fKeyMap->left_control_key))
+	if (_IsKeyPressed(fNewState, fKeymap.Map().left_control_key))
 		fNewState.modifiers |= B_CONTROL_KEY | B_LEFT_CONTROL_KEY;
-	if (_IsKeyPressed(fNewState, fKeyMap->right_control_key))
+	if (_IsKeyPressed(fNewState, fKeymap.Map().right_control_key))
 		fNewState.modifiers |= B_CONTROL_KEY | B_RIGHT_CONTROL_KEY;
-	if (_IsKeyPressed(fNewState, fKeyMap->caps_key) && !_IsKeyPressed(fState, fKeyMap->caps_key))
+	if (_IsKeyPressed(fNewState, fKeymap.Map().caps_key)
+		&& !_IsKeyPressed(fState, fKeymap.Map().caps_key)) {
 		fNewState.modifiers ^= B_CAPS_LOCK;
-	if (_IsKeyPressed(fNewState, fKeyMap->scroll_key)
-		&& !_IsKeyPressed(fState, fKeyMap->scroll_key)) {
+	}
+	if (_IsKeyPressed(fNewState, fKeymap.Map().scroll_key)
+		&& !_IsKeyPressed(fState, fKeymap.Map().scroll_key)) {
 		fNewState.modifiers ^= B_SCROLL_LOCK;
 	}
-	if (_IsKeyPressed(fNewState, fKeyMap->num_key) && !_IsKeyPressed(fState, fKeyMap->num_key))
+	if (_IsKeyPressed(fNewState, fKeymap.Map().num_key)
+		&& !_IsKeyPressed(fState, fKeymap.Map().num_key)) {
 		fNewState.modifiers ^= B_NUM_LOCK;
-	if (_IsKeyPressed(fNewState, fKeyMap->left_option_key))
-		fNewState.modifiers |= B_OPTION_KEY  | B_LEFT_OPTION_KEY;
-	if (_IsKeyPressed(fNewState, fKeyMap->right_option_key))
-		fNewState.modifiers |= B_OPTION_KEY  | B_RIGHT_OPTION_KEY;
-	if (_IsKeyPressed(fNewState, fKeyMap->menu_key))
+	}
+	if (_IsKeyPressed(fNewState, fKeymap.Map().left_option_key))
+		fNewState.modifiers |= B_OPTION_KEY | B_LEFT_OPTION_KEY;
+	if (_IsKeyPressed(fNewState, fKeymap.Map().right_option_key))
+		fNewState.modifiers |= B_OPTION_KEY | B_RIGHT_OPTION_KEY;
+	if (_IsKeyPressed(fNewState, fKeymap.Map().menu_key))
 		fNewState.modifiers |= B_MENU_KEY;
 
 	if (fState.modifiers != fNewState.modifiers) {
@@ -678,7 +665,6 @@ KeyboardHandler::_StateChanged()
 			}
 		}
 	}
-
 
 	uint8 diff[16];
 	for (i = 0; i < 16; ++i)

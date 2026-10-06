@@ -539,7 +539,7 @@ public:
 											uint8 hubPort,
 											usb_device_descriptor &desc,
 											int8 deviceAddress,
-											usb_speed speed, bool isRootHub,
+											usb_speed speed, uint8 depth,
 											void *controllerCookie = NULL);
 virtual									~Device();
 
@@ -564,6 +564,7 @@ virtual	status_t						GetDescriptor(uint8 descriptorType,
 											{ return fDeviceAddress; }
 		const usb_device_descriptor *	DeviceDescriptor() const;
 		usb_speed						Speed() const { return fSpeed; }
+		uint8							Depth() const { return fDepth; }
 
 		const usb_configuration_info *	Configuration() const;
 		const usb_configuration_info *	ConfigurationAt(uint8 index) const;
@@ -616,7 +617,7 @@ protected:
 
 private:
 		bool							fAvailable;
-		bool							fIsRootHub;
+		uint8							fDepth;
 		usb_configuration_info *		fConfigurations;
 		usb_configuration_info *		fCurrentConfiguration;
 		usb_speed						fSpeed;
@@ -635,7 +636,7 @@ public:
 											uint8 hubPort,
 											usb_device_descriptor &desc,
 											int8 deviceAddress,
-											usb_speed speed, bool isRootHub,
+											usb_speed speed, uint8 depth,
 											void *controllerCookie = NULL);
 virtual									~Hub();
 
@@ -678,7 +679,8 @@ private:
 		status_t						_DebouncePort(uint8 index);
 
 		InterruptPipe *					fInterruptPipe;
-		usb_hub_descriptor				fHubDescriptor;
+		uint8							fPortCount;
+		uint8							fPowerOnToPowerGood;
 
 		usb_port_status					fInterruptStatus[USB_MAX_PORT_COUNT];
 		usb_port_status					fPortStatus[USB_MAX_PORT_COUNT];
