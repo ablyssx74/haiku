@@ -25,6 +25,8 @@ static const bool kDefaultSortFolderNamesFirst = true;
 static const bool kDefaultHideDotFiles = false;
 static const bool kDefaultTypeAheadFiltering = false;
 static const bool kDefaultGenerateImageThumbnails = true;
+static const bool kDefaultSnakeTrail = true;
+static const rgb_color kDefaultSnakeAccent = { 70, 110, 200, 255 };
 
 static const int32 kDefaultRecentApplications = 10;
 static const int32 kDefaultRecentDocuments = 10;

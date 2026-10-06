@@ -400,6 +400,13 @@ DesktopSettingsView::IsRevertable() const
 // #pragma mark - WindowsSettingsView
 
 
+static uint32
+_ColorValue(rgb_color color)
+{
+	return (color.red << 16) | (color.green << 8) | color.blue;
+}
+
+
 WindowsSettingsView::WindowsSettingsView()
 	:
 	SettingsView("WindowsSettingsView"),
@@ -411,6 +418,8 @@ WindowsSettingsView::WindowsSettingsView()
 	fHideDotFilesCheckBox(NULL),
 	fTypeAheadFilteringCheckBox(NULL),
 	fGenerateImageThumbnailsCheckBox(NULL),
+	fSnakeTrailCheckBox(NULL),
+	fSnakeAccentControl(NULL),
 	fShowFullPathInTitleBar(kDefaultShowFullPathInTitleBar),
 	fSingleWindowBrowse(kDefaultSingleWindowBrowse),
 	fShowNavigator(kDefaultShowNavigator),
@@ -418,7 +427,9 @@ WindowsSettingsView::WindowsSettingsView()
 	fSortFolderNamesFirst(kDefaultSortFolderNamesFirst),
 	fHideDotFiles(kDefaultHideDotFiles),
 	fTypeAheadFiltering(kDefaultTypeAheadFiltering),
-	fGenerateImageThumbnails(kDefaultGenerateImageThumbnails)
+	fGenerateImageThumbnails(kDefaultGenerateImageThumbnails),
+	fSnakeTrail(kDefaultSnakeTrail),
+	fSnakeAccent(kDefaultSnakeAccent)
 {
 	fShowFullPathInTitleBarCheckBox = new BCheckBox("",
 		B_TRANSLATE("Show folder location in title tab"),
@@ -452,6 +463,13 @@ WindowsSettingsView::WindowsSettingsView()
 		B_TRANSLATE("Generate image thumbnails"),
 		new BMessage(kGenerateImageThumbnailsChanged));
 
+	fSnakeTrailCheckBox = new BCheckBox("",
+		B_TRANSLATE("Snake trail in folder menus"),
+		new BMessage(kSnakeTrailChanged));
+
+	fSnakeAccentControl = new BColorControl(BPoint(0, 0), B_CELLS_32x8, 4,
+		"snake_accent", new BMessage(kSnakeAccentChanged));
+
 	const float spacing = be_control_look->DefaultItemSpacing();
 
 	BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
@@ -470,6 +488,11 @@ WindowsSettingsView::WindowsSettingsView()
 			.Add(fTypeAheadFilteringCheckBox)
 			.Add(fGenerateImageThumbnailsCheckBox)
 			.End()
+		.AddGroup(B_VERTICAL, 0)
+			.Add(fSnakeTrailCheckBox)
+			.Add(fSnakeAccentControl)
+			.SetInsets(0, spacing, 0, 0)
+			.End()
 		.AddGlue()
 		.SetInsets(spacing);
 }
@@ -486,6 +509,8 @@ WindowsSettingsView::AttachedToWindow()
 	fHideDotFilesCheckBox->SetTarget(this);
 	fTypeAheadFilteringCheckBox->SetTarget(this);
 	fGenerateImageThumbnailsCheckBox->SetTarget(this);
+	fSnakeTrailCheckBox->SetTarget(this);
+	fSnakeAccentControl->SetTarget(this);
 }
 
 
@@ -588,6 +613,20 @@ WindowsSettingsView::MessageReceived(BMessage* message)
 			break;
 		}
 
+		case kSnakeTrailChanged:
+		{
+			settings.SetSnakeTrail(fSnakeTrailCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+		}
+
+		case kSnakeAccentChanged:
+		{
+			settings.SetSnakeAccent(fSnakeAccentControl->ValueAsColor());
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+		}
+
 		default:
 			_inherited::MessageReceived(message);
 			break;
@@ -649,6 +688,9 @@ WindowsSettingsView::SetDefaults()
 			"GenerateImageThumbnails", kDefaultGenerateImageThumbnails);
 	}
 
+	settings.SetSnakeTrail(kDefaultSnakeTrail);
+	settings.SetSnakeAccent(kDefaultSnakeAccent);
+
 	ShowCurrentSettings();
 }
 
@@ -665,7 +707,9 @@ WindowsSettingsView::IsDefaultable() const
 		|| settings.SortFolderNamesFirst() != kDefaultSortFolderNamesFirst
 		|| settings.HideDotFiles() != kDefaultHideDotFiles
 		|| settings.TypeAheadFiltering() != kDefaultTypeAheadFiltering
-		|| settings.GenerateImageThumbnails() != kDefaultGenerateImageThumbnails;
+		|| settings.GenerateImageThumbnails() != kDefaultGenerateImageThumbnails
+		|| settings.SnakeTrail() != kDefaultSnakeTrail
+		|| _ColorValue(settings.SnakeAccent()) != _ColorValue(kDefaultSnakeAccent);
 }
 
 
@@ -723,6 +767,9 @@ WindowsSettingsView::Revert()
 			"GenerateImageThumbnails", fGenerateImageThumbnails);
 	}
 
+	settings.SetSnakeTrail(fSnakeTrail);
+	settings.SetSnakeAccent(fSnakeAccent);
+
 	ShowCurrentSettings();
 }
 
@@ -744,6 +791,8 @@ WindowsSettingsView::ShowCurrentSettings()
 	fTypeAheadFilteringCheckBox->SetValue(settings.TypeAheadFiltering());
 	fGenerateImageThumbnailsCheckBox->SetValue(
 		settings.GenerateImageThumbnails());
+	fSnakeTrailCheckBox->SetValue(settings.SnakeTrail());
+	fSnakeAccentControl->SetValue(settings.SnakeAccent());
 }
 
 
@@ -760,6 +809,8 @@ WindowsSettingsView::RecordRevertSettings()
 	fHideDotFiles = settings.HideDotFiles();
 	fTypeAheadFiltering = settings.TypeAheadFiltering();
 	fGenerateImageThumbnails = settings.GenerateImageThumbnails();
+	fSnakeTrail = settings.SnakeTrail();
+	fSnakeAccent = settings.SnakeAccent();
 }
 
 
@@ -775,7 +826,9 @@ WindowsSettingsView::IsRevertable() const
 		|| fSortFolderNamesFirst != settings.SortFolderNamesFirst()
 		|| fHideDotFiles != settings.HideDotFiles()
 		|| fTypeAheadFiltering != settings.TypeAheadFiltering()
-		|| fGenerateImageThumbnails != settings.GenerateImageThumbnails();
+		|| fGenerateImageThumbnails != settings.GenerateImageThumbnails()
+		|| fSnakeTrail != settings.SnakeTrail()
+		|| _ColorValue(fSnakeAccent) != _ColorValue(settings.SnakeAccent());
 }
 
 

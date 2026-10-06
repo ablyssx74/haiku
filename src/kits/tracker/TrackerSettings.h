@@ -96,6 +96,10 @@ public:
 	void SetTypeAheadFiltering(bool enabled);
 	bool GenerateImageThumbnails();
 	void SetGenerateImageThumbnails(bool enabled);
+	bool SnakeTrail();
+	void SetSnakeTrail(bool enabled);
+	rgb_color SnakeAccent();
+	void SetSnakeAccent(rgb_color color);
 
 	bool ShowSelectionWhenInactive();
 	void SetShowSelectionWhenInactive(bool);

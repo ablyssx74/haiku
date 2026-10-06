@@ -32,6 +32,10 @@
 
 #include "IconMenuItem.h"
 #include "NavMenu.h"
+#include "TrackerSettings.h"
+
+
+using namespace BPrivate;
 
 
 namespace SnakeSelector {
@@ -43,8 +47,9 @@ static const float kFilletR = 3.0f;
 static const bool kRoundedFrame = false;	// see the comment in DrawTrail()
 
 
-// hDesktop's Settings > Selector Color and Snake Trail, read from its settings file while hDesktop
-// is running (the file is a flattened BMessage). Without hDesktop the defaults apply.
+// The selector colour and whether the trail is drawn: Tracker's own preferences (Settings > Windows),
+// or hDesktop's Selector Color and Snake Trail, read from its settings file (a flattened BMessage)
+// while hDesktop is running.
 static const char* kHDesktopSignature = "application/x-vnd.hdesktop";
 static const bigtime_t kCheckInterval = 1000000;
 
@@ -52,7 +57,6 @@ static BLocker sSettingsLock("snake settings");
 static rgb_color sAccent = {70, 110, 200, 255};
 static bool sTrail = true;
 static bigtime_t sLastCheck = 0;
-static time_t sLoadedModTime = -1;
 
 
 static void
@@ -64,8 +68,10 @@ RefreshSettings()
 		return;
 	sLastCheck = now;
 
-	rgb_color accent = {70, 110, 200, 255};
-	bool trail = true;
+	// Tracker's own preferences (Settings > Windows); overridden by hDesktop's while it runs
+	TrackerSettings tracker;
+	rgb_color accent = tracker.SnakeAccent();
+	bool trail = tracker.SnakeTrail();
 	time_t modTime = 0;
 
 	BPath path;
@@ -76,8 +82,6 @@ RefreshSettings()
 		if (entry.GetModificationTime(&modTime) != B_OK)
 			modTime = 0;
 		if (modTime != 0) {
-			if (modTime == sLoadedModTime)
-				return;
 			BFile file(path.Path(), B_READ_ONLY);
 			BMessage settings;
 			if (file.InitCheck() == B_OK && settings.Unflatten(&file) == B_OK) {
@@ -93,11 +97,8 @@ RefreshSettings()
 		}
 	}
 
-	sLoadedModTime = modTime == 0 ? -1 : modTime;
-	bool changed = sTrail != trail || memcmp(&sAccent, &accent, sizeof(accent)) != 0;
 	sAccent = accent;
 	sTrail = trail;
-	(void)changed;
 }
 
 

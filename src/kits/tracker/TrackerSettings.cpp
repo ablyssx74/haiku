@@ -77,6 +77,8 @@ private:
 	BooleanValueSetting* fHideDotFiles;
 	BooleanValueSetting* fTypeAheadFiltering;
 	BooleanValueSetting* fGenerateImageThumbnails;
+	BooleanValueSetting* fSnakeTrail;
+	HexScalarValueSetting* fSnakeAccent;
 
 	ScalarValueSetting* fRecentApplicationsCount;
 	ScalarValueSetting* fRecentDocumentsCount;
@@ -139,6 +141,8 @@ TTrackerState::TTrackerState()
 	fHideDotFiles(NULL),
 	fTypeAheadFiltering(NULL),
 	fGenerateImageThumbnails(NULL),
+	fSnakeTrail(NULL),
+	fSnakeAccent(NULL),
 	fRecentApplicationsCount(NULL),
 	fRecentDocumentsCount(NULL),
 	fRecentFoldersCount(NULL),
@@ -169,6 +173,8 @@ TTrackerState::TTrackerState(const TTrackerState&)
 	fHideDotFiles(NULL),
 	fTypeAheadFiltering(NULL),
 	fGenerateImageThumbnails(NULL),
+	fSnakeTrail(NULL),
+	fSnakeAccent(NULL),
 	fRecentApplicationsCount(NULL),
 	fRecentDocumentsCount(NULL),
 	fRecentFoldersCount(NULL),
@@ -234,6 +240,10 @@ TTrackerState::LoadSettingsIfNeeded()
 		= new BooleanValueSetting("TypeAheadFiltering", kDefaultTypeAheadFiltering));
 	Add(fGenerateImageThumbnails
 		= new BooleanValueSetting("GenerateImageThumbnails", kDefaultGenerateImageThumbnails));
+
+	Add(fSnakeTrail = new BooleanValueSetting("SnakeTrail", kDefaultSnakeTrail));
+	Add(fSnakeAccent
+		= new HexScalarValueSetting("SnakeAccent", RGBTOHEX(kDefaultSnakeAccent), "", ""));
 
 	Add(fRecentApplicationsCount
 		= new ScalarValueSetting("RecentApplications", kDefaultRecentApplications, "", ""));
@@ -476,6 +486,37 @@ void
 TrackerSettings::SetGenerateImageThumbnails(bool enabled)
 {
 	gTrackerState.fGenerateImageThumbnails->SetValue(enabled);
+}
+
+
+bool
+TrackerSettings::SnakeTrail()
+{
+	return gTrackerState.fSnakeTrail->Value();
+}
+
+
+void
+TrackerSettings::SetSnakeTrail(bool enabled)
+{
+	gTrackerState.fSnakeTrail->SetValue(enabled);
+}
+
+
+rgb_color
+TrackerSettings::SnakeAccent()
+{
+	rgb_color color = ValueToColor(gTrackerState.fSnakeAccent->Value());
+	color.alpha = 255;
+	return color;
+}
+
+
+void
+TrackerSettings::SetSnakeAccent(rgb_color color)
+{
+	color.alpha = 255;
+	gTrackerState.fSnakeAccent->SetValue(ColorToValue(color));
 }
 
 
