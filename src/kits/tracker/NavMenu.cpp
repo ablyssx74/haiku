@@ -37,6 +37,7 @@ their respective holders. All rights reserved.
 
 
 #include "NavMenu.h"
+#include "SnakeSelector.h"
 
 #include <algorithm>
 
@@ -333,6 +334,7 @@ void
 BNavMenu::AttachedToWindow()
 {
 	BSlowMenu::AttachedToWindow();
+	SnakeSelector::AttachLink(this);
 
 	SpringLoadedFolderSetMenuStates(this, fTypesList);
 		// If dragging, (fTypesList != NULL) set the menu items enabled state
@@ -345,6 +347,15 @@ BNavMenu::AttachedToWindow()
 void
 BNavMenu::DetachedFromWindow()
 {
+	SnakeSelector::DetachLink(this);
+}
+
+
+void
+BNavMenu::DrawBackground(BRect updateRect)
+{
+	BSlowMenu::DrawBackground(updateRect);
+	SnakeSelector::DrawTrail(this);
 }
 
 

@@ -12,7 +12,7 @@ DEV    := /boot/system/develop
 
 TRACKER_SRCS := $(filter-out $(KIT)/FilePanel.cpp,$(wildcard $(KIT)/*.cpp))
 # libtracker.so's own list (see src/kits/tracker/Jamfile) -- the wildcard above is trimmed to it below.
-LISTED := AttributeStream AutoMounterSettings BackgroundImage Bitmaps ContainerWindow CountView DeskWindow \
+LISTED := SnakeSelector AttributeStream AutoMounterSettings BackgroundImage Bitmaps ContainerWindow CountView DeskWindow \
   DesktopPoseView DraggableContainerIcon DialogPane DirMenu EntryIterator FBCPadding FSClipboard FSUndoRedo \
   FSUtils FavoritesMenu FilePanel FilePanelPriv FindPanel GroupedMenu IconCache IconMenuItem LiveMenu \
   MimeTypeList MiniMenuField Model MountMenu Navigator NavMenu NodePreloader NodeWalker OpenWithWindow \

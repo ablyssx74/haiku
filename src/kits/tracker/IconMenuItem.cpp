@@ -148,13 +148,19 @@ ModelMenuItem::Draw()
 
 	menu->PushState();
 
-	// repaint the menu background first, so a selector drawn earlier doesn't linger
-	menu->SetHighColor(ui_color(B_MENU_BACKGROUND_COLOR));
-	menu->FillRect(frame);
+	// A BNavMenu draws the selector itself (DrawBackground(), so the trail can join its levels);
+	// elsewhere the item paints its own.
+	const bool trailMenu = SnakeSelector::MenuDrawsTrail(menu);
+	if (!trailMenu) {
+		// repaint the menu background first, so a selector drawn earlier doesn't linger
+		menu->SetHighColor(ui_color(B_MENU_BACKGROUND_COLOR));
+		menu->FillRect(frame);
+	}
 
 	rgb_color text;
 	if (active) {
-		SnakeSelector::Draw(menu, frame);
+		if (!trailMenu)
+			SnakeSelector::DrawLoneSelector(menu, frame);
 		text = SnakeSelector::TextOn(SnakeSelector::Accent());
 		menu->SetLowColor(SnakeSelector::Accent());
 	} else {
@@ -186,7 +192,11 @@ void
 ModelMenuItem::Highlight(bool hilited)
 {
 	_inherited::Highlight(hilited);
-	DrawIcon();
+	// the trail's shape depends on the selection, so the whole menu is redrawn, not just this row
+	if (SnakeSelector::MenuDrawsTrail(Menu()))
+		Menu()->Invalidate();
+	else
+		DrawIcon();
 }
 
 
