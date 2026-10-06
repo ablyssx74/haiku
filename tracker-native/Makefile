@@ -29,7 +29,7 @@ OBJS := $(patsubst $(TOP)/%.cpp,$(OUT)/%.o,$(SRCS))
 SCSRCS := BitFieldTesters CommandActuators KeyInfos ParseCommandLine
 SCOBJS := $(addprefix $(OUT)/sc/,$(addsuffix .o,$(SCSRCS)))
 
-HDR := -I$(KIT) -I$(INFO) -I$(SC) \
+HDR := -I$(TOP)/headers/private/tracker -I$(KIT) -I$(INFO) -I$(SC) \
   -I$(DEV)/headers/private/interface -I$(DEV)/headers/private/mount -I$(DEV)/headers/private/shared \
   -I$(DEV)/headers/private/storage -I$(DEV)/headers/private/support -I$(DEV)/headers/private/tracker \
   -I$(DEV)/headers/private/system -I$(DEV)/headers/private/system/arch/x86_64 -I$(DEV)/headers/private

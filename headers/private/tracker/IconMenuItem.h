@@ -91,6 +91,7 @@ class ModelMenuItem : public BMenuItem {
 		virtual ~ModelMenuItem();
 
 		virtual	status_t SetEntry(const BEntry*);
+		virtual	void Draw();
 		virtual	void DrawContent();
 		virtual	void Highlight(bool isHighlighted);
 		virtual	void GetContentSize(float* width, float* height);

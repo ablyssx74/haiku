@@ -45,6 +45,7 @@ All rights reserved.
 #include <NodeInfo.h>
 
 #include "IconCache.h"
+#include "SnakeSelector.h"
 
 
 static void
@@ -135,6 +136,49 @@ ModelMenuItem::DrawContent()
 		_inherited::DrawContent();
 	}
 	DrawIcon();
+}
+
+
+void
+ModelMenuItem::Draw()
+{
+	BMenu* menu = Menu();
+	BRect frame = Frame();
+	bool active = IsSelected() && (IsEnabled() || Submenu() != NULL);
+
+	menu->PushState();
+
+	// repaint the menu background first, so a selector drawn earlier doesn't linger
+	menu->SetHighColor(ui_color(B_MENU_BACKGROUND_COLOR));
+	menu->FillRect(frame);
+
+	rgb_color text;
+	if (active) {
+		SnakeSelector::Draw(menu, frame);
+		text = SnakeSelector::TextOn(SnakeSelector::Accent());
+		menu->SetLowColor(SnakeSelector::Accent());
+	} else {
+		menu->SetLowColor(ui_color(B_MENU_BACKGROUND_COLOR));
+		if (IsEnabled())
+			text = ui_color(B_MENU_ITEM_TEXT_COLOR);
+		else
+			text = tint_color(ui_color(B_MENU_BACKGROUND_COLOR), B_DISABLED_LABEL_TINT);
+	}
+	menu->SetHighColor(text);
+
+	menu->MovePenTo(ContentLocation());
+	DrawContent();
+
+	if (Submenu() != NULL) {
+		float symbolSize = roundf(frame.Height() * 2 / 3);
+		BRect symbolRect(0, 0, symbolSize, symbolSize);
+		symbolRect.OffsetTo(BPoint(frame.right - symbolSize,
+			frame.top + (frame.Height() - symbolSize) / 2));
+		be_control_look->DrawArrowShape(menu, symbolRect, symbolRect, text,
+			BControlLook::B_RIGHT_ARROW, 0, B_DARKEN_2_TINT);
+	}
+
+	menu->PopState();
 }
 
 
