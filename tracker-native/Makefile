@@ -33,7 +33,7 @@ HDR := -I$(TOP)/headers/private/tracker -I$(KIT) -I$(INFO) -I$(SC) \
   -I$(DEV)/headers/private/interface -I$(DEV)/headers/private/mount -I$(DEV)/headers/private/shared \
   -I$(DEV)/headers/private/storage -I$(DEV)/headers/private/support -I$(DEV)/headers/private/tracker \
   -I$(DEV)/headers/private/system -I$(DEV)/headers/private/system/arch/x86_64 -I$(DEV)/headers/private
-CXXFLAGS := -O2 -fPIC -Wno-multichar -Wno-deprecated-declarations -D_BUILDING_tracker=1 -D_SUPPORTS_RESOURCES=1 $(HDR)
+CXXFLAGS := -MMD -MP -O2 -fPIC -Wno-multichar -Wno-deprecated-declarations -D_BUILDING_tracker=1 -D_SUPPORTS_RESOURCES=1 $(HDR)
 LIBS := -lbe -llocalestub -ltranslation -lshared -lcolumnlistview -lsupc++ -lstdc++
 
 all: $(OUT)/libtracker.so
@@ -64,3 +64,5 @@ uninstall:
 clean:
 	rm -rf $(OUT)
 .PHONY: all install uninstall clean
+
+-include $(shell find $(OUT) -name "*.d" 2>/dev/null)
