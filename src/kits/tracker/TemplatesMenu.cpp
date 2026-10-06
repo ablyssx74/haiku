@@ -280,7 +280,7 @@ TemplatesMenu::IterateTemplateDirectory(bool addItems, BPath* path, BMenu* menu)
 							// if submenu add it to subMenus list and iterate contents
 							BPath subdirPath;
 							if (entry.GetPath(&subdirPath) == B_OK) {
-								BMenu* subMenu = new BMenu(fileName);
+								BMenu* subMenu = new SnakeMenu(fileName);
 								fTemplateCount
 									+= IterateTemplateDirectory(addItems, &subdirPath, subMenu);
 								subMenus.AddItem((void*)subMenu);
@@ -311,7 +311,7 @@ TemplatesMenu::IterateTemplateDirectory(bool addItems, BPath* path, BMenu* menu)
 	// Add submenus to menu
 	int32 itemCount = subMenus.CountItems();
 	for (int32 i = 0; i < itemCount; i++)
-		menu->AddItem((BMenu*)subMenus.ItemAt(i));
+		menu->AddItem(new SnakeMenuItem((BMenu*)subMenus.ItemAt(i)));
 
 	if (itemCount > 0)
 		menu->AddSeparatorItem();

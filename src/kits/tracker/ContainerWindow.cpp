@@ -642,7 +642,7 @@ BContainerWindow::AddContextMenus()
 	fPoseContextMenu = new TLivePosePopUpMenu("PoseContext", this, false, false);
 	AddPoseContextMenu(fPoseContextMenu);
 
-	fVolumeContextMenu = new BPopUpMenu("VolumeContext", false, false);
+	fVolumeContextMenu = new SnakePopUpMenu("VolumeContext", false, false);
 	AddVolumeContextMenu(fVolumeContextMenu);
 
 	fWindowContextMenu = new TLiveWindowPopUpMenu("WindowContext", this, false, false);
@@ -654,7 +654,7 @@ BContainerWindow::AddContextMenus()
 	fDragContextMenu = new BPopUpNavMenu("DragContext");
 		// will get added and built dynamically in ShowContextMenu
 
-	fTrashContextMenu = new BPopUpMenu("TrashContext", false, false);
+	fTrashContextMenu = new SnakePopUpMenu("TrashContext", false, false);
 	AddTrashContextMenu(fTrashContextMenu);
 }
 
@@ -1774,7 +1774,7 @@ BContainerWindow::AddFileMenu(BMenu* menu)
 	if (!TargetModel()->IsRoot())
 		menu->AddItem(Shortcuts()->IdentifyItem());
 	if (ShouldHaveAddOnMenus())
-		menu->AddItem(new SnakeMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
+		menu->AddItem(new SnakeMenuItem(new SnakeMenu(Shortcuts()->AddOnsLabel())));
 }
 
 
@@ -1815,7 +1815,7 @@ BContainerWindow::AddIconSizeMenu(BMenu* menu)
 	BMenuItem* item;
 	BMessage* message;
 
-	BMenu* iconSizeMenu = new BMenu(B_TRANSLATE("Icon view"));
+	BMenu* iconSizeMenu = new SnakeMenu(B_TRANSLATE("Icon view"));
 	iconSizeMenu->SetRadioMode(true);
 
 	static const uint32 kIconSizes[] = { 32, 40, 48, 64, 96, 128 };
@@ -1849,7 +1849,7 @@ BContainerWindow::AddIconSizeMenu(BMenu* menu)
 	iconSizeMenu->AddItem(item);
 
 	// A sub menu where the super item can be invoked.
-	menu->AddItem(iconSizeMenu);
+	menu->AddItem(new SnakeMenuItem(iconSizeMenu));
 	BMenuItem* iconSizeSuperItem = iconSizeMenu->Superitem();
 	if (iconSizeSuperItem != NULL) {
 		iconSizeSuperItem->SetShortcut('1', B_COMMAND_KEY);
@@ -2579,7 +2579,7 @@ BContainerWindow::AddPoseContextMenu(BMenu* menu)
 
 	menu->AddItem(Shortcuts()->IdentifyItem());
 	if (ShouldHaveAddOnMenus())
-		menu->AddItem(new SnakeMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
+		menu->AddItem(new SnakeMenuItem(new SnakeMenu(Shortcuts()->AddOnsLabel())));
 }
 
 
@@ -2595,7 +2595,7 @@ BContainerWindow::AddVolumeContextMenu(BMenu* menu)
 	// see UpdateMenu() and SetupMountMenu()
 
 	if (ShouldHaveAddOnMenus())
-		menu->AddItem(new SnakeMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
+		menu->AddItem(new SnakeMenuItem(new SnakeMenu(Shortcuts()->AddOnsLabel())));
 }
 
 
@@ -2641,7 +2641,7 @@ BContainerWindow::AddWindowContextMenu(BMenu* menu)
 	// see UpdateMenu() and SetupMountMenu().
 
 	if (ShouldHaveAddOnMenus())
-		menu->AddItem(new SnakeMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
+		menu->AddItem(new SnakeMenuItem(new SnakeMenu(Shortcuts()->AddOnsLabel())));
 
 #if DEBUG
 	menu->AddSeparatorItem();

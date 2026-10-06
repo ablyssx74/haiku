@@ -197,4 +197,66 @@ SnakeMenuItem::_DrawShortcut(rgb_color color, bool menuHasSubmenus)
 	}
 }
 
+SnakeMenu::SnakeMenu(const char* name, menu_layout layout)
+	:
+	BMenu(name, layout)
+{
+}
+
+
+void
+SnakeMenu::AttachedToWindow()
+{
+	BMenu::AttachedToWindow();
+	SnakeSelector::AttachLink(this);
+}
+
+
+void
+SnakeMenu::DetachedFromWindow()
+{
+	SnakeSelector::DetachLink(this);
+	BMenu::DetachedFromWindow();
+}
+
+
+void
+SnakeMenu::DrawBackground(BRect updateRect)
+{
+	BMenu::DrawBackground(updateRect);
+	SnakeSelector::DrawTrail(this);
+}
+
+
+SnakePopUpMenu::SnakePopUpMenu(const char* name, bool radioMode, bool labelFromMarked,
+	menu_layout layout)
+	:
+	BPopUpMenu(name, radioMode, labelFromMarked, layout)
+{
+}
+
+
+void
+SnakePopUpMenu::AttachedToWindow()
+{
+	BPopUpMenu::AttachedToWindow();
+	SnakeSelector::AttachLink(this);
+}
+
+
+void
+SnakePopUpMenu::DetachedFromWindow()
+{
+	SnakeSelector::DetachLink(this);
+	BPopUpMenu::DetachedFromWindow();
+}
+
+
+void
+SnakePopUpMenu::DrawBackground(BRect updateRect)
+{
+	BPopUpMenu::DrawBackground(updateRect);
+	SnakeSelector::DrawTrail(this);
+}
+
 }	// namespace BPrivate

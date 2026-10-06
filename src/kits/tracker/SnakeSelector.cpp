@@ -157,13 +157,26 @@ TextOn(rgb_color c)
 
 
 // Tracker's own menu classes draw the trail from their DrawBackground(); stock menus (menu bars and
-// the like) don't.
+// the like) don't. The menu must also hold nothing but snake items (and separators): a stock item
+// would get no highlight at all, as the trail menu leaves the selector to its items.
 bool
 MenuDrawsTrail(BMenu* menu)
 {
-	return dynamic_cast<BSlowMenu*>(menu) != NULL || dynamic_cast<TLiveMenu*>(menu) != NULL
-		|| dynamic_cast<TLivePopUpMenu*>(menu) != NULL || dynamic_cast<TemplatesMenu*>(menu) != NULL
-		|| dynamic_cast<MountMenu*>(menu) != NULL;
+	if (menu == NULL)
+		return false;
+	if (dynamic_cast<BSlowMenu*>(menu) == NULL && dynamic_cast<TLiveMenu*>(menu) == NULL
+		&& dynamic_cast<TLivePopUpMenu*>(menu) == NULL && dynamic_cast<TemplatesMenu*>(menu) == NULL
+		&& dynamic_cast<MountMenu*>(menu) == NULL && dynamic_cast<SnakeMenu*>(menu) == NULL
+		&& dynamic_cast<SnakePopUpMenu*>(menu) == NULL) {
+		return false;
+	}
+
+	for (int32 i = 0; i < menu->CountItems(); i++) {
+		BMenuItem* item = menu->ItemAt(i);
+		if (dynamic_cast<SnakeMenuItem*>(item) == NULL && dynamic_cast<BSeparatorItem*>(item) == NULL)
+			return false;
+	}
+	return true;
 }
 
 
@@ -306,6 +319,9 @@ DrawTrail(BMenu* menu)
 		if (it != sLinks.end())
 			link = it->second;
 	}
+
+	if (!MenuDrawsTrail(menu))
+		return;
 
 	BRect bounds = menu->Bounds();
 	const int w = (int)bounds.Width() + 1, h = (int)bounds.Height() + 1;

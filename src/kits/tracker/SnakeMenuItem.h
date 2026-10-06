@@ -7,7 +7,9 @@
 #define _SNAKE_MENU_ITEM_H
 
 
+#include <Menu.h>
 #include <MenuItem.h>
+#include <PopUpMenu.h>
 
 
 namespace BPrivate {
@@ -33,9 +35,33 @@ private:
 	typedef BMenuItem _inherited;
 };
 
+// Plain menus that draw the snake trail (see SnakeSelector.h). Only for menus whose items are all
+// SnakeMenuItems (or subclasses): the trail menu leaves the selector to them.
+class SnakeMenu : public BMenu {
+public:
+							SnakeMenu(const char* name, menu_layout layout = B_ITEMS_IN_COLUMN);
+
+	virtual	void			AttachedToWindow();
+	virtual	void			DetachedFromWindow();
+	virtual	void			DrawBackground(BRect updateRect);
+};
+
+
+class SnakePopUpMenu : public BPopUpMenu {
+public:
+							SnakePopUpMenu(const char* name, bool radioMode = true,
+								bool labelFromMarked = true, menu_layout layout = B_ITEMS_IN_COLUMN);
+
+	virtual	void			AttachedToWindow();
+	virtual	void			DetachedFromWindow();
+	virtual	void			DrawBackground(BRect updateRect);
+};
+
 }	// namespace BPrivate
 
+using BPrivate::SnakeMenu;
 using BPrivate::SnakeMenuItem;
+using BPrivate::SnakePopUpMenu;
 
 
 #endif	// _SNAKE_MENU_ITEM_H

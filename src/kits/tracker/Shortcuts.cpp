@@ -8,6 +8,7 @@
 
 
 #include "Shortcuts.h"
+#include "SnakeMenuItem.h"
 
 #include <Application.h>
 #include <Catalog.h>
@@ -58,7 +59,7 @@ TShortcuts::TShortcuts(BContainerWindow* window)
 BMenuItem*
 TShortcuts::AddOnsItem()
 {
-	return new BMenuItem(AddOnsLabel(), NULL);
+	return new SnakeMenuItem(AddOnsLabel(), NULL);
 }
 
 
@@ -72,7 +73,7 @@ TShortcuts::AddOnsLabel()
 BMenuItem*
 TShortcuts::AddPrinterItem()
 {
-	return new BMenuItem(AddPrinterLabel(), new BMessage(kAddPrinter));
+	return new SnakeMenuItem(AddPrinterLabel(), new BMessage(kAddPrinter));
 }
 
 
@@ -86,7 +87,7 @@ TShortcuts::AddPrinterLabel()
 BMenuItem*
 TShortcuts::ArrangeByItem()
 {
-	return new BMenuItem(ArrangeByLabel(), NULL);
+	return new SnakeMenuItem(ArrangeByLabel(), NULL);
 }
 
 
@@ -100,7 +101,7 @@ TShortcuts::ArrangeByLabel()
 BMenuItem*
 TShortcuts::CleanupItem()
 {
-	return new BMenuItem(CleanupLabel(), new BMessage(kCleanup), 'K');
+	return new SnakeMenuItem(CleanupLabel(), new BMessage(kCleanup), 'K');
 }
 
 
@@ -127,7 +128,7 @@ TShortcuts::CleanupCommand()
 BMenuItem*
 TShortcuts::CloseItem()
 {
-	return new BMenuItem(CloseLabel(), new BMessage(B_QUIT_REQUESTED), 'W');
+	return new SnakeMenuItem(CloseLabel(), new BMessage(B_QUIT_REQUESTED), 'W');
 }
 
 
@@ -154,7 +155,7 @@ TShortcuts::CloseCommand()
 BMenuItem*
 TShortcuts::CloseAllInWorkspaceItem()
 {
-	return new BMenuItem(CloseAllInWorkspaceLabel(), new BMessage(kCloseAllInWorkspace), 'Q');
+	return new SnakeMenuItem(CloseAllInWorkspaceLabel(), new BMessage(kCloseAllInWorkspace), 'Q');
 }
 
 
@@ -168,7 +169,7 @@ TShortcuts::CloseAllInWorkspaceLabel()
 BMenuItem*
 TShortcuts::CopyItem()
 {
-	return new BMenuItem(CopyLabel(), new BMessage(B_COPY), 'C');
+	return new SnakeMenuItem(CopyLabel(), new BMessage(B_COPY), 'C');
 }
 
 
@@ -195,14 +196,14 @@ TShortcuts::CopyCommand()
 BMenuItem*
 TShortcuts::CopyToItem()
 {
-	return new BMenuItem(CopyToLabel(), new BMessage(kCopySelectionTo));
+	return new SnakeMenuItem(CopyToLabel(), new BMessage(kCopySelectionTo));
 }
 
 
 BMenuItem*
 TShortcuts::CopyToItem(BMenu* menu)
 {
-	return new BMenuItem(menu, new BMessage(kCopySelectionTo));
+	return new SnakeMenuItem(menu, new BMessage(kCopySelectionTo));
 }
 
 
@@ -216,14 +217,14 @@ TShortcuts::CopyToLabel()
 BMenuItem*
 TShortcuts::CreateLinkItem()
 {
-	return new BMenuItem(CreateLinkLabel(), new BMessage(kCreateLink));
+	return new SnakeMenuItem(CreateLinkLabel(), new BMessage(kCreateLink));
 }
 
 
 BMenuItem*
 TShortcuts::CreateLinkItem(BMenu* menu)
 {
-	return new BMenuItem(menu, new BMessage(kCreateLink));
+	return new SnakeMenuItem(menu, new BMessage(kCreateLink));
 }
 
 
@@ -250,7 +251,7 @@ TShortcuts::CreateLinkCommand()
 BMenuItem*
 TShortcuts::CreateLinkHereItem()
 {
-	return new BMenuItem(CreateLinkHereLabel(), new BMessage(kCreateLink));
+	return new SnakeMenuItem(CreateLinkHereLabel(), new BMessage(kCreateLink));
 }
 
 
@@ -277,7 +278,7 @@ TShortcuts::CreateLinkHereCommand()
 BMenuItem*
 TShortcuts::CutItem()
 {
-	return new BMenuItem(CutLabel(), new BMessage(B_CUT), 'X');
+	return new SnakeMenuItem(CutLabel(), new BMessage(B_CUT), 'X');
 }
 
 
@@ -304,7 +305,7 @@ TShortcuts::CutCommand()
 BMenuItem*
 TShortcuts::DeleteItem()
 {
-	return new BMenuItem(DeleteLabel(), new BMessage(kDeleteSelection));
+	return new SnakeMenuItem(DeleteLabel(), new BMessage(kDeleteSelection));
 }
 
 
@@ -318,7 +319,7 @@ TShortcuts::DeleteLabel()
 BMenuItem*
 TShortcuts::DuplicateItem()
 {
-	return new BMenuItem(DuplicateLabel(), new BMessage(kDuplicateSelection), 'D');
+	return new SnakeMenuItem(DuplicateLabel(), new BMessage(kDuplicateSelection), 'D');
 }
 
 
@@ -332,7 +333,7 @@ TShortcuts::DuplicateLabel()
 BMenuItem*
 TShortcuts::EditNameItem()
 {
-	return new BMenuItem(EditNameLabel(), new BMessage(kEditName), 'E');
+	return new SnakeMenuItem(EditNameLabel(), new BMessage(kEditName), 'E');
 }
 
 
@@ -346,7 +347,7 @@ TShortcuts::EditNameLabel()
 BMenuItem*
 TShortcuts::EditQueryItem()
 {
-	return new BMenuItem(EditQueryLabel(), new BMessage(kEditQuery), 'G');
+	return new SnakeMenuItem(EditQueryLabel(), new BMessage(kEditQuery), 'G');
 }
 
 
@@ -360,7 +361,7 @@ TShortcuts::EditQueryLabel()
 BMenuItem*
 TShortcuts::EmptyTrashItem()
 {
-	return new BMenuItem(EmptyTrashLabel(), new BMessage(kEmptyTrash));
+	return new SnakeMenuItem(EmptyTrashLabel(), new BMessage(kEmptyTrash));
 }
 
 
@@ -374,7 +375,7 @@ TShortcuts::EmptyTrashLabel()
 BMenuItem*
 TShortcuts::FindItem()
 {
-	return new BMenuItem(FindLabel(), new BMessage(kFindButton), 'F');
+	return new SnakeMenuItem(FindLabel(), new BMessage(kFindButton), 'F');
 }
 
 
@@ -388,7 +389,7 @@ TShortcuts::FindLabel()
 BMenuItem*
 TShortcuts::GetInfoItem()
 {
-	return new BMenuItem(GetInfoLabel(), new BMessage(kGetInfo), 'I');
+	return new SnakeMenuItem(GetInfoLabel(), new BMessage(kGetInfo), 'I');
 }
 
 
@@ -403,7 +404,7 @@ BMenuItem*
 TShortcuts::IdentifyItem()
 {
 	BMessage* message = new BMessage(kIdentifyEntry);
-	BMenuItem* item = new BMenuItem(IdentifyLabel(), message);
+	BMenuItem* item = new SnakeMenuItem(IdentifyLabel(), message);
 	message->AddBool("force", (modifiers() & B_SHIFT_KEY) != 0);
 
 	if (fInWindow)
@@ -426,7 +427,7 @@ TShortcuts::IdentifyLabel()
 BMenuItem*
 TShortcuts::InvertSelectionItem()
 {
-	return new BMenuItem(InvertSelectionLabel(), new BMessage(kInvertSelection), 'S');
+	return new SnakeMenuItem(InvertSelectionLabel(), new BMessage(kInvertSelection), 'S');
 }
 
 
@@ -440,7 +441,7 @@ TShortcuts::InvertSelectionLabel()
 BMenuItem*
 TShortcuts::MakeActivePrinterItem()
 {
-	return new BMenuItem(MakeActivePrinterLabel(), new BMessage(kMakeActivePrinter));
+	return new SnakeMenuItem(MakeActivePrinterLabel(), new BMessage(kMakeActivePrinter));
 }
 
 
@@ -454,14 +455,14 @@ TShortcuts::MakeActivePrinterLabel()
 BMenuItem*
 TShortcuts::MountItem()
 {
-	return new BMenuItem(MountLabel(), new BMessage(kMountVolume));
+	return new SnakeMenuItem(MountLabel(), new BMessage(kMountVolume));
 }
 
 
 BMenuItem*
 TShortcuts::MountItem(BMenu* menu)
 {
-	return new BMenuItem(menu, new BMessage(kMountVolume));
+	return new SnakeMenuItem(menu, new BMessage(kMountVolume));
 }
 
 
@@ -475,14 +476,14 @@ TShortcuts::MountLabel()
 BMenuItem*
 TShortcuts::MoveToItem()
 {
-	return new BMenuItem(MoveToLabel(), new BMessage(kMoveSelectionTo));
+	return new SnakeMenuItem(MoveToLabel(), new BMessage(kMoveSelectionTo));
 }
 
 
 BMenuItem*
 TShortcuts::MoveToItem(BMenu* menu)
 {
-	return new BMenuItem(menu, new BMessage(kMoveSelectionTo));
+	return new SnakeMenuItem(menu, new BMessage(kMoveSelectionTo));
 }
 
 
@@ -533,7 +534,7 @@ TShortcuts::MoveToTrashCommand()
 BMenuItem*
 TShortcuts::NewFolderItem()
 {
-	return new BMenuItem(NewFolderLabel(), new BMessage(kNewFolder), 'N');
+	return new SnakeMenuItem(NewFolderLabel(), new BMessage(kNewFolder), 'N');
 }
 
 
@@ -547,14 +548,14 @@ TShortcuts::NewFolderLabel()
 BMenuItem*
 TShortcuts::NewTemplatesItem()
 {
-	return new BMenuItem(B_TRANSLATE("New"), new BMessage(kNewEntryFromTemplate));
+	return new SnakeMenuItem(B_TRANSLATE("New"), new BMessage(kNewEntryFromTemplate));
 }
 
 
 BMenuItem*
 TShortcuts::NewTemplatesItem(BMenu* menu)
 {
-	return new BMenuItem(menu, new BMessage(kNewEntryFromTemplate));
+	return new SnakeMenuItem(menu, new BMessage(kNewEntryFromTemplate));
 }
 
 
@@ -568,7 +569,7 @@ TShortcuts::NewTemplatesLabel()
 BMenuItem*
 TShortcuts::OpenItem()
 {
-	return new BMenuItem(OpenLabel(), new BMessage(kOpenSelection), 'O');
+	return new SnakeMenuItem(OpenLabel(), new BMessage(kOpenSelection), 'O');
 }
 
 
@@ -582,7 +583,7 @@ TShortcuts::OpenLabel()
 BMenuItem*
 TShortcuts::OpenParentItem()
 {
-	return new BMenuItem(OpenParentLabel(), new BMessage(kOpenParentDir), B_UP_ARROW);
+	return new SnakeMenuItem(OpenParentLabel(), new BMessage(kOpenParentDir), B_UP_ARROW);
 }
 
 
@@ -596,14 +597,14 @@ TShortcuts::OpenParentLabel()
 BMenuItem*
 TShortcuts::OpenWithItem()
 {
-	return new BMenuItem(OpenWithLabel(), new BMessage(kOpenSelectionWith));
+	return new SnakeMenuItem(OpenWithLabel(), new BMessage(kOpenSelectionWith));
 }
 
 
 BMenuItem*
 TShortcuts::OpenWithItem(BMenu* menu)
 {
-	return new BMenuItem(menu, new BMessage(kOpenSelectionWith));
+	return new SnakeMenuItem(menu, new BMessage(kOpenSelectionWith));
 }
 
 
@@ -617,7 +618,7 @@ TShortcuts::OpenWithLabel()
 BMenuItem*
 TShortcuts::PasteItem()
 {
-	return new BMenuItem(PasteLabel(), new BMessage(B_PASTE), 'V');
+	return new SnakeMenuItem(PasteLabel(), new BMessage(B_PASTE), 'V');
 }
 
 
@@ -644,7 +645,7 @@ TShortcuts::PasteCommand()
 BMenuItem*
 TShortcuts::ResizeToFitItem()
 {
-	return new BMenuItem(ResizeToFitLabel(), new BMessage(kResizeToFit), 'Y');
+	return new SnakeMenuItem(ResizeToFitLabel(), new BMessage(kResizeToFit), 'Y');
 }
 
 
@@ -658,7 +659,7 @@ TShortcuts::ResizeToFitLabel()
 BMenuItem*
 TShortcuts::RestoreItem()
 {
-	return new BMenuItem(RestoreLabel(), new BMessage(kRestoreSelectionFromTrash));
+	return new SnakeMenuItem(RestoreLabel(), new BMessage(kRestoreSelectionFromTrash));
 }
 
 
@@ -672,7 +673,7 @@ TShortcuts::RestoreLabel()
 BMenuItem*
 TShortcuts::ReverseOrderItem()
 {
-	return new BMenuItem(ReverseOrderLabel(), new BMessage(kArrangeReverseOrder));
+	return new SnakeMenuItem(ReverseOrderLabel(), new BMessage(kArrangeReverseOrder));
 }
 
 
@@ -686,7 +687,7 @@ TShortcuts::ReverseOrderLabel()
 BMenuItem*
 TShortcuts::SelectItem()
 {
-	return new BMenuItem(SelectLabel(), new BMessage(kShowSelectionWindow), 'A', B_SHIFT_KEY);
+	return new SnakeMenuItem(SelectLabel(), new BMessage(kShowSelectionWindow), 'A', B_SHIFT_KEY);
 }
 
 
@@ -700,7 +701,7 @@ TShortcuts::SelectLabel()
 BMenuItem*
 TShortcuts::SelectAllItem()
 {
-	return new BMenuItem(SelectAllLabel(), new BMessage(B_SELECT_ALL), 'A');
+	return new SnakeMenuItem(SelectAllLabel(), new BMessage(B_SELECT_ALL), 'A');
 }
 
 
@@ -714,7 +715,7 @@ TShortcuts::SelectAllLabel()
 BMenuItem*
 TShortcuts::UnmountItem()
 {
-	return new BMenuItem(UnmountLabel(), new BMessage(kUnmountVolume), 'U');
+	return new SnakeMenuItem(UnmountLabel(), new BMessage(kUnmountVolume), 'U');
 }
 
 
