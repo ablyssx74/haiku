@@ -302,8 +302,29 @@ FindParentLink(BMenu* menu)
 }
 
 
+// What the trail drawn last time depended on. When it changes while only part of the menu is being
+// redrawn (stock items only invalidate their own rows), the whole menu is invalidated so the bar and
+// fillets between rows are repainted too.
+struct DrawState {
+	DrawState() : selected(NULL), open(false), parentRowTop(0), parentOnLeft(false) {}
+
+	bool operator!=(const DrawState& o) const
+	{
+		return selected != o.selected || open != o.open || parentRowTop != o.parentRowTop
+			|| parentOnLeft != o.parentOnLeft;
+	}
+
+	BMenuItem*	selected;
+	bool		open;
+	float		parentRowTop;
+	bool		parentOnLeft;
+};
+
+static std::map<BMenu*, DrawState> sStates;
+
+
 static void
-DrawTrail(BMenu* menu)
+DrawTrail(BMenu* menu, const BRect& updateRect)
 {
 	BRect bounds = menu->Bounds();
 	const int w = (int)bounds.Width() + 1, h = (int)bounds.Height() + 1;
@@ -323,6 +344,22 @@ DrawTrail(BMenu* menu)
 	if (trailOn)
 		link = FindParentLink(menu);
 	const bool parentOnLeft = link.valid && link.windowLeft < myLeft;
+
+	{
+		DrawState state;
+		state.selected = selected;
+		state.open = open;
+		state.parentRowTop = link.valid ? link.rowTop : 0;
+		state.parentOnLeft = parentOnLeft;
+		bool changed;
+		{
+			BAutolock lock(sLinkLock);
+			changed = sStates[menu] != state;
+			sStates[menu] = state;
+		}
+		if (changed && !updateRect.Contains(bounds))
+			menu->Invalidate();
+	}
 
 	std::vector<Piece> pieces;
 	std::vector<Fillet> fillets;
@@ -503,7 +540,7 @@ public:
 
 		BMenu* menu = dynamic_cast<BMenu*>(view);
 		if (menu != NULL && dynamic_cast<BMenuBar*>(menu) == NULL)
-			DrawTrail(menu);
+			DrawTrail(menu, updateRect);
 	}
 
 	virtual	void DrawMenuItemBackground(BView* view, BRect& rect, const BRect& updateRect,
