@@ -143,8 +143,31 @@ uninstall-launch:
 uninstall: uninstall-launch
 	rm -f /boot/system/non-packaged/lib/libtracker.so /boot/system/non-packaged/Tracker /boot/system/non-packaged/Deskbar
 
+# A package for people who want to try the look without a source build:
+#   make package    -> out/snaketracker-$(PKG_VERSION)-1-x86_64.hpkg
+# It installs next to (not over) the system's Tracker and Deskbar:
+#   /boot/system/apps/SnakeTracker/{Tracker,Deskbar,lib/libtracker.so}
+#   /boot/system/add-ons/control_look/SnakeControlLook
+#   /boot/system/data/user_launch/x-snake-tracker   (makes the launch daemon start the two above)
+# Removing the package puts the stock Tracker and Deskbar back. A package can't replace files that
+# another package (haiku.hpkg) owns, hence the separate folder and the launch file.
+PKG_VERSION := 1.0.0
+PKG := $(OUT)/package
+package: all app look
+	rm -rf $(PKG)
+	mkdir -p $(PKG)/apps/SnakeTracker/lib $(PKG)/add-ons/control_look $(PKG)/data/user_launch \
+		$(PKG)/documentation/packages/snaketracker
+	cp $(OUT)/Tracker $(OUT)/Deskbar $(PKG)/apps/SnakeTracker/
+	cp $(OUT)/libtracker.so $(PKG)/apps/SnakeTracker/lib/
+	cp $(OUT)/SnakeControlLook $(PKG)/add-ons/control_look/
+	cp package/x-snake-tracker $(PKG)/data/user_launch/
+	cp package/README.md $(PKG)/documentation/packages/snaketracker/
+	sed 's/@VERSION@/$(PKG_VERSION)/' package/PackageInfo.in > $(PKG)/.PackageInfo
+	rm -f $(OUT)/snaketracker-$(PKG_VERSION)-1-x86_64.hpkg
+	package create -C $(PKG) $(OUT)/snaketracker-$(PKG_VERSION)-1-x86_64.hpkg
+
 clean:
 	rm -rf $(OUT)
-.PHONY: look install-look activate-look deactivate-look all app install install-launch uninstall-launch uninstall clean
+.PHONY: package look install-look activate-look deactivate-look all app install install-launch uninstall-launch uninstall clean
 
 -include $(shell find $(OUT) -name "*.d" 2>/dev/null)

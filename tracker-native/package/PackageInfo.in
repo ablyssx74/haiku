@@ -1,0 +1,34 @@
+name			snaketracker
+version			@VERSION@-1
+architecture	x86_64
+summary			"Tracker, Deskbar and menus with the hDesktop snake-trail look"
+description		"Tracker and Deskbar built with a rounded, beveled menu selector and a
+\"snake trail\" that runs unbroken through every open submenu, plus an optional
+control look (Appearance > Control look: SnakeControlLook) that gives the same
+menus to every program, including tray replicants and software installed later.
+
+The selector colour follows hDesktop's Selector Color while hDesktop is running,
+or Tracker's own setting (Tracker preferences > Windows).
+
+Installs next to the system Tracker and Deskbar and takes over when they next
+start (log out and in, or restart). Remove the package to go back to the stock
+ones."
+packager		"ablyssx74 <ablyssx74@users.noreply.github.com>"
+vendor			"ablyssx74"
+copyrights {
+	"1991-2001 Be Incorporated"
+	"2001-2026 Haiku, Inc."
+	"2026 ablyssx74"
+}
+licenses {
+	"MIT"
+}
+provides {
+	snaketracker = @VERSION@
+}
+requires {
+	haiku >= r1~beta6
+}
+urls {
+	"https://github.com/ablyssx74/haiku"
+}

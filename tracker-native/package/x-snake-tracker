@@ -1,0 +1,9 @@
+# Starts the snake-trail Tracker and Deskbar instead of the system's. The file name sorts after the
+# system's own "user" file, so this amendment is applied last.
+service x-vnd.Be-TRAK {
+	launch /system/apps/SnakeTracker/Tracker
+}
+
+service x-vnd.Be-TSKB {
+	launch /system/apps/SnakeTracker/Deskbar
+}
