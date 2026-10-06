@@ -516,7 +516,7 @@ void
 TrackerSettings::SetSnakeAccent(rgb_color color)
 {
 	color.alpha = 255;
-	gTrackerState.fSnakeAccent->SetValue(ColorToValue(color));
+	gTrackerState.fSnakeAccent->ValueChanged(ColorToValue(color));
 }
 
 
