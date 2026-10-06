@@ -63,7 +63,17 @@ static const char* kHDesktopSignature = "application/x-vnd.hdesktop";
 // #pragma mark - settings
 
 
-static BLocker sSettingsLock("snake control look settings");
+// Everything this add-on keeps globally is allocated on the heap and never freed: a global with a
+// destructor registers it to run at program exit, and by then the add-on has been unloaded (libbe
+// unloads it when the program shuts down), so exit() would jump into memory that is gone. That crashed
+// mount_server as the system shut down.
+static BLocker&
+SettingsLock()
+{
+	static BLocker* lock = new BLocker("snake control look settings");
+	return *lock;
+}
+
 static rgb_color sAccent = {70, 110, 200, 255};
 static bool sTrail = true;
 static bigtime_t sLastCheck = -kCheckInterval;
@@ -99,7 +109,7 @@ static void
 RefreshSettings()
 {
 	bigtime_t now = system_time();
-	BAutolock lock(sSettingsLock);
+	BAutolock lock(SettingsLock());
 	if (now - sLastCheck < kCheckInterval)
 		return;
 	sLastCheck = now;
@@ -134,7 +144,7 @@ static rgb_color
 Accent()
 {
 	RefreshSettings();
-	BAutolock lock(sSettingsLock);
+	BAutolock lock(SettingsLock());
 	return sAccent;
 }
 
@@ -143,7 +153,7 @@ static bool
 TrailEnabled()
 {
 	RefreshSettings();
-	BAutolock lock(sSettingsLock);
+	BAutolock lock(SettingsLock());
 	return sTrail;
 }
 
@@ -256,8 +266,20 @@ struct ParentLink {
 	float	windowLeft;		// the parent window's left edge, in screen coordinates
 };
 
-static BLocker sLinkLock("snake links");
-static std::map<BMenu*, ParentLink> sLinks;
+static BLocker&
+LinkLock()
+{
+	static BLocker* lock = new BLocker("snake links");
+	return *lock;
+}
+
+
+static std::map<BMenu*, ParentLink>&
+Links()
+{
+	static std::map<BMenu*, ParentLink>* links = new std::map<BMenu*, ParentLink>();
+	return *links;
+}
 
 
 static ParentLink
@@ -267,8 +289,8 @@ FindParentLink(BMenu* menu)
 	BMenuItem* item = menu->Superitem();
 	ParentLink link;
 	if (parent == NULL || item == NULL || parent->Window() == NULL || dynamic_cast<BMenuBar*>(parent) != NULL) {
-		BAutolock lock(sLinkLock);
-		sLinks.erase(menu);
+		BAutolock lock(LinkLock());
+		Links().erase(menu);
 		return link;
 	}
 
@@ -282,10 +304,10 @@ FindParentLink(BMenu* menu)
 
 		bool isNew;
 		{
-			BAutolock lock(sLinkLock);
-			std::map<BMenu*, ParentLink>::iterator it = sLinks.find(menu);
-			isNew = it == sLinks.end() || !it->second.valid || it->second.rowTop != link.rowTop;
-			sLinks[menu] = link;
+			BAutolock lock(LinkLock());
+			std::map<BMenu*, ParentLink>::iterator it = Links().find(menu);
+			isNew = it == Links().end() || !it->second.valid || it->second.rowTop != link.rowTop;
+			Links()[menu] = link;
 		}
 		// the parent's row gets redrawn with the edge that joins this submenu
 		if (isNew)
@@ -294,9 +316,9 @@ FindParentLink(BMenu* menu)
 		return link;
 	}
 
-	BAutolock lock(sLinkLock);
-	std::map<BMenu*, ParentLink>::iterator it = sLinks.find(menu);
-	if (it != sLinks.end())
+	BAutolock lock(LinkLock());
+	std::map<BMenu*, ParentLink>::iterator it = Links().find(menu);
+	if (it != Links().end())
 		link = it->second;
 	return link;
 }
@@ -320,7 +342,12 @@ struct DrawState {
 	bool		parentOnLeft;
 };
 
-static std::map<BMenu*, DrawState> sStates;
+static std::map<BMenu*, DrawState>&
+States()
+{
+	static std::map<BMenu*, DrawState>* states = new std::map<BMenu*, DrawState>();
+	return *states;
+}
 
 
 static void
@@ -353,9 +380,9 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 		state.parentOnLeft = parentOnLeft;
 		bool changed;
 		{
-			BAutolock lock(sLinkLock);
-			changed = sStates[menu] != state;
-			sStates[menu] = state;
+			BAutolock lock(LinkLock());
+			changed = States()[menu] != state;
+			States()[menu] = state;
 		}
 		if (changed && !updateRect.Contains(bounds))
 			menu->Invalidate();

@@ -57,7 +57,14 @@ static const bool kRoundedFrame = false;	// see the comment in DrawTrail()
 static const char* kHDesktopSignature = "application/x-vnd.hdesktop";
 static const bigtime_t kCheckInterval = 1000000;
 
-static BLocker sSettingsLock("snake settings");
+// Heap-allocated and never freed, so nothing here runs at program exit (see SnakeControlLook.cpp).
+static BLocker&
+SettingsLock()
+{
+	static BLocker* lock = new BLocker("snake settings");
+	return *lock;
+}
+
 static rgb_color sAccent = {70, 110, 200, 255};
 static bool sTrail = true;
 static bigtime_t sLastCheck = 0;
@@ -67,7 +74,7 @@ static void
 RefreshSettings()
 {
 	bigtime_t now = system_time();
-	BAutolock lock(sSettingsLock);
+	BAutolock lock(SettingsLock());
 	if (now - sLastCheck < kCheckInterval)
 		return;
 	sLastCheck = now;
@@ -110,7 +117,7 @@ rgb_color
 Accent()
 {
 	RefreshSettings();
-	BAutolock lock(sSettingsLock);
+	BAutolock lock(SettingsLock());
 	return sAccent;
 }
 
@@ -119,7 +126,7 @@ bool
 TrailEnabled()
 {
 	RefreshSettings();
-	BAutolock lock(sSettingsLock);
+	BAutolock lock(SettingsLock());
 	return sTrail;
 }
 
@@ -261,8 +268,20 @@ struct ParentLink {
 	float	windowLeft;		// the parent window's left edge, in screen coordinates
 };
 
-static BLocker sLinkLock("snake links");
-static std::map<BMenu*, ParentLink> sLinks;
+static BLocker&
+LinkLock()
+{
+	static BLocker* lock = new BLocker("snake links");
+	return *lock;
+}
+
+
+static std::map<BMenu*, ParentLink>&
+Links()
+{
+	static std::map<BMenu*, ParentLink>* links = new std::map<BMenu*, ParentLink>();
+	return *links;
+}
 
 
 static void
@@ -291,8 +310,8 @@ AttachLink(BMenu* submenu)
 		link.windowLeft = parent->Window()->Frame().left;
 	}
 	{
-		BAutolock lock(sLinkLock);
-		sLinks[submenu] = link;
+		BAutolock lock(LinkLock());
+		Links()[submenu] = link;
 	}
 	InvalidateParent(parent);
 }
@@ -302,8 +321,8 @@ void
 DetachLink(BMenu* submenu)
 {
 	{
-		BAutolock lock(sLinkLock);
-		sLinks.erase(submenu);
+		BAutolock lock(LinkLock());
+		Links().erase(submenu);
 	}
 	InvalidateParent(submenu->Supermenu());
 }
@@ -314,9 +333,9 @@ DrawTrail(BMenu* menu)
 {
 	ParentLink link;
 	{
-		BAutolock lock(sLinkLock);
-		std::map<BMenu*, ParentLink>::iterator it = sLinks.find(menu);
-		if (it != sLinks.end())
+		BAutolock lock(LinkLock());
+		std::map<BMenu*, ParentLink>::iterator it = Links().find(menu);
+		if (it != Links().end())
 			link = it->second;
 	}
 
