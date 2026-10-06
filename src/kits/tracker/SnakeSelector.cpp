@@ -20,7 +20,6 @@
 #include <Message.h>
 #include <Path.h>
 #include <Roster.h>
-#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <Autolock.h>
@@ -41,6 +40,7 @@ static const float kBarW = 7.0f;		// the elbow bar down a submenu's edge
 static const float kSelR = 4.0f;		// corner radius of a selector row
 static const float kBarR = 3.0f;
 static const float kFilletR = 3.0f;
+static const bool kRoundedFrame = false;	// see the comment in DrawTrail()
 
 
 // hDesktop's Settings > Selector Color and Snake Trail, read from its settings file while hDesktop
@@ -423,24 +423,23 @@ DrawTrail(BMenu* menu)
 		}
 	}
 
-	// The menu's rounded frame. The stock background has already drawn a square 1px border; the corners
-	// are painted over with the menu colour (a window can't be see-through) and the border redrawn as a
-	// rounded outline. Top and bottom edges only count where the menu meets the window's edge (the rest
-	// is a scroll-arrow strip), as in the stock background.
+	if (!kRoundedFrame && pieces.empty())
+		return;
+
+	// Optional rounded frame. The stock background has already drawn a square 1px border; with this on,
+	// the corners are painted over with the menu colour (a window can't be see-through) and the border
+	// redrawn as a rounded outline. Top and bottom edges only count where the menu meets the window's
+	// edge (the rest is a scroll-arrow strip), as in the stock background.
+	//
+	// Off by default: Tracker's menu windows have a 1px square border drawn by app_server around the
+	// client area, so the rounded outline ends up inside a square one, which looks worse than the plain
+	// frame. (hDesktop's own menu windows have no such border.)
 	const rgb_color bg = ui_color(B_MENU_BACKGROUND_COLOR);
 	const rgb_color border = tint_color(bg, B_DARKEN_2_TINT);
 	bool frameTop = true, frameBottom = true;
 	if (menu->Parent() != NULL) {
 		frameTop = menu->Parent()->Frame().top == menu->Window()->Bounds().top;
 		frameBottom = menu->Parent()->Frame().bottom == menu->Window()->Bounds().bottom;
-	}
-	{
-		FILE* dbg = fopen("/tmp/snake.log", "a");
-		if (dbg) {
-			BRect f = menu->Frame(), wb = menu->Window()->Bounds();
-			fprintf(dbg, "menu frame %g,%g,%g,%g bounds %g,%g,%g,%g win %g,%g,%g,%g top %d bottom %d parent %p\n", f.left, f.top, f.right, f.bottom, bounds.left, bounds.top, bounds.right, bounds.bottom, wb.left, wb.top, wb.right, wb.bottom, frameTop, frameBottom, (void*)menu->Parent());
-			fclose(dbg);
-		}
 	}
 	const float kFrameR = 6.5f;
 	const float oy0 = frameTop ? 0.0f : -100.0f, oy1 = frameBottom ? (float)h : h + 100.0f;
@@ -462,7 +461,7 @@ DrawTrail(BMenu* menu)
 		for (int x = 0; x < w; ++x) {
 			// frame layer
 			float fa = 0, fr = 0, fg = 0, fb = 0;
-			bool nearEdge = x < 8 || x >= w - 8 || (frameTop && y < 8) || (frameBottom && y >= h - 8);
+			bool nearEdge = kRoundedFrame && (x < 8 || x >= w - 8 || (frameTop && y < 8) || (frameBottom && y >= h - 8));
 			if (nearEdge) {
 				float outer = RoundRectCoverage(x + 0.5f, y + 0.5f, 0, oy0, (float)w, oy1 - oy0,
 					kFrameR, kFrameR, kFrameR, kFrameR);
