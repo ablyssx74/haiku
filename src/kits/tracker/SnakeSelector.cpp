@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <Bitmap.h>
+#include <InterfaceDefs.h>
 #include <Entry.h>
 #include <File.h>
 #include <FindDirectory.h>
@@ -391,9 +392,6 @@ DrawTrail(BMenu* menu)
 		}
 	}
 
-	if (pieces.empty())
-		return;
-
 	// union coverage map
 	std::vector<float> cover((size_t)w * h, 0.0f);
 	for (size_t k = 0; k < pieces.size(); k++) {
@@ -424,7 +422,22 @@ DrawTrail(BMenu* menu)
 		}
 	}
 
-	// composite with the bevel: light where the pixel above is empty, dark where the one below is
+	// The menu's rounded frame. The stock background has already drawn a square 1px border; the corners
+	// are painted over with the menu colour (a window can't be see-through) and the border redrawn as a
+	// rounded outline. Top and bottom edges only count where the menu meets the window's edge (the rest
+	// is a scroll-arrow strip), as in the stock background.
+	const rgb_color bg = ui_color(B_MENU_BACKGROUND_COLOR);
+	const rgb_color border = tint_color(bg, B_DARKEN_2_TINT);
+	bool frameTop = true, frameBottom = true;
+	if (menu->Parent() != NULL) {
+		frameTop = menu->Parent()->Frame().top == menu->Window()->Bounds().top;
+		frameBottom = menu->Parent()->Frame().bottom == menu->Window()->Bounds().bottom;
+	}
+	const float kFrameR = 6.5f;
+	const float oy0 = frameTop ? 0.0f : -100.0f, oy1 = frameBottom ? (float)h : h + 100.0f;
+
+	// composite: frame first, then the selector on top with its bevel (light where the pixel above is
+	// empty, dark where the one below is)
 	BBitmap bitmap(BRect(0, 0, w - 1, h - 1), B_RGBA32);
 	if (bitmap.InitCheck() != B_OK)
 		return;
@@ -434,25 +447,59 @@ DrawTrail(BMenu* menu)
 	auto at = [&](int x, int y) -> float {
 		return (x < 0 || y < 0 || x >= w || y >= h) ? 0.0f : cover[(size_t)y * w + x];
 	};
+	bool any = false;
 	for (int y = 0; y < h; ++y) {
 		uint8* row = bits + y * bpr;
 		for (int x = 0; x < w; ++x) {
+			// frame layer
+			float fa = 0, fr = 0, fg = 0, fb = 0;
+			bool nearEdge = x < 8 || x >= w - 8 || (frameTop && y < 8) || (frameBottom && y >= h - 8);
+			if (nearEdge) {
+				float outer = RoundRectCoverage(x + 0.5f, y + 0.5f, 0, oy0, (float)w, oy1 - oy0,
+					kFrameR, kFrameR, kFrameR, kFrameR);
+				float inner = RoundRectCoverage(x + 0.5f, y + 0.5f, 1, oy0 + (frameTop ? 1 : 0),
+					w - 2.0f, oy1 - oy0 - (frameTop ? 1 : 0) - (frameBottom ? 1 : 0),
+					kFrameR - 1, kFrameR - 1, kFrameR - 1, kFrameR - 1);
+				float ring = Clamp01(outer - inner);
+				float outside = 1.0f - outer;		// the corner pixels, painted in the menu colour
+				fa = 1.0f - (1.0f - outside) * (1.0f - ring);
+				if (fa > 0.0f) {
+					float wb = outside * (1.0f - ring), wr = ring;
+					fr = (bg.red * wb + border.red * wr) / (wb + wr);
+					fg = (bg.green * wb + border.green * wr) / (wb + wr);
+					fb = (bg.blue * wb + border.blue * wr) / (wb + wr);
+				}
+			}
+
+			// selector layer
 			float c0 = at(x, y);
+			float sr = 0, sg = 0, sb = 0;
+			if (c0 > 0.0f) {
+				float a2 = c0 * at(x, y - 1), a3 = a2 * at(x, y + 1);
+				sr = light.red;  sg = light.green;  sb = light.blue;
+				sr += (dark.red - sr) * a2;  sg += (dark.green - sg) * a2;  sb += (dark.blue - sb) * a2;
+				sr += (base.red - sr) * a3;  sg += (base.green - sg) * a3;  sb += (base.blue - sb) * a3;
+			}
+
+			// selector over frame
+			float oa = c0 + fa * (1.0f - c0);
 			uint8* px = row + x * 4;
-			if (c0 <= 0.0f) {
+			if (oa <= 0.0f) {
 				px[0] = px[1] = px[2] = px[3] = 0;
 				continue;
 			}
-			float a2 = c0 * at(x, y - 1), a3 = a2 * at(x, y + 1);
-			float cr = light.red, cg = light.green, cb = light.blue;
-			cr += (dark.red - cr) * a2;  cg += (dark.green - cg) * a2;  cb += (dark.blue - cb) * a2;
-			cr += (base.red - cr) * a3;  cg += (base.green - cg) * a3;  cb += (base.blue - cb) * a3;
+			any = true;
+			float cr = (sr * c0 + fr * fa * (1.0f - c0)) / oa;
+			float cg = (sg * c0 + fg * fa * (1.0f - c0)) / oa;
+			float cb = (sb * c0 + fb * fa * (1.0f - c0)) / oa;
 			px[0] = (uint8)lroundf(std::min(255.0f, cb));
 			px[1] = (uint8)lroundf(std::min(255.0f, cg));
 			px[2] = (uint8)lroundf(std::min(255.0f, cr));
-			px[3] = (uint8)lroundf(c0 * 255.0f);
+			px[3] = (uint8)lroundf(oa * 255.0f);
 		}
 	}
+	if (!any)
+		return;
 
 	menu->PushState();
 	menu->SetDrawingMode(B_OP_ALPHA);

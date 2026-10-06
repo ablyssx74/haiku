@@ -1,6 +1,7 @@
 # Builds libtracker.so (and the stock Tracker app) natively on Haiku, without the full OS build.
 #   make            -> out/libtracker.so
-#   make install    -> /boot/system/non-packaged/lib/libtracker.so  (overrides the packaged one)
+#   make install    -> /boot/system/non-packaged/{Tracker,lib/libtracker.so}
+#   make install-launch -> start that Tracker at boot (user launch file)
 #   make uninstall
 # Needs the haiku_devel package (headers, libshared.a, libcolumnlistview.a, liblocalestub.a).
 TOP    := ..
@@ -56,13 +57,41 @@ $(OUT)/libtracker.so: $(OBJS) $(SCOBJS) $(OUT)/libtracker.rsrc
 	xres -o $@ $(OUT)/libtracker.rsrc
 	setversion $@ -system 1 -short "custom" 2>/dev/null || true
 
-install: all
+# The Tracker application itself is stock (src/apps/tracker); it is built and installed next to the
+# library because an application loads "%A/lib" -- the lib folder next to it -- before anything else,
+# so /boot/system/non-packaged/Tracker picks up /boot/system/non-packaged/lib/libtracker.so, while the
+# packaged /boot/system/Tracker always loads the packaged library.
+APP := $(TOP)/src/apps/tracker
+$(OUT)/Tracker.rsrc: $(APP)/Tracker.rdef
+	@mkdir -p $(OUT)
+	cpp -P $(APP)/Tracker.rdef > $(OUT)/Tracker.pp.rdef
+	rc -o $@ $(OUT)/Tracker.pp.rdef
+
+$(OUT)/Tracker: $(APP)/main.cpp $(OUT)/Tracker.rsrc $(OUT)/libtracker.so
+	$(CXX) $(CXXFLAGS) -o $@ $(APP)/main.cpp -L$(OUT) -ltracker -lbe -llocalestub -L$(DEV)/lib
+	xres -o $@ $(OUT)/Tracker.rsrc
+	mimeset -f $@ >/dev/null 2>&1 || true
+
+app: $(OUT)/Tracker
+
+install: all app
 	mkdir -p /boot/system/non-packaged/lib
 	cp $(OUT)/libtracker.so /boot/system/non-packaged/lib/libtracker.so
-uninstall:
-	rm -f /boot/system/non-packaged/lib/libtracker.so
+	cp $(OUT)/Tracker /boot/system/non-packaged/Tracker
+
+# Makes the launch daemon start /boot/system/non-packaged/Tracker instead of the packaged one (a user
+# launch file that amends the Tracker service). Takes effect the next time Tracker is started.
+install-launch:
+	mkdir -p /boot/home/config/settings/launch
+	printf 'service x-vnd.Be-TRAK {\n\tlaunch /system/non-packaged/Tracker\n}\n' > /boot/home/config/settings/launch/custom-tracker
+uninstall-launch:
+	rm -f /boot/home/config/settings/launch/custom-tracker
+
+uninstall: uninstall-launch
+	rm -f /boot/system/non-packaged/lib/libtracker.so /boot/system/non-packaged/Tracker
+
 clean:
 	rm -rf $(OUT)
-.PHONY: all install uninstall clean
+.PHONY: all app install install-launch uninstall-launch uninstall clean
 
 -include $(shell find $(OUT) -name "*.d" 2>/dev/null)
