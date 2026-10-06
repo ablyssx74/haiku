@@ -43,6 +43,7 @@ All rights reserved.
 #include <MenuField.h>
 #include <MenuPrivate.h>
 #include <NodeInfo.h>
+#include <Window.h>
 
 #include "IconCache.h"
 #include "SnakeSelector.h"
@@ -193,9 +194,11 @@ ModelMenuItem::Highlight(bool hilited)
 {
 	_inherited::Highlight(hilited);
 	// the trail's shape depends on the selection, so the whole menu is redrawn, not just this row
-	if (SnakeSelector::MenuDrawsTrail(Menu()))
-		Menu()->Invalidate();
-	else
+	BMenu* menu = Menu();
+	if (SnakeSelector::MenuDrawsTrail(menu)) {
+		if (menu->Window() != NULL && menu->Window()->IsLocked())
+			menu->Invalidate();
+	} else
 		DrawIcon();
 }
 
