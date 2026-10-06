@@ -115,7 +115,7 @@ CL := $(TOP)/src/add-ons/control_look/SnakeControlLook
 CL_DIR := /boot/system/non-packaged/add-ons/control_look
 $(OUT)/SnakeControlLook: $(CL)/SnakeControlLook.cpp
 	@mkdir -p $(OUT)
-	$(CXX) $(CXXFLAGS) -I$(DEV)/headers/private/interface -nostart -Xlinker -soname=SnakeControlLook \
+	$(CXX) $(CXXFLAGS) -I$(DEV)/headers/private/interface -shared -Xlinker -soname=SnakeControlLook \
 		-o $@ $< -lbe -lsupc++ -lstdc++ -L$(DEV)/lib
 
 look: $(OUT)/SnakeControlLook
