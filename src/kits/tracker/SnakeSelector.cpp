@@ -13,6 +13,14 @@
 #include <vector>
 
 #include <Bitmap.h>
+#include <Entry.h>
+#include <File.h>
+#include <FindDirectory.h>
+#include <Message.h>
+#include <Path.h>
+#include <Roster.h>
+#include <string.h>
+#include <time.h>
 #include <Autolock.h>
 #include <Locker.h>
 #include <Menu.h>
@@ -33,11 +41,79 @@ static const float kBarR = 3.0f;
 static const float kFilletR = 3.0f;
 
 
+// hDesktop's Settings > Selector Color and Snake Trail, read from its settings file while hDesktop
+// is running (the file is a flattened BMessage). Without hDesktop the defaults apply.
+static const char* kHDesktopSignature = "application/x-vnd.hdesktop";
+static const bigtime_t kCheckInterval = 1000000;
+
+static BLocker sSettingsLock("snake settings");
+static rgb_color sAccent = {70, 110, 200, 255};
+static bool sTrail = true;
+static bigtime_t sLastCheck = 0;
+static time_t sLoadedModTime = -1;
+
+
+static void
+RefreshSettings()
+{
+	bigtime_t now = system_time();
+	BAutolock lock(sSettingsLock);
+	if (now - sLastCheck < kCheckInterval)
+		return;
+	sLastCheck = now;
+
+	rgb_color accent = {70, 110, 200, 255};
+	bool trail = true;
+	time_t modTime = 0;
+
+	BPath path;
+	if (be_roster != NULL && be_roster->IsRunning(kHDesktopSignature)
+		&& find_directory(B_USER_SETTINGS_DIRECTORY, &path) == B_OK
+		&& path.Append("hdesktop_settings") == B_OK) {
+		BEntry entry(path.Path());
+		if (entry.GetModificationTime(&modTime) != B_OK)
+			modTime = 0;
+		if (modTime != 0) {
+			if (modTime == sLoadedModTime)
+				return;
+			BFile file(path.Path(), B_READ_ONLY);
+			BMessage settings;
+			if (file.InitCheck() == B_OK && settings.Unflatten(&file) == B_OK) {
+				int32 packed;
+				if (settings.FindInt32("nav_accent", &packed) == B_OK) {
+					accent = make_color((packed >> 16) & 0xFF, (packed >> 8) & 0xFF,
+						packed & 0xFF);
+				}
+				bool value;
+				if (settings.FindBool("nav_snake_trail", &value) == B_OK)
+					trail = value;
+			}
+		}
+	}
+
+	sLoadedModTime = modTime == 0 ? -1 : modTime;
+	bool changed = sTrail != trail || memcmp(&sAccent, &accent, sizeof(accent)) != 0;
+	sAccent = accent;
+	sTrail = trail;
+	(void)changed;
+}
+
+
 rgb_color
 Accent()
 {
-	// TODO: follow hDesktop's Selector Color when it is running.
-	return make_color(70, 110, 200);
+	RefreshSettings();
+	BAutolock lock(sSettingsLock);
+	return sAccent;
+}
+
+
+bool
+TrailEnabled()
+{
+	RefreshSettings();
+	BAutolock lock(sSettingsLock);
+	return sTrail;
 }
 
 
@@ -181,7 +257,8 @@ AttachLink(BMenu* submenu)
 	BMenu* parent = submenu->Supermenu();
 	BMenuItem* item = submenu->Superitem();
 	ParentLink link;
-	if (parent != NULL && item != NULL && parent->Window() != NULL && MenuDrawsTrail(parent)
+	if (TrailEnabled() && parent != NULL && item != NULL && parent->Window() != NULL
+		&& MenuDrawsTrail(parent)
 		&& parent->Window()->IsLocked()) {
 		BRect row = parent->ConvertToScreen(item->Frame());
 		link.valid = true;
@@ -236,7 +313,7 @@ DrawTrail(BMenu* menu)
 	}
 	const bool active = selected != NULL && (selected->IsEnabled() || selected->Submenu() != NULL);
 	BMenu* child = active ? selected->Submenu() : NULL;
-	const bool open = child != NULL && child->Window() != NULL;
+	const bool open = child != NULL && child->Window() != NULL && TrailEnabled();
 	const float myLeft = menu->Window()->Frame().left;
 	const bool childOnRight = open && child->Window()->Frame().left > myLeft;
 	const bool parentOnLeft = link.valid && link.windowLeft < myLeft;

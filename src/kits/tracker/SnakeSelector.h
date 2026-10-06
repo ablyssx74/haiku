@@ -22,6 +22,7 @@ class BView;
 namespace SnakeSelector {
 
 rgb_color	Accent();
+bool		TrailEnabled();
 rgb_color	Light(rgb_color);
 rgb_color	Dark(rgb_color);
 rgb_color	TextOn(rgb_color accent);
