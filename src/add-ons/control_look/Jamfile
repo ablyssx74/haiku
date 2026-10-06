@@ -2,4 +2,5 @@ SubDir HAIKU_TOP src add-ons control_look ;
 
 SubInclude HAIKU_TOP src add-ons control_look BeControlLook ;
 SubInclude HAIKU_TOP src add-ons control_look FlatControlLook ;
+SubInclude HAIKU_TOP src add-ons control_look SnakeControlLook ;
 

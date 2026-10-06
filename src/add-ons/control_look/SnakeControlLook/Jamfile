@@ -1,0 +1,8 @@
+SubDir HAIKU_TOP src add-ons control_look SnakeControlLook ;
+
+UsePrivateHeaders interface ;
+
+Addon SnakeControlLook :
+	SnakeControlLook.cpp
+	: be [ TargetLibstdc++ ] [ TargetLibsupc++ ]
+;

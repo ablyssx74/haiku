@@ -109,6 +109,29 @@ install: all app
 	cp $(OUT)/Tracker /boot/system/non-packaged/Tracker
 	cp $(OUT)/Deskbar /boot/system/non-packaged/Deskbar
 
+# The control look add-on (src/add-ons/control_look/SnakeControlLook) gives every program's menus the
+# snake-trail look, not just Tracker's and Deskbar's. Select it in Appearance, or `make activate-look`.
+CL := $(TOP)/src/add-ons/control_look/SnakeControlLook
+CL_DIR := /boot/system/non-packaged/add-ons/control_look
+$(OUT)/SnakeControlLook: $(CL)/SnakeControlLook.cpp
+	@mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) -I$(DEV)/headers/private/interface -nostart -Xlinker -soname=SnakeControlLook \
+		-o $@ $< -lbe -lsupc++ -lstdc++ -L$(DEV)/lib
+
+look: $(OUT)/SnakeControlLook
+install-look: look
+	mkdir -p $(CL_DIR)
+	rm -f $(CL_DIR)/SnakeControlLook
+	cp $(OUT)/SnakeControlLook $(CL_DIR)/SnakeControlLook
+	mimeset -f $(CL_DIR)/SnakeControlLook >/dev/null 2>&1 || true
+# Programs read the control look when they start; restart Tracker/Deskbar (or log out and in).
+activate-look: install-look
+	$(CXX) -o $(OUT)/setlook setlook.cpp -I$(DEV)/headers/private/interface -lbe
+	$(OUT)/setlook $(CL_DIR)/SnakeControlLook
+deactivate-look:
+	$(CXX) -o $(OUT)/setlook setlook.cpp -I$(DEV)/headers/private/interface -lbe
+	$(OUT)/setlook ""
+
 # Makes the launch daemon start /boot/system/non-packaged/{Tracker,Deskbar} instead of the packaged ones
 # (a user launch file that amends the two services). Takes effect the next time Tracker is started.
 install-launch:
@@ -122,6 +145,6 @@ uninstall: uninstall-launch
 
 clean:
 	rm -rf $(OUT)
-.PHONY: all app install install-launch uninstall-launch uninstall clean
+.PHONY: look install-look activate-look deactivate-look all app install install-launch uninstall-launch uninstall clean
 
 -include $(shell find $(OUT) -name "*.d" 2>/dev/null)
