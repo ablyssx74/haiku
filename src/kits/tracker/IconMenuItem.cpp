@@ -74,7 +74,7 @@ ModelMenuItem::ModelMenuItem(const Model* model, const char* title,
 	BMessage* message, char shortcut, uint32 modifiers,
 	bool drawText, bool extraPad)
 	:
-	BMenuItem(title, message, shortcut, modifiers),
+	SnakeMenuItem(title, message, shortcut, modifiers),
 	fModel(*model),
 	fHeightDelta(0),
 	fDrawText(drawText),
@@ -99,7 +99,7 @@ ModelMenuItem::ModelMenuItem(const Model* model, const char* title,
 ModelMenuItem::ModelMenuItem(const Model* model, BMenu* menu, bool drawText,
 	bool extraPad)
 	:
-	BMenuItem(menu),
+	SnakeMenuItem(menu),
 	fModel(*model),
 	fHeightDelta(0),
 	fDrawText(drawText),
@@ -141,64 +141,10 @@ ModelMenuItem::DrawContent()
 
 
 void
-ModelMenuItem::Draw()
-{
-	BMenu* menu = Menu();
-	BRect frame = Frame();
-	bool active = IsSelected() && (IsEnabled() || Submenu() != NULL);
-
-	menu->PushState();
-
-	// A BNavMenu draws the selector itself (DrawBackground(), so the trail can join its levels);
-	// elsewhere the item paints its own.
-	const bool trailMenu = SnakeSelector::MenuDrawsTrail(menu);
-	if (!trailMenu) {
-		// repaint the menu background first, so a selector drawn earlier doesn't linger
-		menu->SetHighColor(ui_color(B_MENU_BACKGROUND_COLOR));
-		menu->FillRect(frame);
-	}
-
-	rgb_color text;
-	if (active) {
-		if (!trailMenu)
-			SnakeSelector::DrawLoneSelector(menu, frame);
-		text = SnakeSelector::TextOn(SnakeSelector::Accent());
-		menu->SetLowColor(SnakeSelector::Accent());
-	} else {
-		menu->SetLowColor(ui_color(B_MENU_BACKGROUND_COLOR));
-		if (IsEnabled())
-			text = ui_color(B_MENU_ITEM_TEXT_COLOR);
-		else
-			text = tint_color(ui_color(B_MENU_BACKGROUND_COLOR), B_DISABLED_LABEL_TINT);
-	}
-	menu->SetHighColor(text);
-
-	menu->MovePenTo(ContentLocation());
-	DrawContent();
-
-	if (Submenu() != NULL) {
-		float symbolSize = roundf(frame.Height() * 2 / 3);
-		BRect symbolRect(0, 0, symbolSize, symbolSize);
-		symbolRect.OffsetTo(BPoint(frame.right - symbolSize,
-			frame.top + (frame.Height() - symbolSize) / 2));
-		be_control_look->DrawArrowShape(menu, symbolRect, symbolRect, text,
-			BControlLook::B_RIGHT_ARROW, 0, B_DARKEN_2_TINT);
-	}
-
-	menu->PopState();
-}
-
-
-void
 ModelMenuItem::Highlight(bool hilited)
 {
 	_inherited::Highlight(hilited);
-	// the trail's shape depends on the selection, so the whole menu is redrawn, not just this row
-	BMenu* menu = Menu();
-	if (SnakeSelector::MenuDrawsTrail(menu)) {
-		if (menu->Window() != NULL && menu->Window()->IsLocked())
-			menu->Invalidate();
-	} else
+	if (!SnakeSelector::MenuDrawsTrail(Menu()))
 		DrawIcon();
 }
 

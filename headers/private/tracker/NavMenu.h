@@ -86,10 +86,6 @@ public:
 	virtual void AttachedToWindow();
 	virtual void DetachedFromWindow();
 
-protected:
-	virtual void DrawBackground(BRect updateRect);
-
-public:
 	void SetNavDir(const entry_ref*);
 	void ForceRebuild();
 	bool NeedsToRebuild() const;

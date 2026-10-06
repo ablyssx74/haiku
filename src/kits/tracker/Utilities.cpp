@@ -1601,21 +1601,21 @@ EachMenuItem(const BMenu* menu, bool recursive,
 PositionPassingMenuItem::PositionPassingMenuItem(const char* title,
 	BMessage* message, char shortcut, uint32 modifiers)
 	:
-	BMenuItem(title, message, shortcut, modifiers)
+	SnakeMenuItem(title, message, shortcut, modifiers)
 {
 }
 
 
 PositionPassingMenuItem::PositionPassingMenuItem(BMenu* menu, BMessage* message)
 	:
-	BMenuItem(menu, message)
+	SnakeMenuItem(menu, message)
 {
 }
 
 
 PositionPassingMenuItem::PositionPassingMenuItem(BMessage* data)
 	:
-	BMenuItem(data)
+	SnakeMenuItem(data)
 {
 }
 

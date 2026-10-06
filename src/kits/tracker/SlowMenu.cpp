@@ -34,6 +34,7 @@ All rights reserved.
 
 
 #include "SlowMenu.h"
+#include "SnakeSelector.h"
 
 
 const int32 kItemsToAddChunk = 20;
@@ -117,4 +118,28 @@ BSlowMenu::ClearMenuBuildingState()
 {
 	TRESPASS();
 		// pure virtual, shouldn't be here
+}
+
+
+void
+BSlowMenu::AttachedToWindow()
+{
+	BMenu::AttachedToWindow();
+	SnakeSelector::AttachLink(this);
+}
+
+
+void
+BSlowMenu::DetachedFromWindow()
+{
+	SnakeSelector::DetachLink(this);
+	BMenu::DetachedFromWindow();
+}
+
+
+void
+BSlowMenu::DrawBackground(BRect updateRect)
+{
+	BMenu::DrawBackground(updateRect);
+	SnakeSelector::DrawTrail(this);
 }

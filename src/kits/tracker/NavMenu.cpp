@@ -36,8 +36,8 @@ their respective holders. All rights reserved.
 //	displays icons, uses the SlowMenu API for full interruptability
 
 
+#include "SnakeMenuItem.h"
 #include "NavMenu.h"
-#include "SnakeSelector.h"
 
 #include <algorithm>
 
@@ -334,7 +334,6 @@ void
 BNavMenu::AttachedToWindow()
 {
 	BSlowMenu::AttachedToWindow();
-	SnakeSelector::AttachLink(this);
 
 	SpringLoadedFolderSetMenuStates(this, fTypesList);
 		// If dragging, (fTypesList != NULL) set the menu items enabled state
@@ -347,15 +346,7 @@ BNavMenu::AttachedToWindow()
 void
 BNavMenu::DetachedFromWindow()
 {
-	SnakeSelector::DetachLink(this);
-}
-
-
-void
-BNavMenu::DrawBackground(BRect updateRect)
-{
-	BSlowMenu::DrawBackground(updateRect);
-	SnakeSelector::DrawTrail(this);
+	BSlowMenu::DetachedFromWindow();
 }
 
 
@@ -786,7 +777,7 @@ BNavMenu::DoneBuildingItemList()
 	fItemList->MakeEmpty();
 
 	if (count == 0) {
-		BMenuItem* item = new BMenuItem(B_TRANSLATE("Empty folder"), 0);
+		BMenuItem* item = new SnakeMenuItem(B_TRANSLATE("Empty folder"), 0);
 		item->SetEnabled(false);
 		AddItem(item);
 	}

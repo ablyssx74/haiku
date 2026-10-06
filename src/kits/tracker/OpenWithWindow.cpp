@@ -32,6 +32,7 @@ names are registered trademarks or trademarks of their respective holders.
 All rights reserved.
 */
 
+#include "SnakeMenuItem.h"
 #include "Attributes.h"
 #include "AutoLock.h"
 #include "Commands.h"
@@ -371,7 +372,7 @@ OpenWithContainerWindow::NewAttributesMenu(BMenu* menu)
 	message->AddBool("attr_editable", false);
 	message->AddBool("attr_statfield", false);
 
-	BMenuItem* item = new BMenuItem(B_TRANSLATE("Relation"), message);
+	BMenuItem* item = new SnakeMenuItem(B_TRANSLATE("Relation"), message);
 	menu->AddItem(item);
 	message = new BMessage(kAttributeItem);
 	message->AddString("attr_name", kAttrAppVersion);
@@ -383,7 +384,7 @@ OpenWithContainerWindow::NewAttributesMenu(BMenu* menu)
 	message->AddBool("attr_editable", false);
 	message->AddBool("attr_statfield", false);
 
-	item = new BMenuItem(B_TRANSLATE("Version"), message);
+	item = new SnakeMenuItem(B_TRANSLATE("Version"), message);
 	menu->AddItem(item);
 }
 
@@ -1336,7 +1337,7 @@ OpenWithMenu::DoneBuildingItemList()
 		SetTargetForItems(fMessenger);
 
 	if (CountItems() == 0) {
-		BMenuItem* item = new BMenuItem(B_TRANSLATE("no supporting apps"), 0);
+		BMenuItem* item = new SnakeMenuItem(B_TRANSLATE("no supporting apps"), 0);
 		item->SetEnabled(false);
 		AddItem(item);
 	}

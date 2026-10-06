@@ -49,12 +49,14 @@ All rights reserved.
 
 #include <kernel/fs_attr.h>
 
+#include "SnakeMenuItem.h"
 #include "Attributes.h"
 #include "Commands.h"
 
 #include "IconMenuItem.h"
 #include "MimeTypes.h"
 #include "TemplatesMenu.h"
+#include "SnakeSelector.h"
 
 #undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "TemplatesMenu"
@@ -90,7 +92,24 @@ TemplatesMenu::AttachedToWindow()
 {
 	BuildMenu();
 	BMenu::AttachedToWindow();
+	SnakeSelector::AttachLink(this);
 	SetTargetForItems(fTarget);
+}
+
+
+void
+TemplatesMenu::DetachedFromWindow()
+{
+	SnakeSelector::DetachLink(this);
+	BMenu::DetachedFromWindow();
+}
+
+
+void
+TemplatesMenu::DrawBackground(BRect updateRect)
+{
+	BMenu::DrawBackground(updateRect);
+	SnakeSelector::DrawTrail(this);
 }
 
 
@@ -176,7 +195,7 @@ TemplatesMenu::BuildMenu(bool addItems)
 	message->AddRef("refs", &dirRef);
 
 	// add item to show templates folder
-	fOpenItem = new BMenuItem(B_TRANSLATE("Edit templates" B_UTF8_ELLIPSIS), message);
+	fOpenItem = new SnakeMenuItem(B_TRANSLATE("Edit templates" B_UTF8_ELLIPSIS), message);
 	AddItem(fOpenItem);
 
 	if (dirRef == entry_ref())
@@ -197,7 +216,7 @@ TemplatesMenu::NewSubmenuItem(BPath subdirPath)
 		entry.GetRef(&dirRef);
 	BMessage* message = new BMessage(kNewTemplateSubmenu);
 	message->AddRef("refs", &dirRef);
-	BMenuItem* submenuItem = new BMenuItem(B_TRANSLATE("Add new submenu" B_UTF8_ELLIPSIS), message);
+	BMenuItem* submenuItem = new SnakeMenuItem(B_TRANSLATE("Add new submenu" B_UTF8_ELLIPSIS), message);
 
 	if (dirRef == entry_ref())
 		submenuItem->SetEnabled(false);

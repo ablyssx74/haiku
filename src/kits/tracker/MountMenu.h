@@ -44,6 +44,10 @@ class MountMenu : public BMenu {
 public:
 	MountMenu(const char*);
 
+	virtual void AttachedToWindow();
+	virtual void DetachedFromWindow();
+	virtual void DrawBackground(BRect updateRect);
+
 protected:
 	virtual bool AddDynamicItem(add_state state);
 

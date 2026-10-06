@@ -33,6 +33,7 @@ All rights reserved.
 */
 
 
+#include "SnakeMenuItem.h"
 #include "PoseView.h"
 
 #include <algorithm>
@@ -4460,11 +4461,11 @@ RunMimeTypeDestinationMenu(const char* actionText, const BStringList* types,
 		} else
 			labelText = description;
 
-		menu->AddItem(new BMenuItem(labelText.String(), 0));
+		menu->AddItem(new SnakeMenuItem(labelText.String(), 0));
 	}
 
 	menu->AddSeparatorItem();
-	menu->AddItem(new BMenuItem(B_TRANSLATE("Cancel"), 0));
+	menu->AddItem(new SnakeMenuItem(B_TRANSLATE("Cancel"), 0));
 
 	int32 result = -1;
 	BMenuItem* resultingItem = menu->Go(where, false, true);

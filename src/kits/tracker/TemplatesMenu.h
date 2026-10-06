@@ -49,6 +49,8 @@ public:
 	virtual ~TemplatesMenu();
 
 	virtual void AttachedToWindow();
+	virtual void DetachedFromWindow();
+	virtual void DrawBackground(BRect updateRect);
 
 	virtual status_t SetTargetForItems(BHandler*);
 	virtual status_t SetTargetForItems(BMessenger);

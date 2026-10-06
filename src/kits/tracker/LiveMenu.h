@@ -39,6 +39,10 @@ public:
 
 	virtual	void			MessageReceived(BMessage* message);
 
+	virtual	void			AttachedToWindow();
+	virtual	void			DetachedFromWindow();
+	virtual	void			DrawBackground(BRect updateRect);
+
 protected:
 	virtual	void			Update();
 };
@@ -53,6 +57,10 @@ public:
 	virtual					~TLivePopUpMenu();
 
 	virtual	void			MessageReceived(BMessage* message);
+
+	virtual	void			AttachedToWindow();
+	virtual	void			DetachedFromWindow();
+	virtual	void			DrawBackground(BRect updateRect);
 
 protected:
 	virtual	void			Update();

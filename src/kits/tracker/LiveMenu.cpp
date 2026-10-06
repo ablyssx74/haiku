@@ -17,6 +17,7 @@
 #include <Window.h>
 
 #include "Commands.h"
+#include "SnakeSelector.h"
 #include "TrackerSettings.h"
 
 
@@ -357,4 +358,52 @@ void
 TLiveDropContextPopUpMenu::Update()
 {
 	UpdateDropContextMenu(this);
+}
+
+
+void
+TLiveMenu::AttachedToWindow()
+{
+	BMenu::AttachedToWindow();
+	SnakeSelector::AttachLink(this);
+}
+
+
+void
+TLiveMenu::DetachedFromWindow()
+{
+	SnakeSelector::DetachLink(this);
+	BMenu::DetachedFromWindow();
+}
+
+
+void
+TLiveMenu::DrawBackground(BRect updateRect)
+{
+	BMenu::DrawBackground(updateRect);
+	SnakeSelector::DrawTrail(this);
+}
+
+
+void
+TLivePopUpMenu::AttachedToWindow()
+{
+	BPopUpMenu::AttachedToWindow();
+	SnakeSelector::AttachLink(this);
+}
+
+
+void
+TLivePopUpMenu::DetachedFromWindow()
+{
+	SnakeSelector::DetachLink(this);
+	BPopUpMenu::DetachedFromWindow();
+}
+
+
+void
+TLivePopUpMenu::DrawBackground(BRect updateRect)
+{
+	BPopUpMenu::DrawBackground(updateRect);
+	SnakeSelector::DrawTrail(this);
 }

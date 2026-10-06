@@ -33,6 +33,7 @@ All rights reserved.
 */
 
 
+#include "SnakeMenuItem.h"
 #include "FilePanelPriv.h"
 
 #include <string.h>
@@ -912,9 +913,9 @@ void
 TFilePanel::AddFavoritesMenu(BMenu* menu)
 {
 	const char* name = B_TRANSLATE("Add current folder");
-	menu->AddItem(new BMenuItem(name, new BMessage(kAddCurrentDir)));
+	menu->AddItem(new SnakeMenuItem(name, new BMessage(kAddCurrentDir)));
 	name = B_TRANSLATE("Edit favorites" B_UTF8_ELLIPSIS);
-	menu->AddItem(new BMenuItem(name, new BMessage(kEditFavorites)));
+	menu->AddItem(new SnakeMenuItem(name, new BMessage(kEditFavorites)));
 }
 
 

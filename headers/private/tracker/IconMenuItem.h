@@ -40,6 +40,7 @@ All rights reserved.
 
 #include <MenuItem.h>
 #include "Model.h"
+#include "SnakeMenuItem.h"
 #include "Utilities.h"
 
 
@@ -81,7 +82,7 @@ private:
 };
 
 
-class ModelMenuItem : public BMenuItem {
+class ModelMenuItem : public SnakeMenuItem {
 	public:
 		ModelMenuItem(const Model*, const char* title, BMessage*,
 			char shortcut = '\0', uint32 modifiers = 0,
@@ -91,13 +92,11 @@ class ModelMenuItem : public BMenuItem {
 		virtual ~ModelMenuItem();
 
 		virtual	status_t SetEntry(const BEntry*);
-		virtual	void Draw();
 		virtual	void DrawContent();
 		virtual	void Highlight(bool isHighlighted);
 		virtual	void GetContentSize(float* width, float* height);
 
 		const Model* TargetModel() const;
-		bool IsItemSelected() const { return IsSelected(); }
 
 	protected:
 		virtual status_t Invoke(BMessage* = NULL);
@@ -116,7 +115,7 @@ class ModelMenuItem : public BMenuItem {
 		bool fDrawText;
 		bool fExtraPad;
 
-		typedef BMenuItem _inherited;
+		typedef SnakeMenuItem _inherited;
 };
 
 

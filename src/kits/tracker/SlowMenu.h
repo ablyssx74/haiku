@@ -52,6 +52,11 @@ class BSlowMenu : public BMenu {
 public:
 	BSlowMenu(const char* title, menu_layout layout = B_ITEMS_IN_COLUMN);
 
+	virtual void AttachedToWindow();
+	virtual void DetachedFromWindow();
+	virtual void DrawBackground(BRect updateRect);
+
+
 protected:
 	virtual bool StartBuildingItemList();
 		// set up state to start building the item list

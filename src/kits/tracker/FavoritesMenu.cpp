@@ -33,6 +33,7 @@ All rights reserved.
 */
 
 
+#include "SnakeMenuItem.h"
 #include "FavoritesMenu.h"
 
 #include <compat/sys/stat.h>
@@ -474,7 +475,7 @@ RecentsMenu::DoneBuildingItemList()
 	//
 
 	if (CountItems() <= 0) {
-		BMenuItem* item = new BMenuItem(B_TRANSLATE("<No recent items>"), 0);
+		BMenuItem* item = new SnakeMenuItem(B_TRANSLATE("<No recent items>"), 0);
 		item->SetEnabled(false);
 		AddItem(item);
 	} else

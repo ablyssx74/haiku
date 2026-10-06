@@ -77,6 +77,7 @@ for architectureObject in [ MultiArchSubDirSetup ] {
 			SettingsViews.cpp
 			Shortcuts.cpp
 			SlowMenu.cpp
+			SnakeMenuItem.cpp
 			SnakeSelector.cpp
 			StatusWindow.cpp
 			TaskLoop.cpp

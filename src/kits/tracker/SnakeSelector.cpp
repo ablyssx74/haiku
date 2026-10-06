@@ -30,8 +30,12 @@
 #include <View.h>
 #include <Window.h>
 
-#include "IconMenuItem.h"
+#include "LiveMenu.h"
+#include "MountMenu.h"
 #include "NavMenu.h"
+#include "SlowMenu.h"
+#include "SnakeMenuItem.h"
+#include "TemplatesMenu.h"
 #include "TrackerSettings.h"
 
 
@@ -152,10 +156,14 @@ TextOn(rgb_color c)
 }
 
 
+// Tracker's own menu classes draw the trail from their DrawBackground(); stock menus (menu bars and
+// the like) don't.
 bool
 MenuDrawsTrail(BMenu* menu)
 {
-	return dynamic_cast<BNavMenu*>(menu) != NULL;
+	return dynamic_cast<BSlowMenu*>(menu) != NULL || dynamic_cast<TLiveMenu*>(menu) != NULL
+		|| dynamic_cast<TLivePopUpMenu*>(menu) != NULL || dynamic_cast<TemplatesMenu*>(menu) != NULL
+		|| dynamic_cast<MountMenu*>(menu) != NULL;
 }
 
 
@@ -308,7 +316,7 @@ DrawTrail(BMenu* menu)
 	// the selected row and whether its submenu is open
 	BMenuItem* selected = NULL;
 	for (int32 i = 0; i < menu->CountItems(); i++) {
-		ModelMenuItem* item = dynamic_cast<ModelMenuItem*>(menu->ItemAt(i));
+		SnakeMenuItem* item = dynamic_cast<SnakeMenuItem*>(menu->ItemAt(i));
 		if (item != NULL && item->IsItemSelected()) {
 			selected = item;
 			break;

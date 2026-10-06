@@ -56,6 +56,8 @@ All rights reserved.
 #include <String.h>
 #include <StringView.h>
 
+#include "SnakeMenuItem.h"
+
 
 class BMessage;
 class BTextView;
@@ -272,7 +274,7 @@ protected:
 };
 
 
-class PositionPassingMenuItem : public BMenuItem {
+class PositionPassingMenuItem : public SnakeMenuItem {
 public:
 	PositionPassingMenuItem(const char* title, BMessage*,
 		char shortcut = 0, uint32 modifiers = 0);
@@ -286,7 +288,7 @@ protected:
 		// appends the invoke location for NewFolder, etc. to use
 
 private:
-	typedef BMenuItem _inherited;
+	typedef SnakeMenuItem _inherited;
 };
 
 

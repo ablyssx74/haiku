@@ -45,6 +45,7 @@ All rights reserved.
 #include <Volume.h>
 #include <VolumeRoster.h>
 
+#include "SnakeMenuItem.h"
 #include "Attributes.h"
 #include "ContainerWindow.h"
 #include "DirMenu.h"
@@ -214,7 +215,7 @@ BDirMenu::Populate(const BEntry* startEntry, BWindow* source,
 		if (!CountItems()) {
 			BString error;
 			error << "Error [" << strerror(err) << "] populating menu";
-			AddItem(new BMenuItem(error.String(), 0));
+			AddItem(new SnakeMenuItem(error.String(), 0));
 		}
 	}
 }

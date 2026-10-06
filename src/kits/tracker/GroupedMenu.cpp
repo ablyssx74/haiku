@@ -33,6 +33,7 @@ respective holders. All rights reserved.
 */
 
 
+#include "SnakeMenuItem.h"
 #include "GroupedMenu.h"
 
 #include <stdlib.h>
@@ -99,7 +100,7 @@ TMenuItemGroup::AddItem(BMenuItem* item, int32 atIndex)
 bool
 TMenuItemGroup::AddItem(BMenu* menu)
 {
-	BMenuItem* item = new BMenuItem(menu);
+	BMenuItem* item = new SnakeMenuItem(menu);
 	if (item == NULL)
 		return false;
 
@@ -115,7 +116,7 @@ TMenuItemGroup::AddItem(BMenu* menu)
 bool
 TMenuItemGroup::AddItem(BMenu* menu, int32 atIndex)
 {
-	BMenuItem* item = new BMenuItem(menu);
+	BMenuItem* item = new SnakeMenuItem(menu);
 	if (item == NULL)
 		return false;
 

@@ -33,6 +33,7 @@ All rights reserved.
 */
 
 
+#include "SnakeMenuItem.h"
 #include "ContainerWindow.h"
 
 #include <Alert.h>
@@ -1773,7 +1774,7 @@ BContainerWindow::AddFileMenu(BMenu* menu)
 	if (!TargetModel()->IsRoot())
 		menu->AddItem(Shortcuts()->IdentifyItem());
 	if (ShouldHaveAddOnMenus())
-		menu->AddItem(new BMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
+		menu->AddItem(new SnakeMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
 }
 
 
@@ -1782,7 +1783,7 @@ BContainerWindow::AddWindowMenu(BMenu* menu)
 {
 	AddIconSizeMenu(menu);
 
-	BMenuItem* item = new BMenuItem(B_TRANSLATE("List view"), new BMessage(kListMode), '3');
+	BMenuItem* item = new SnakeMenuItem(B_TRANSLATE("List view"), new BMessage(kListMode), '3');
 	item->SetTarget(PoseView());
 	menu->AddItem(item);
 	menu->AddSeparatorItem();
@@ -1798,7 +1799,7 @@ BContainerWindow::AddWindowMenu(BMenu* menu)
 	menu->AddItem(Shortcuts()->CloseAllInWorkspaceItem());
 	menu->AddSeparatorItem();
 
-	item = new BMenuItem(B_TRANSLATE("Preferences" B_UTF8_ELLIPSIS),
+	item = new SnakeMenuItem(B_TRANSLATE("Preferences" B_UTF8_ELLIPSIS),
 		new BMessage(kShowSettingsWindow), ',');
 	item->SetTarget(be_app);
 	menu->AddItem(item);
@@ -1828,7 +1829,7 @@ BContainerWindow::AddIconSizeMenu(BMenu* menu)
 		message = new BMessage(kIconMode);
 		message->AddInt32("size", iconSize);
 		label.SetToFormat(format, iconSize, iconSize);
-		item = new BMenuItem(label, message);
+		item = new SnakeMenuItem(label, message);
 		item->SetTarget(PoseView());
 		iconSizeMenu->AddItem(item);
 	}
@@ -1837,13 +1838,13 @@ BContainerWindow::AddIconSizeMenu(BMenu* menu)
 
 	message = new BMessage(kIconMode);
 	message->AddInt32("scale", 0);
-	item = new BMenuItem(B_TRANSLATE("Decrease size"), message, '-');
+	item = new SnakeMenuItem(B_TRANSLATE("Decrease size"), message, '-');
 	item->SetTarget(PoseView());
 	iconSizeMenu->AddItem(item);
 
 	message = new BMessage(kIconMode);
 	message->AddInt32("scale", 1);
-	item = new BMenuItem(B_TRANSLATE("Increase size"), message, '+');
+	item = new SnakeMenuItem(B_TRANSLATE("Increase size"), message, '+');
 	item->SetTarget(PoseView());
 	iconSizeMenu->AddItem(item);
 
@@ -1856,7 +1857,7 @@ BContainerWindow::AddIconSizeMenu(BMenu* menu)
 		iconSizeSuperItem->SetTarget(PoseView());
 	}
 
-	item = new BMenuItem(B_TRANSLATE("Mini icon view"), new BMessage(kMiniIconMode), '2');
+	item = new SnakeMenuItem(B_TRANSLATE("Mini icon view"), new BMessage(kMiniIconMode), '2');
 	item->SetTarget(PoseView());
 	menu->AddItem(item);
 }
@@ -2578,7 +2579,7 @@ BContainerWindow::AddPoseContextMenu(BMenu* menu)
 
 	menu->AddItem(Shortcuts()->IdentifyItem());
 	if (ShouldHaveAddOnMenus())
-		menu->AddItem(new BMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
+		menu->AddItem(new SnakeMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
 }
 
 
@@ -2594,7 +2595,7 @@ BContainerWindow::AddVolumeContextMenu(BMenu* menu)
 	// see UpdateMenu() and SetupMountMenu()
 
 	if (ShouldHaveAddOnMenus())
-		menu->AddItem(new BMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
+		menu->AddItem(new SnakeMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
 }
 
 
@@ -2640,11 +2641,11 @@ BContainerWindow::AddWindowContextMenu(BMenu* menu)
 	// see UpdateMenu() and SetupMountMenu().
 
 	if (ShouldHaveAddOnMenus())
-		menu->AddItem(new BMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
+		menu->AddItem(new SnakeMenuItem(new BMenu(Shortcuts()->AddOnsLabel())));
 
 #if DEBUG
 	menu->AddSeparatorItem();
-	BMenuItem* testing = new BMenuItem("Test icon cache",
+	BMenuItem* testing = new SnakeMenuItem("Test icon cache",
 		new BMessage(kTestIconCache));
 	menu->AddItem(testing);
 	testing->SetTarget(PoseView());
@@ -2655,11 +2656,11 @@ BContainerWindow::AddWindowContextMenu(BMenu* menu)
 void
 BContainerWindow::AddDropContextMenu(BMenu* menu)
 {
-	menu->AddItem(new BMenuItem(B_TRANSLATE("Move here"), new BMessage(kMoveSelectionTo)));
-	menu->AddItem(new BMenuItem(B_TRANSLATE("Copy here"), new BMessage(kCopySelectionTo)));
-	menu->AddItem(new BMenuItem(B_TRANSLATE("Create link here"), new BMessage(kCreateLink)));
+	menu->AddItem(new SnakeMenuItem(B_TRANSLATE("Move here"), new BMessage(kMoveSelectionTo)));
+	menu->AddItem(new SnakeMenuItem(B_TRANSLATE("Copy here"), new BMessage(kCopySelectionTo)));
+	menu->AddItem(new SnakeMenuItem(B_TRANSLATE("Create link here"), new BMessage(kCreateLink)));
 	menu->AddSeparatorItem();
-	menu->AddItem(new BMenuItem(B_TRANSLATE("Cancel"), new BMessage(kCancelButton)));
+	menu->AddItem(new SnakeMenuItem(B_TRANSLATE("Cancel"), new BMessage(kCancelButton)));
 }
 
 
@@ -3228,7 +3229,7 @@ BContainerWindow::NewAttributeMenuItem(const char* label, const char* name,
 	message->AddBool("attr_editable", editable);
 	message->AddBool("attr_statfield", statField);
 
-	BMenuItem* menuItem = new BMenuItem(label, message);
+	BMenuItem* menuItem = new SnakeMenuItem(label, message);
 	menuItem->SetTarget(PoseView());
 
 	return menuItem;
@@ -3257,10 +3258,10 @@ BContainerWindow::NewAttributesMenu(BMenu* menu)
 	while ((item = menu->RemoveItem((int32)0)) != NULL)
 		delete item;
 
-	menu->AddItem(item = new BMenuItem(B_TRANSLATE("Copy layout"),
+	menu->AddItem(item = new SnakeMenuItem(B_TRANSLATE("Copy layout"),
 		new BMessage(kCopyAttributes)));
 	item->SetTarget(PoseView());
-	menu->AddItem(item = new BMenuItem(B_TRANSLATE("Paste layout"),
+	menu->AddItem(item = new SnakeMenuItem(B_TRANSLATE("Paste layout"),
 		new BMessage(kPasteAttributes)));
 	item->SetTarget(PoseView());
 	menu->AddSeparatorItem();
@@ -3483,7 +3484,7 @@ BContainerWindow::NewArrangeByMenu()
 		if (item == NULL || item->Message() == NULL)
 			continue;
 
-		item = new BMenuItem(item->Label(), new BMessage(*item->Message()));
+		item = new SnakeMenuItem(item->Label(), new BMessage(*item->Message()));
 		item->Message()->what = kArrangeBy;
 		menu->AddItem(item);
 	}
@@ -3494,7 +3495,7 @@ BContainerWindow::NewArrangeByMenu()
 
 	menu->AddItem(Shortcuts()->CleanupItem());
 
-	return new BMenuItem(menu);
+	return new SnakeMenuItem(menu);
 }
 
 

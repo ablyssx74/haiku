@@ -35,7 +35,9 @@ All rights reserved.
 // MountMenu implements a context menu used for mounting/unmounting volumes
 
 
+#include "SnakeMenuItem.h"
 #include "MountMenu.h"
+#include "SnakeSelector.h"
 
 #include <Catalog.h>
 #include <ControlLook.h>
@@ -142,7 +144,7 @@ AddMenuItemVisitor::Visit(BPartition* partition, int32 level)
 	if (icon != NULL)
 		item = new IconMenuItem(name.String(), message, icon);
 	else
-		item = new BMenuItem(name.String(), message);
+		item = new SnakeMenuItem(name.String(), message);
 	if (partition->IsMounted()) {
 		item->SetMarked(true);
 
@@ -223,10 +225,10 @@ MountMenu::AddDynamicItem(add_state)
 
 	AddSeparatorItem();
 
-	BMenuItem* mountAll = new BMenuItem(B_TRANSLATE("Mount all"),
+	BMenuItem* mountAll = new SnakeMenuItem(B_TRANSLATE("Mount all"),
 		new BMessage(kMountAllNow));
 	AddItem(mountAll);
-	BMenuItem* mountSettings = new BMenuItem(
+	BMenuItem* mountSettings = new SnakeMenuItem(
 		B_TRANSLATE("Settings" B_UTF8_ELLIPSIS),
 		new BMessage(kRunAutomounterSettings));
 	AddItem(mountSettings);
@@ -234,4 +236,28 @@ MountMenu::AddDynamicItem(add_state)
 	SetTargetForItems(be_app);
 
 	return false;
+}
+
+
+void
+MountMenu::AttachedToWindow()
+{
+	BMenu::AttachedToWindow();
+	SnakeSelector::AttachLink(this);
+}
+
+
+void
+MountMenu::DetachedFromWindow()
+{
+	SnakeSelector::DetachLink(this);
+	BMenu::DetachedFromWindow();
+}
+
+
+void
+MountMenu::DrawBackground(BRect updateRect)
+{
+	BMenu::DrawBackground(updateRect);
+	SnakeSelector::DrawTrail(this);
 }
