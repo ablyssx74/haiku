@@ -47,7 +47,9 @@ $(OUT)/sc/%.o: $(SC)/%.cpp
 
 $(OUT)/libtracker.rsrc: $(KIT)/libtracker.rdef $(KIT)/TrackerIcons.rdef
 	@mkdir -p $(OUT)
-	rc -o $@ $(KIT)/TrackerIcons.rdef $(KIT)/libtracker.rdef
+	cpp -P -DHAIKU_OFFICIAL_RELEASE=1 $(KIT)/TrackerIcons.rdef > $(OUT)/TrackerIcons.pp.rdef
+	cpp -P $(KIT)/libtracker.rdef > $(OUT)/libtracker.pp.rdef
+	rc -o $@ $(OUT)/TrackerIcons.pp.rdef $(OUT)/libtracker.pp.rdef
 
 $(OUT)/libtracker.so: $(OBJS) $(SCOBJS) $(OUT)/libtracker.rsrc
 	$(CXX) -shared -Xlinker -soname=libtracker.so -o $@ $(OBJS) $(SCOBJS) $(LIBS) -L$(DEV)/lib
