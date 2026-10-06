@@ -20,6 +20,7 @@
 #include <Message.h>
 #include <Path.h>
 #include <Roster.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <Autolock.h>
@@ -432,6 +433,14 @@ DrawTrail(BMenu* menu)
 	if (menu->Parent() != NULL) {
 		frameTop = menu->Parent()->Frame().top == menu->Window()->Bounds().top;
 		frameBottom = menu->Parent()->Frame().bottom == menu->Window()->Bounds().bottom;
+	}
+	{
+		FILE* dbg = fopen("/tmp/snake.log", "a");
+		if (dbg) {
+			BRect f = menu->Frame(), wb = menu->Window()->Bounds();
+			fprintf(dbg, "menu frame %g,%g,%g,%g bounds %g,%g,%g,%g win %g,%g,%g,%g top %d bottom %d parent %p\n", f.left, f.top, f.right, f.bottom, bounds.left, bounds.top, bounds.right, bounds.bottom, wb.left, wb.top, wb.right, wb.bottom, frameTop, frameBottom, (void*)menu->Parent());
+			fclose(dbg);
+		}
 	}
 	const float kFrameR = 6.5f;
 	const float oy0 = frameTop ? 0.0f : -100.0f, oy1 = frameBottom ? (float)h : h + 100.0f;
