@@ -1,6 +1,6 @@
 // Usage: setlook <path of a control look add-on>   ("" selects the default look)
-#include <InterfacePrivate.h>
 #include <String.h>
+#include <InterfacePrivate.h>
 #include <stdio.h>
 #include <string.h>
 
