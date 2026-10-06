@@ -21,6 +21,7 @@
 #include <View.h>
 #include <Window.h>
 
+#include "IconMenuItem.h"
 #include "NavMenu.h"
 
 
@@ -227,8 +228,8 @@ DrawTrail(BMenu* menu)
 	// the selected row and whether its submenu is open
 	BMenuItem* selected = NULL;
 	for (int32 i = 0; i < menu->CountItems(); i++) {
-		BMenuItem* item = menu->ItemAt(i);
-		if (item->IsSelected()) {
+		ModelMenuItem* item = dynamic_cast<ModelMenuItem*>(menu->ItemAt(i));
+		if (item != NULL && item->IsItemSelected()) {
 			selected = item;
 			break;
 		}

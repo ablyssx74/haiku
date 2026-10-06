@@ -97,6 +97,7 @@ class ModelMenuItem : public BMenuItem {
 		virtual	void GetContentSize(float* width, float* height);
 
 		const Model* TargetModel() const;
+		bool IsItemSelected() const { return IsSelected(); }
 
 	protected:
 		virtual status_t Invoke(BMessage* = NULL);
