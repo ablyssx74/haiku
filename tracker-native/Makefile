@@ -76,6 +76,8 @@ app: $(OUT)/Tracker
 
 install: all app
 	mkdir -p /boot/system/non-packaged/lib
+	# remove first: overwriting a library a running Tracker has mapped crashes that Tracker
+	rm -f /boot/system/non-packaged/lib/libtracker.so /boot/system/non-packaged/Tracker
 	cp $(OUT)/libtracker.so /boot/system/non-packaged/lib/libtracker.so
 	cp $(OUT)/Tracker /boot/system/non-packaged/Tracker
 
