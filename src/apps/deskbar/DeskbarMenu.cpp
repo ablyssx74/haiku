@@ -35,6 +35,8 @@ All rights reserved.
 
 
 #include "DeskbarMenu.h"
+#include "SnakeMenuItem.h"
+#include "SnakeSelector.h"
 
 #include <Debug.h>
 #include <Bitmap.h>
@@ -125,6 +127,7 @@ TDeskbarMenu::DetachedFromWindow()
 
 	// don't call BNavMenu::DetachedFromWindow
 	// it sets the TypesList to NULL
+	SnakeSelector::DetachLink(this);
 	BMenu::DetachedFromWindow();
 }
 
@@ -143,7 +146,7 @@ TDeskbarMenu::DoneBuildingItemList()
 {
 	if (fItemList->CountItems() <= 0) {
 		BMenuItem* item
-			= new BMenuItem(B_TRANSLATE("<Deskbar folder is empty>"), 0);
+			= new SnakeMenuItem(B_TRANSLATE("<Deskbar folder is empty>"), 0);
 		item->SetEnabled(false);
 		AddItem(item);
 	} else
@@ -188,7 +191,7 @@ TDeskbarMenu::AddNextItem()
 				if (recentItem[i]->RecentsEnabled()) {
 					recentItem[i]->SetTypesList(TypesList());
 					recentItem[i]->SetTarget(Target());
-					AddItem(recentItem[i]);
+					AddItem(new SnakeMenuItem(recentItem[i]));
 				}
 
 				if (data && fBarView && fBarView->Dragging()) {
@@ -246,7 +249,7 @@ TDeskbarMenu::AddStandardDeskbarMenuItems()
 B_TRANSLATE_MARK_VOID("About Haiku")
 B_TRANSLATE_MARK_VOID("About this system")
 
-	item = new BMenuItem(
+	item = new SnakeMenuItem(
 #ifdef HAIKU_DISTRO_COMPATIBILITY_OFFICIAL
 	B_TRANSLATE_NOCOLLECT("About Haiku")
 #else
@@ -260,17 +263,17 @@ B_TRANSLATE_MARK_VOID("About this system")
 		= B_TRANSLATE_MARK("Find" B_UTF8_ELLIPSIS);
 
 #ifdef SHOW_RECENT_FIND_ITEMS
-	item = new BMenuItem(
+	item = new SnakeMenuItem(
 		TrackerBuildRecentFindItemsMenu(kFindMenuItemStr),
 		new BMessage(kFindButton));
 #else
-	item = new BMenuItem(B_TRANSLATE_NOCOLLECT(kFindMenuItemStr),
+	item = new SnakeMenuItem(B_TRANSLATE_NOCOLLECT(kFindMenuItemStr),
 		new BMessage(kFindButton));
 #endif
 	item->SetEnabled(!dragging);
 	AddItem(item);
 
-	item = new BMenuItem(B_TRANSLATE("Show replicants"),
+	item = new SnakeMenuItem(B_TRANSLATE("Show replicants"),
 		new BMessage(kToggleDraggers));
 	item->SetEnabled(!dragging);
 	item->SetMarked(BDragger::AreDraggersDrawn());
@@ -282,25 +285,25 @@ B_TRANSLATE_MARK_VOID("About this system")
 	DeskbarMountMenu* mountMenu = new DeskbarMountMenu(
 		B_TRANSLATE_NOCOLLECT(kMountMenuStr));
 	mountMenu->SetEnabled(!dragging);
-	AddItem(mountMenu);
+	AddItem(new SnakeMenuItem(mountMenu));
 #endif
 
 	BString menuLabel(B_TRANSLATE("%appname% preferences" B_UTF8_ELLIPSIS));
 	menuLabel.ReplaceFirst("%appname%", B_TRANSLATE_SYSTEM_NAME("Deskbar"));
-	item = new BMenuItem(menuLabel, new BMessage(kConfigShow));
+	item = new SnakeMenuItem(menuLabel, new BMessage(kConfigShow));
 	item->SetTarget(be_app);
 	AddItem(item);
 
 	AddSeparatorItem();
 
-	BMenu* shutdownMenu = new BMenu(B_TRANSLATE("Shutdown" B_UTF8_ELLIPSIS));
+	BMenu* shutdownMenu = new SnakeMenu(B_TRANSLATE("Shutdown" B_UTF8_ELLIPSIS));
 
-	item = new BMenuItem(B_TRANSLATE("Power off"),
+	item = new SnakeMenuItem(B_TRANSLATE("Power off"),
 		new BMessage(kShutdownSystem));
 	item->SetEnabled(!dragging);
 	shutdownMenu->AddItem(item);
 
-	item = new BMenuItem(B_TRANSLATE("Restart system"),
+	item = new SnakeMenuItem(B_TRANSLATE("Restart system"),
 		new BMessage(kRebootSystem));
 	item->SetEnabled(!dragging);
 	shutdownMenu->AddItem(item);
@@ -309,7 +312,7 @@ B_TRANSLATE_MARK_VOID("About this system")
 
 #ifdef APM_SUPPORT
 	if (_kapm_control_(APM_CHECK_ENABLED) == B_OK) {
-		item = new BMenuItem(B_TRANSLATE_NOCOLLECT("Suspend"),
+		item = new SnakeMenuItem(B_TRANSLATE_NOCOLLECT("Suspend"),
 			new BMessage(kSuspendSystem));
 		item->SetEnabled(!dragging);
 		shutdownMenu->AddItem(item);
@@ -320,7 +323,7 @@ B_TRANSLATE_MARK_VOID("About this system")
 
 	BMessage* message = new BMessage(kShutdownSystem);
 	message->AddBool("confirm", true);
-	AddItem(new BMenuItem(shutdownMenu, message));
+	AddItem(new SnakeMenuItem(shutdownMenu, message));
 
 	fAddState = kAddingRecents;
 
@@ -485,6 +488,7 @@ void
 TRecentsMenu::DetachedFromWindow()
 {
 	// BNavMenu::DetachedFromWindow sets the TypesList to NULL
+	SnakeSelector::DetachLink(this);
 	BMenu::DetachedFromWindow();
 }
 

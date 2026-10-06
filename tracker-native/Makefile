@@ -72,25 +72,53 @@ $(OUT)/Tracker: $(APP)/main.cpp $(OUT)/Tracker.rsrc $(OUT)/libtracker.so
 	xres -o $@ $(OUT)/Tracker.rsrc
 	mimeset -f $@ >/dev/null 2>&1 || true
 
-app: $(OUT)/Tracker
+# Deskbar (src/apps/deskbar): its Be menu and the Applications/Recents menus use Tracker's menus, so it
+# is built here too and installed next to the library for the same reason as Tracker.
+DESK := $(TOP)/src/apps/deskbar
+DESK_SRCS := BarApp BarMenuBar BarMenuTitle BarView BarWindow DeskbarMenu DeskbarUtils ExpandoMenuBar \
+  InlineScrollView PreferencesWindow ScreenCornerSelector ShowHideMenuItem StatusView StatusViewShelf \
+  TeamMenu TeamMenuItem TimeView TruncatableMenuItem WindowMenu WindowMenuItem ResourceSet Switcher \
+  CalendarMenuWindow
+DESK_OBJS := $(addprefix $(OUT)/deskbar/,$(addsuffix .o,$(DESK_SRCS)))
+DESK_FLAGS := -DDB_ADDONS -D_INCLUDES_CLASS_DEVICE_MAP=1 -D_SUPPORTS_RESOURCES=1 \
+  -D_SUPPORTS_FEATURE_SCRIPTING=1 -D_SHOW_CALENDAR_MENU_WINDOW=1 -DMOUNT_MENU_IN_DESKBAR=1 \
+  -I$(DEV)/headers/private/app -I$(DEV)/headers/private/locale
+
+$(OUT)/deskbar/%.o: $(DESK)/%.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(DESK_FLAGS) -c $< -o $@
+
+$(OUT)/Deskbar.rsrc: $(DESK)/Deskbar.rdef $(DESK)/icons.rdef
+	@mkdir -p $(OUT)
+	cpp -P $(DESK)/Deskbar.rdef > $(OUT)/Deskbar.pp.rdef
+	cpp -P $(DESK)/icons.rdef > $(OUT)/icons.pp.rdef
+	rc -o $@ $(OUT)/Deskbar.pp.rdef $(OUT)/icons.pp.rdef
+
+$(OUT)/Deskbar: $(DESK_OBJS) $(OUT)/Deskbar.rsrc $(OUT)/libtracker.so
+	$(CXX) -o $@ $(DESK_OBJS) -L$(OUT) -ltracker -lbe -llocalestub -lshared -lsupc++ -lstdc++ -L$(DEV)/lib
+	xres -o $@ $(OUT)/Deskbar.rsrc
+	mimeset -f $@ >/dev/null 2>&1 || true
+
+app: $(OUT)/Tracker $(OUT)/Deskbar
 
 install: all app
 	mkdir -p /boot/system/non-packaged/lib
 	# remove first: overwriting a library a running Tracker has mapped crashes that Tracker
-	rm -f /boot/system/non-packaged/lib/libtracker.so /boot/system/non-packaged/Tracker
+	rm -f /boot/system/non-packaged/lib/libtracker.so /boot/system/non-packaged/Tracker /boot/system/non-packaged/Deskbar
 	cp $(OUT)/libtracker.so /boot/system/non-packaged/lib/libtracker.so
 	cp $(OUT)/Tracker /boot/system/non-packaged/Tracker
+	cp $(OUT)/Deskbar /boot/system/non-packaged/Deskbar
 
-# Makes the launch daemon start /boot/system/non-packaged/Tracker instead of the packaged one (a user
-# launch file that amends the Tracker service). Takes effect the next time Tracker is started.
+# Makes the launch daemon start /boot/system/non-packaged/{Tracker,Deskbar} instead of the packaged ones
+# (a user launch file that amends the two services). Takes effect the next time Tracker is started.
 install-launch:
 	mkdir -p /boot/home/config/settings/launch
-	printf 'service x-vnd.Be-TRAK {\n\tlaunch /system/non-packaged/Tracker\n}\n' > /boot/home/config/settings/launch/custom-tracker
+	printf 'service x-vnd.Be-TRAK {\n\tlaunch /system/non-packaged/Tracker\n}\nservice x-vnd.Be-TSKB {\n\tlaunch /system/non-packaged/Deskbar\n}\n' > /boot/home/config/settings/launch/custom-tracker
 uninstall-launch:
 	rm -f /boot/home/config/settings/launch/custom-tracker
 
 uninstall: uninstall-launch
-	rm -f /boot/system/non-packaged/lib/libtracker.so /boot/system/non-packaged/Tracker
+	rm -f /boot/system/non-packaged/lib/libtracker.so /boot/system/non-packaged/Tracker /boot/system/non-packaged/Deskbar
 
 clean:
 	rm -rf $(OUT)
