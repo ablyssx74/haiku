@@ -84,11 +84,50 @@ XfwmDecorator::_IsBordered() const
 }
 
 
-// The tab can't be slid: the title bar is part of the theme's artwork.
+int32
+XfwmDecorator::_IndexOf(Decorator::Tab* tab) const
+{
+	for (int32 i = 0; i < fTabList.CountItems(); i++) {
+		if (fTabList.ItemAt(i) == tab)
+			return i;
+	}
+	return -1;
+}
+
+
+// The tab can't be slid (and so a stack's tabs can't be dragged into a new order): the title bar is part
+// of the theme's artwork. When a slide ends, the layout is redone, as TabDecorator does.
 bool
 XfwmDecorator::_SetTabLocation(Decorator::Tab* tab, float location, bool isShifting, BRegion* updateRegion)
 {
+	if (_HasTab() && CountTabs() > 1 && !isShifting) {
+		_DoTabLayout();
+		if (updateRegion != NULL)
+			updateRegion->Include(fTitleBarRect);
+		return true;
+	}
 	return false;
+}
+
+
+bool
+XfwmDecorator::_MoveTab(int32 from, int32 to, bool isMoving, BRegion* updateRegion)
+{
+	return false;
+}
+
+
+void
+XfwmDecorator::_SetFocus(Decorator::Tab* tab)
+{
+	tab->buttonFocus = IsFocus(tab)
+		|| ((tab->look == B_FLOATING_WINDOW_LOOK) && (tab->flags & B_AVOID_FOCUS) != 0);
+
+	if (_HasTab() && tab != NULL) {
+		// the active and inactive pictures differ, and only the focused tab has buttons
+		_DoTabLayout();
+		_InvalidateFootprint();
+	}
 }
 
 
@@ -153,68 +192,103 @@ XfwmDecorator::_DoLayout()
 }
 
 
+// Where the tabs go. xfwm4 lays the frame out by the full size of the border pictures (a left picture 14 wide
+// is a 14 wide border, transparent part included), so the pieces are anchored to that outer frame.
 void
-XfwmDecorator::_ComputeBar(Decorator::Tab* tab, BarLayout& bar) const
+XfwmDecorator::_ComputeBar(BarLayout& bar) const
 {
-	const bool active = _Active(tab);
+	const bool active = _Active(fTopTab);
 	const int32 bw = fTheme->BorderWidth();
 	const XfwmImage& topLeft = fTheme->TopLeft(active);
 	const XfwmImage& topRight = fTheme->TopRight(active);
 
-	// xfwm4 lays the frame out by the full size of the border pictures (a left picture 14 wide is a 14 wide
-	// border, transparent part included), so the pieces are anchored to that outer frame
 	bar.x0 = (int32)fFrame.left - fTheme->Left(active).Width();
 	bar.y = (int32)fFrame.top - fTheme->TitleHeight();
 	bar.right = (int32)fFrame.right + bw;
 	bar.frameEnd = (int32)fFrame.right + 1 + fTheme->Right(active).Width();
 	bar.topRightX = bar.frameEnd - topRight.Width();
+	bar.slots.clear();
 
-	bar.textLeft = bar.x0 + topLeft.Width() + fTheme->Title(0, active).Width() + fTheme->Title(1, active).Width();
-	int32 titleRight = fTheme->Title(3, active).Width();
-	int32 available = bar.topRightX - bar.textLeft - titleRight;
-	if (available < 0)
-		available = 0;
+	const int32 count = fTabList.CountItems();
+	if (count == 0) {
+		bar.restStart = bar.x0;
+		return;
+	}
 
-	float wanted = tab->title.Length() > 0
-		? fDrawState.Font().StringWidth(tab->title.String(), tab->title.Length()) : 0.0f;
-	bar.textWidth = std::min((int32)ceilf(wanted), available);
-	bar.title4X = bar.textLeft + bar.textWidth;
-	bar.title5Start = bar.title4X + titleRight;
+	const int32 capWidth = topLeft.Width();
+	const int32 before = fTheme->Title(0, active).Width() + fTheme->Title(1, active).Width();
+	const int32 after = fTheme->Title(3, active).Width();
+	const int32 available = std::max((int32)0, bar.topRightX - bar.x0);
+
+	std::vector<int32> natural(count), fixed(count);
+	int32 sum = 0;
+	for (int32 i = 0; i < count; i++) {
+		Decorator::Tab* tab = fTabList.ItemAt(i);
+		fixed[i] = (i == 0 ? capWidth : 0) + before + after;
+		float wanted = tab->title.Length() > 0
+			? fDrawState.Font().StringWidth(tab->title.String(), tab->title.Length()) : 0.0f;
+		natural[i] = fixed[i] + (int32)ceilf(wanted);
+		sum += natural[i];
+	}
+
+	int32 x = bar.x0;
+	for (int32 i = 0; i < count; i++) {
+		int32 width = natural[i];
+		if (sum > available && sum > 0) {
+			// too many or too long: every tab gets a share of the room, but keeps its edges
+			width = std::max(fixed[i], (int32)((int64)available * natural[i] / sum));
+		}
+		if (x + width > bar.x0 + available)
+			width = std::max(fixed[i], bar.x0 + available - x);
+
+		TabSlot slot;
+		slot.x = x;
+		slot.width = width;
+		slot.textLeft = x + (i == 0 ? capWidth : 0) + before;
+		slot.textWidth = std::max((int32)0, width - fixed[i]);
+		bar.slots.push_back(slot);
+		x += width;
+	}
+	bar.restStart = x;
 }
 
 
 void
 XfwmDecorator::_DoTabLayout()
 {
-	for (int32 i = 1; i < fTabList.CountItems(); i++)
-		fTabList.ItemAt(i)->tabRect.Set(0, 0, -1, -1);
-
-	Decorator::Tab* tab = fTabList.ItemAt(0);
-	if (tab == NULL)
-		return;
+	BarLayout bar;
+	_ComputeBar(bar);
 
 	const int32 bw = fTheme->BorderWidth();
-	BarLayout bar;
-	_ComputeBar(tab, bar);
-
-	tab->tabRect.Set(fFrame.left - bw, bar.y, fFrame.right + bw, fFrame.top - 1);
-	tab->textOffset = 0;
-	tab->tabOffset = 0;
-	tab->minTabSize = 0;
-	tab->maxTabSize = tab->tabRect.Width();
-
-	// the title, cut to the room it has
-	tab->truncatedTitle = tab->title;
-	fDrawState.Font().TruncateString(&tab->truncatedTitle, B_TRUNCATE_END, bar.textWidth);
-	tab->truncatedTitleLength = tab->truncatedTitle.Length();
-
-	_LayoutButtons(tab, bar);
-
 	const int32 height = std::max(fTheme->TitleHeight(), fTheme->TopLeft(true).Height());
 	fTitleBarRect.Set(bar.x0, bar.y, bar.right + 1, bar.y + height - 1);
 
+	for (int32 i = 0; i < fTabList.CountItems(); i++) {
+		Decorator::Tab* tab = fTabList.ItemAt(i);
+		const TabSlot& slot = bar.slots[i];
+
+		tab->tabRect.Set(slot.x, bar.y, slot.x + slot.width - 1, bar.y + fTheme->TitleHeight() - 1);
+		tab->textOffset = 0;
+		tab->tabOffset = (uint32)std::max((int32)0, slot.x - (int32)fLeftBorder.left);
+		tab->minTabSize = 0;
+		tab->maxTabSize = tab->tabRect.Width();
+
+		// the title, cut to the room it has
+		tab->truncatedTitle = tab->title;
+		fDrawState.Font().TruncateString(&tab->truncatedTitle, B_TRUNCATE_END, slot.textWidth);
+		tab->truncatedTitleLength = tab->truncatedTitle.Length();
+
+		tab->closeRect.Set(0, 0, -1, -1);
+		tab->zoomRect.Set(0, 0, -1, -1);
+		tab->minimizeRect.Set(0, 0, -1, -1);
+	}
+
+	// the buttons are at the right end of the bar and belong to the front tab
+	if (fTopTab != NULL)
+		_LayoutButtons(fTopTab, bar);
+
+	(void)bw;
 	fTabsRegion.MakeEmpty();
-	// everything of the bar that is not the window's own border
 	BRegion bit;
 	_GetFootprint(&bit);
 	fTabsRegion = bit;
@@ -229,10 +303,6 @@ XfwmDecorator::_LayoutButtons(Decorator::Tab* tab, const BarLayout& bar)
 	int32 divider = layout.FindFirst('|');
 	if (divider < 0)
 		divider = layout.Length();
-
-	tab->closeRect.Set(0, 0, -1, -1);
-	tab->zoomRect.Set(0, 0, -1, -1);
-	tab->minimizeRect.Set(0, 0, -1, -1);
 
 	// the letters of a side, in order; a button the window doesn't have takes no room
 	struct Placement {
@@ -350,6 +420,33 @@ XfwmDecorator::_SetTitle(Decorator::Tab* tab, const char* string, BRegion* updat
 
 
 void
+XfwmDecorator::_IncludeTab(BRegion& region, Decorator::Tab* tab, const BarLayout& bar) const
+{
+	const int32 index = _IndexOf(tab);
+	if (index < 0 || index >= (int32)bar.slots.size())
+		return;
+
+	const TabSlot& slot = bar.slots[index];
+	const bool active = _Active(tab);
+	int32 x = slot.x;
+	if (index == 0) {
+		fTheme->TopLeft(active).IncludeIn(region, x, bar.y);
+		x += fTheme->TopLeft(active).Width();
+	}
+	fTheme->Title(0, active).IncludeIn(region, x, bar.y);
+	x += fTheme->Title(0, active).Width();
+	fTheme->Title(1, active).IncludeIn(region, x, bar.y);
+
+	const XfwmImage& middle = fTheme->Title(2, active);
+	if (middle.IsValid()) {
+		for (int32 tx = slot.textLeft; tx < slot.textLeft + slot.textWidth; tx += middle.Width())
+			middle.IncludeIn(region, tx, bar.y);
+	}
+	fTheme->Title(3, active).IncludeIn(region, slot.x + slot.width - fTheme->Title(3, active).Width(), bar.y);
+}
+
+
+void
 XfwmDecorator::_GetFootprint(BRegion* region)
 {
 	if (region == NULL)
@@ -377,36 +474,21 @@ XfwmDecorator::_GetFootprint(BRegion* region)
 		return;
 	}
 
-	Decorator::Tab* tab = fTabList.ItemAt(0);
-	if (tab == NULL)
-		return;
-	const bool active = _Active(tab);
-	const int32 bw = fTheme->BorderWidth();
-
+	const bool active = _Active(fTopTab);
 	region->Include(fLeftBorder);
 	region->Include(fRightBorder);
 	region->Include(fBottomBorder);
 
 	BarLayout bar;
-	_ComputeBar(tab, bar);
+	_ComputeBar(bar);
 
-	int32 x = bar.x0;
-	fTheme->TopLeft(active).IncludeIn(*region, x, bar.y);
-	x += fTheme->TopLeft(active).Width();
-	fTheme->Title(0, active).IncludeIn(*region, x, bar.y);
-	x += fTheme->Title(0, active).Width();
-	fTheme->Title(1, active).IncludeIn(*region, x, bar.y);
+	for (int32 i = 0; i < fTabList.CountItems(); i++)
+		_IncludeTab(*region, fTabList.ItemAt(i), bar);
 
-	const XfwmImage& middle = fTheme->Title(2, active);
-	for (int32 tx = bar.textLeft; tx < bar.textLeft + bar.textWidth; tx += middle.Width()) {
-		if (middle.IsValid())
-			middle.IncludeIn(*region, tx, bar.y);
-	}
-	fTheme->Title(3, active).IncludeIn(*region, bar.title4X, bar.y);
-
+	// the plain bar after the tabs, and its right end
 	const XfwmImage& rest = fTheme->Title(4, active);
 	if (rest.IsValid()) {
-		for (int32 tx = bar.title5Start; tx < bar.topRightX; tx += rest.Width())
+		for (int32 tx = bar.restStart; tx < bar.topRightX; tx += rest.Width())
 			rest.IncludeIn(*region, tx, bar.y);
 	}
 	fTheme->TopRight(active).IncludeIn(*region, bar.topRightX, bar.y);
@@ -443,15 +525,17 @@ XfwmDecorator::RegionAt(BPoint where, int32& tab) const
 	if (region != REGION_NONE || !_HasTab())
 		return region;
 
-	// the part of the cap that sticks out to the left of the window
-	Decorator::Tab* first = fTabList.ItemAt(0);
-	if (first != NULL && fTitleBarRect.Contains(where) && where.x < fLeftBorder.left) {
-		tab = 0;
-		return where.y < fFrame.top ? REGION_TAB : REGION_LEFT_BORDER;
-	}
-	if (first != NULL && fTitleBarRect.Contains(where) && where.y < fFrame.top) {
-		tab = 0;
+	// the part of the cap that sticks out to the left of the window, and the plain bar beyond the tabs:
+	// both drag the window (the front tab's)
+	if (fTitleBarRect.Contains(where) && where.y < fFrame.top) {
+		tab = _IndexOf(fTopTab);
+		if (tab < 0)
+			tab = 0;
 		return REGION_TAB;
+	}
+	if (fTitleBarRect.Contains(where) && where.x < fLeftBorder.left) {
+		tab = 0;
+		return REGION_LEFT_BORDER;
 	}
 	return REGION_NONE;
 }
@@ -489,6 +573,24 @@ XfwmDecorator::_BlitTiled(const XfwmImage& image, BRect area, bool horizontal)
 				BRect(area.left, y, area.left + image.Width() - 1, y + height - 1));
 		}
 	}
+}
+
+
+// The plain bar after the last tab and the bar's right end.
+void
+XfwmDecorator::_DrawBarEnd(const BarLayout& bar)
+{
+	const bool active = _Active(fTopTab);
+	drawing_mode oldMode;
+	fDrawingEngine->SetDrawingMode(B_OP_ALPHA, oldMode);
+	fDrawingEngine->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+
+	const XfwmImage& rest = fTheme->Title(4, active);
+	if (bar.restStart < bar.topRightX)
+		_BlitTiled(rest, BRect(bar.restStart, bar.y, bar.topRightX - 1, bar.y + rest.Height() - 1), true);
+	_Blit(fTheme->TopRight(active), BPoint(bar.topRightX, bar.y));
+
+	fDrawingEngine->SetDrawingMode(oldMode);
 }
 
 
@@ -535,7 +637,7 @@ XfwmDecorator::_DrawFrame(BRect invalid)
 	const XfwmImage& bottomLeft = fTheme->BottomLeft(active);
 	const XfwmImage& bottomRight = fTheme->BottomRight(active);
 	BarLayout bar;
-	_ComputeBar(fTopTab, bar);
+	_ComputeBar(bar);
 	const int32 bottomEnd = (int32)fFrame.bottom + 1 + bottom.Height();
 	_Blit(bottomLeft, BPoint(bar.x0, bottomEnd - bottomLeft.Height()));
 	_Blit(bottomRight, BPoint(bar.frameEnd - bottomRight.Width(), bottomEnd - bottomRight.Height()));
@@ -550,6 +652,9 @@ XfwmDecorator::_DrawFrame(BRect invalid)
 	}
 
 	fDrawingEngine->SetDrawingMode(oldMode);
+
+	if (_HasTab())
+		_DrawBarEnd(bar);
 }
 
 
@@ -560,41 +665,43 @@ XfwmDecorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 		SATDecorator::_DrawTab(tab, invalid);
 		return;
 	}
-	if (tab != fTabList.ItemAt(0))
+
+	const int32 index = _IndexOf(tab);
+	BarLayout bar;
+	_ComputeBar(bar);
+	if (index < 0 || index >= (int32)bar.slots.size())
 		return;
 
+	const TabSlot& slot = bar.slots[index];
 	const bool active = _Active(tab);
-	BarLayout bar;
-	_ComputeBar(tab, bar);
 
 	drawing_mode oldMode;
 	fDrawingEngine->SetDrawingMode(B_OP_ALPHA, oldMode);
 	fDrawingEngine->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
 
-	int32 x = bar.x0;
-	_Blit(fTheme->TopLeft(active), BPoint(x, bar.y));
-	x += fTheme->TopLeft(active).Width();
+	int32 x = slot.x;
+	if (index == 0) {
+		_Blit(fTheme->TopLeft(active), BPoint(x, bar.y));
+		x += fTheme->TopLeft(active).Width();
+	}
 	_Blit(fTheme->Title(0, active), BPoint(x, bar.y));
 	x += fTheme->Title(0, active).Width();
 	_Blit(fTheme->Title(1, active), BPoint(x, bar.y));
 
 	const XfwmImage& middle = fTheme->Title(2, active);
-	if (bar.textWidth > 0) {
-		_BlitTiled(middle, BRect(bar.textLeft, bar.y, bar.textLeft + bar.textWidth - 1,
+	if (slot.textWidth > 0) {
+		_BlitTiled(middle, BRect(slot.textLeft, bar.y, slot.textLeft + slot.textWidth - 1,
 			bar.y + middle.Height() - 1), true);
 	}
-	_Blit(fTheme->Title(3, active), BPoint(bar.title4X, bar.y));
-
-	const XfwmImage& rest = fTheme->Title(4, active);
-	if (bar.title5Start < bar.topRightX) {
-		_BlitTiled(rest, BRect(bar.title5Start, bar.y, bar.topRightX - 1, bar.y + rest.Height() - 1), true);
-	}
-	_Blit(fTheme->TopRight(active), BPoint(bar.topRightX, bar.y));
+	_Blit(fTheme->Title(3, active), BPoint(slot.x + slot.width - fTheme->Title(3, active).Width(), bar.y));
 
 	fDrawingEngine->SetDrawingMode(oldMode);
 
 	_DrawTitle(tab, invalid);
-	_DrawButtons(tab, invalid);
+	if (tab == fTopTab) {
+		_DrawBarEnd(bar);
+		_DrawButtons(tab, invalid);
+	}
 }
 
 
@@ -604,9 +711,12 @@ XfwmDecorator::_DrawTitle(Decorator::Tab* tab, BRect)
 	if (!_HasTab())
 		return;
 
-	const bool active = _Active(tab);
+	const int32 index = _IndexOf(tab);
 	BarLayout bar;
-	_ComputeBar(tab, bar);
+	_ComputeBar(bar);
+	if (index < 0 || index >= (int32)bar.slots.size())
+		return;
+	const bool active = _Active(tab);
 
 	font_height fontHeight;
 	fDrawState.Font().GetHeight(fontHeight);
@@ -616,7 +726,7 @@ XfwmDecorator::_DrawTitle(Decorator::Tab* tab, BRect)
 	fDrawingEngine->SetFont(fDrawState.Font());
 
 	float textHeight = fontHeight.ascent + fontHeight.descent;
-	BPoint where(bar.textLeft,
+	BPoint where(bar.slots[index].textLeft,
 		floorf(bar.y + (fTheme->TitleHeight() - textHeight) / 2 + fontHeight.ascent
 			+ fTheme->TitleOffset(active) + 0.5f));
 	fDrawingEngine->DrawString(tab->truncatedTitle.String(), tab->truncatedTitleLength, where);
@@ -647,9 +757,6 @@ XfwmDecorator::_DrawButton(Decorator::Tab* tab, int32 button, bool pressed, BRec
 		= fTheme->Button(button, pressed ? kStatePressed : (_Active(tab) ? kStateActive : kStateInactive));
 	if (!image.IsValid())
 		return;
-
-	BarLayout bar;
-	_ComputeBar(tab, bar);
 
 	bool copyToFront = fDrawingEngine->CopyToFrontEnabled();
 	fDrawingEngine->SetCopyToFrontEnabled(direct);

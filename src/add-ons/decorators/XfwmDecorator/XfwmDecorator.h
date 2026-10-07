@@ -14,6 +14,8 @@
 #include "DecorManager.h"
 #include "SATDecorator.h"
 
+#include <vector>
+
 #include "XfwmTheme.h"
 
 
@@ -49,6 +51,8 @@ protected:
 	virtual	void				_SetTitle(Decorator::Tab* tab, const char* string, BRegion* updateRegion = NULL);
 	virtual	bool				_SetTabLocation(Decorator::Tab* tab, float location, bool isShifting,
 									BRegion* updateRegion = NULL);
+	virtual	bool				_MoveTab(int32 from, int32 to, bool isMoving, BRegion* updateRegion = NULL);
+	virtual	void				_SetFocus(Decorator::Tab* tab);
 	virtual	void				_GetFootprint(BRegion* region);
 
 	virtual	void				_DrawFrame(BRect rect);
@@ -61,23 +65,32 @@ protected:
 
 private:
 			// where everything of the title bar goes, worked out from the frame and the theme
+			struct TabSlot {
+				int32	x;				// left end of the tab
+				int32	width;
+				int32	textLeft;
+				int32	textWidth;
+			};
+
 			struct BarLayout {
 				int32	x0;				// left end of the cap (outside the window's left border)
 				int32	y;				// top of the title bar
 				int32	right;			// the window's outermost visible right column
 				int32	frameEnd;		// the right end of xfwm4's frame (exclusive)
-				int32	textLeft;
-				int32	textWidth;
-				int32	title4X;
-				int32	title5Start;
 				int32	topRightX;
+				int32	restStart;		// where the last tab ends and the plain bar begins
+				std::vector<TabSlot>	slots;	// one per tab, in order
 			};
 
 			bool				_HasTab() const;
 			bool				_IsModal() const;
 			bool				_IsBordered() const;
-			void				_ComputeBar(Decorator::Tab* tab, BarLayout& bar) const;
+			void				_ComputeBar(BarLayout& bar) const;
+			void				_LayoutTabs();
 			void				_LayoutButtons(Decorator::Tab* tab, const BarLayout& bar);
+			void				_DrawBarEnd(const BarLayout& bar);
+			void				_IncludeTab(BRegion& region, Decorator::Tab* tab, const BarLayout& bar) const;
+			int32				_IndexOf(Decorator::Tab* tab) const;
 			void				_Blit(const XfwmImage& image, BPoint at);
 			void				_BlitTiled(const XfwmImage& image, BRect area, bool horizontal);
 			void				_DrawButton(Decorator::Tab* tab, int32 button, bool pressed, BRect rect, bool direct);
