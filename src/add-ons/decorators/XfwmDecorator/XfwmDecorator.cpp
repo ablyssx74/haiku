@@ -292,6 +292,7 @@ XfwmDecorator::_DoTabLayout()
 	BRegion bit;
 	_GetFootprint(&bit);
 	fTabsRegion = bit;
+	fShown = bit;
 }
 
 
@@ -376,8 +377,8 @@ XfwmDecorator::_ResizeBy(BPoint offset, BRegion* dirty)
 		return;
 	}
 
-	BRegion before;
-	if (dirty != NULL)
+	BRegion before(fShown);
+	if (_IsModal() && dirty != NULL)
 		_GetFootprint(&before);
 
 	fFrame.right += offset.x;
@@ -402,9 +403,8 @@ XfwmDecorator::_SetTitle(Decorator::Tab* tab, const char* string, BRegion* updat
 		return;
 	}
 
-	BRegion before;
-	if (updateRegion != NULL)
-		_GetFootprint(&before);
+	// the title is already the new one, so the old area is the one remembered from the last layout
+	BRegion before(fShown);
 
 	_DoLayout();
 	_DoOutlineLayout();
