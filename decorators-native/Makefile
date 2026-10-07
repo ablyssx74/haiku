@@ -20,11 +20,13 @@ ARCH_INC := $(if $(findstring x86_64,$(ARCH)),x86_64,x86)
 GCC2     := $(findstring gcc2,$(ARCH))
 CXXLIBS  := $(if $(GCC2),,-lsupc++ -lstdc++)
 
-INC := -iquote $(APP) -iquote $(APP)/stackandtile -iquote $(APP)/decorator -iquote $(APP)/drawing \
-  -iquote $(APP)/drawing/Painter -iquote $(APP)/font -iquote $(SRC) \
+# gcc 2 has no -iquote: -I- limits the server's own directories to "..." includes, so that its Window.h
+# etc. don't shadow the system's <Window.h>
+QUOTE := $(if $(GCC2),-I$(APP) -I$(APP)/stackandtile -I$(APP)/decorator -I$(APP)/drawing -I$(APP)/drawing/Painter -I$(APP)/font -I$(SRC) -I-,-iquote $(APP) -iquote $(APP)/stackandtile -iquote $(APP)/decorator -iquote $(APP)/drawing    -iquote $(APP)/drawing/Painter -iquote $(APP)/font -iquote $(SRC))
+INC := $(QUOTE) \
   -I$(DEV)/private/app -I$(DEV)/private/shared -I$(DEV)/private/interface -I$(DEV)/private/graphics \
   -I$(DEV)/private/system -I$(DEV)/private/system/arch/$(ARCH_INC) -I$(DEV)/private -I$(TOP)/headers/libs/agg \
-  -I$(DEV)/freetype2 -I$(DEV)/private/binary_compatibility
+  -I$(DEV)/$(if $(GCC2),x86/)freetype2 -I$(DEV)/private/binary_compatibility
 CXXFLAGS := -MMD $(if $(GCC2),,-MP) -O2 -fPIC -Wno-multichar -DDEBUG=0 $(INC)
 OBJS := $(OUT)/XfwmDecorator.o $(OUT)/XfwmTheme.o
 
