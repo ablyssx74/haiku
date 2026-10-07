@@ -1,17 +1,21 @@
 # Starts the snake-trail Tracker and Deskbar instead of the system's. The launch daemon reads it from
 # /boot/system/data/user_launch, so the package must be installed for the system, not for "home".
-service x-vnd.Be-TRAK {
-	launch /system/apps/SnakeTracker/Tracker
-}
-
-service x-vnd.Be-TSKB {
-	launch /system/apps/SnakeTracker/Deskbar
-}
-
-# The launch daemon applies its files in the order they were installed, so a system file read after this
-# one can put the system's Tracker and Deskbar back. This job checks once they are running and hands
-# over to the snake-trail ones if that happened.
+#
+# Everything is inside "target desktop" on purpose. The launch daemon applies its files in the order the
+# packages were installed, so this file may be read before the system's own. A service named here but not
+# yet defined would be created outside the desktop target and then never start; inside the target it is
+# created properly and the system's file simply fills in the rest.
 target desktop {
+	service x-vnd.Be-TRAK {
+		launch /system/apps/SnakeTracker/Tracker
+	}
+
+	service x-vnd.Be-TSKB {
+		launch /system/apps/SnakeTracker/Deskbar
+	}
+
+	# If this file was read before the system's, the system's launch lines replace the two above. This job
+	# checks once Tracker and Deskbar are running and hands over to the snake-trail ones if that happened.
 	job snaketracker-handoff {
 		launch /bin/sh /system/apps/SnakeTracker/handoff
 		requires x-vnd.Be-TRAK
