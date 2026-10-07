@@ -121,10 +121,13 @@ XfwmDecorator::_ComputeBar(Decorator::Tab* tab, BarLayout& bar) const
 	const XfwmImage& topLeft = fTheme->TopLeft(active);
 	const XfwmImage& topRight = fTheme->TopRight(active);
 
-	bar.x0 = (int32)fFrame.left - bw - fTheme->LeftMargin();
+	// xfwm4 lays the frame out by the full size of the border pictures (a left picture 14 wide is a 14 wide
+	// border, transparent part included), so the pieces are anchored to that outer frame
+	bar.x0 = (int32)fFrame.left - fTheme->Left(active).Width();
 	bar.y = (int32)fFrame.top - fTheme->TitleHeight();
 	bar.right = (int32)fFrame.right + bw;
-	bar.topRightX = bar.right - (int32)topRight.OpaqueBounds().right;
+	bar.frameEnd = (int32)fFrame.right + 1 + fTheme->Right(active).Width();
+	bar.topRightX = bar.frameEnd - topRight.Width();
 
 	bar.textLeft = bar.x0 + topLeft.Width() + fTheme->Title(0, active).Width() + fTheme->Title(1, active).Width();
 	int32 titleRight = fTheme->Title(3, active).Width();
@@ -234,9 +237,10 @@ XfwmDecorator::_LayoutButtons(Decorator::Tab* tab, const BarLayout& bar)
 
 	const int32 width = fTheme->ButtonWidth();
 	const int32 spacing = fTheme->ButtonSpacing();
-	const int32 inset = 6 + fTheme->ButtonOffset();
+	const int32 offset = fTheme->ButtonOffset();
 
-	int32 x = bar.right - inset;
+	// right side: from the inner edge of the right border (the frame's right edge), left side likewise
+	int32 x = (int32)fFrame.right - offset;
 	for (int32 i = rightCount - 1; i >= 0; i--) {
 		const XfwmImage& image = fTheme->Button(right[i].button, active ? kStateActive : kStateInactive);
 		BRect opaque = image.OpaqueBounds();
@@ -244,7 +248,7 @@ XfwmDecorator::_LayoutButtons(Decorator::Tab* tab, const BarLayout& bar)
 		x -= width + spacing;
 	}
 
-	x = bar.x0 + fTheme->TopLeft(active).Width() + inset;
+	x = (int32)fFrame.left + offset;
 	for (int32 i = 0; i < leftCount; i++) {
 		const XfwmImage& image = fTheme->Button(left[i].button, active ? kStateActive : kStateInactive);
 		BRect opaque = image.OpaqueBounds();
@@ -351,10 +355,9 @@ XfwmDecorator::_GetFootprint(BRegion* region)
 
 	const XfwmImage& bottomLeft = fTheme->BottomLeft(active);
 	const XfwmImage& bottomRight = fTheme->BottomRight(active);
-	bottomLeft.IncludeIn(*region, fFrame.left - bw - (int32)bottomLeft.OpaqueBounds().left,
-		(int32)fFrame.bottom + bw - (int32)bottomLeft.OpaqueBounds().bottom);
-	bottomRight.IncludeIn(*region, (int32)fFrame.right + bw - (int32)bottomRight.OpaqueBounds().right,
-		(int32)fFrame.bottom + bw - (int32)bottomRight.OpaqueBounds().bottom);
+	const int32 bottomEnd = (int32)fFrame.bottom + 1 + fTheme->Bottom(active).Height();
+	bottomLeft.IncludeIn(*region, bar.x0, bottomEnd - bottomLeft.Height());
+	bottomRight.IncludeIn(*region, bar.frameEnd - bottomRight.Width(), bottomEnd - bottomRight.Height());
 
 	if (fTopTab->look == B_DOCUMENT_WINDOW_LOOK) {
 		float knob = fResizeKnobSize - fBorderWidth;
@@ -366,6 +369,18 @@ XfwmDecorator::_GetFootprint(BRegion* region)
 Decorator::Region
 XfwmDecorator::RegionAt(BPoint where, int32& tab) const
 {
+	if (_HasTab()) {
+		// the base class only knows the close and zoom buttons
+		for (int32 i = 0; i < fTabList.CountItems(); i++) {
+			Decorator::Tab* candidate = fTabList.ItemAt(i);
+			if ((candidate->flags & B_NOT_MINIMIZABLE) == 0 && candidate->minimizeRect.IsValid()
+				&& candidate->minimizeRect.Contains(where)) {
+				tab = i;
+				return REGION_MINIMIZE_BUTTON;
+			}
+		}
+	}
+
 	Region region = SATDecorator::RegionAt(where, tab);
 	if (region != REGION_NONE || !_HasTab())
 		return region;
@@ -447,10 +462,11 @@ XfwmDecorator::_DrawFrame(BRect invalid)
 
 	const XfwmImage& bottomLeft = fTheme->BottomLeft(active);
 	const XfwmImage& bottomRight = fTheme->BottomRight(active);
-	_Blit(bottomLeft, BPoint(fFrame.left - bw - bottomLeft.OpaqueBounds().left,
-		fFrame.bottom + bw - bottomLeft.OpaqueBounds().bottom));
-	_Blit(bottomRight, BPoint(fFrame.right + bw - bottomRight.OpaqueBounds().right,
-		fFrame.bottom + bw - bottomRight.OpaqueBounds().bottom));
+	BarLayout bar;
+	_ComputeBar(fTopTab, bar);
+	const int32 bottomEnd = (int32)fFrame.bottom + 1 + bottom.Height();
+	_Blit(bottomLeft, BPoint(bar.x0, bottomEnd - bottomLeft.Height()));
+	_Blit(bottomRight, BPoint(bar.frameEnd - bottomRight.Width(), bottomEnd - bottomRight.Height()));
 
 	fDrawingEngine->SetDrawingMode(oldMode);
 }

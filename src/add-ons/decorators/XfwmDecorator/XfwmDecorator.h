@@ -65,6 +65,7 @@ private:
 				int32	x0;				// left end of the cap (outside the window's left border)
 				int32	y;				// top of the title bar
 				int32	right;			// the window's outermost visible right column
+				int32	frameEnd;		// the right end of xfwm4's frame (exclusive)
 				int32	textLeft;
 				int32	textWidth;
 				int32	title4X;
