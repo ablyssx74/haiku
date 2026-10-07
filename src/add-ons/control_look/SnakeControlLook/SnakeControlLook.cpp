@@ -33,6 +33,7 @@
 #include <vector>
 
 #include <Autolock.h>
+#include <OS.h>
 #include <Bitmap.h>
 #include <Entry.h>
 #include <File.h>
@@ -630,7 +631,7 @@ public:
 	virtual	void DrawMenuItemBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
-		fprintf(stderr, "item bg flags=%u\n", (unsigned)flags);
+		debug_printf("snake: item bg flags=%u\n", (unsigned)flags);
 		if ((flags & B_ACTIVATED) == 0) {
 			HaikuControlLook::DrawMenuItemBackground(view, rect, updateRect, base, flags, borders);
 			return;
