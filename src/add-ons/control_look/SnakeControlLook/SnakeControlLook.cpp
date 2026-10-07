@@ -343,7 +343,9 @@ public:
 		fChild(child),
 		fRunner(NULL),
 		fAccent(Accent()),
-		fHeight(8)
+		fHeight(8),
+		fLeft(-1),
+		fTop(-1)
 	{
 		SetSizeLimits(0, 0, 0, 4000);
 		BView* view = new SeamView(this);
@@ -357,18 +359,27 @@ public:
 		delete fRunner;
 	}
 
-	// from the submenu's thread: where the seam is
+	// from the submenu's thread: where the seam is. The submenu redraws on every hover change, so nothing is
+	// touched unless the seam actually moved or changed colour (a needless resize or redraw flickers).
 	void Place(BRect strip, rgb_color accent)
 	{
 		if (LockWithTimeout(20000) != B_OK)
 			return;		// busy; the next draw places it
-		fAccent = accent;
-		fHeight = (int)strip.Height() + 1;
-		ResizeTo(0, strip.Height());
-		MoveTo(strip.LeftTop());
-		if (IsHidden())
-			Show();
-		ChildAt(0)->Invalidate();
+		const int left = (int)strip.left, top = (int)strip.top, height = (int)strip.Height() + 1;
+		bool same = !IsHidden() && left == fLeft && top == fTop && height == fHeight
+			&& accent.red == fAccent.red && accent.green == fAccent.green
+			&& accent.blue == fAccent.blue;
+		if (!same) {
+			fAccent = accent;
+			fHeight = height;
+			fLeft = left;
+			fTop = top;
+			ResizeTo(0, height - 1);
+			MoveTo(left, top);
+			if (IsHidden())
+				Show();
+			ChildAt(0)->Invalidate();
+		}
 		Unlock();
 	}
 
@@ -442,6 +453,8 @@ private:
 	BMessageRunner*	fRunner;
 	rgb_color		fAccent;
 	int				fHeight;
+	int				fLeft;
+	int				fTop;
 };
 
 

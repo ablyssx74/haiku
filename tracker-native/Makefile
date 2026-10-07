@@ -158,7 +158,7 @@ uninstall: uninstall-launch
 # launch daemon only reads /boot/system/data/user_launch, so a home install is silently ignored.
 # Removing the package puts the stock Tracker and Deskbar back. A package can't replace files that
 # another package (haiku.hpkg) owns, hence the separate folder and the launch file.
-PKG_VERSION := 1.0.13
+PKG_VERSION := 1.0.14
 PKG := $(OUT)/package
 package: all app look
 	rm -rf $(PKG)
