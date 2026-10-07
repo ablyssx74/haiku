@@ -66,7 +66,7 @@ deactivate: $(OUT)/setdecor
 # A package with the add-on for every theme:
 #   make package    -> out/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg
 # /boot/system/add-ons/decorators/Xfwm-<theme> and /boot/system/data/xfwm4-themes/<theme>/
-PKG_VERSION := 1.0.0
+PKG_VERSION := 1.0.1
 PKG := $(OUT)/package
 package: all
 	rm -rf $(PKG)
