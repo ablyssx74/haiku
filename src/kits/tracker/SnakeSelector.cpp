@@ -74,6 +74,7 @@ SettingsLock()
 
 static rgb_color sAccent = {70, 110, 200, 255};
 static bool sTrail = true;
+static bool sFlat = true;
 static bigtime_t sLastCheck = 0;
 
 
@@ -90,6 +91,7 @@ RefreshSettings()
 	TrackerSettings tracker;
 	rgb_color accent = tracker.SnakeAccent();
 	bool trail = tracker.SnakeTrail();
+	bool flat = tracker.SnakeFlat();
 	time_t modTime = 0;
 
 	BPath path;
@@ -111,12 +113,15 @@ RefreshSettings()
 				bool value;
 				if (settings.FindBool("nav_snake_trail", &value) == B_OK)
 					trail = value;
+				if (settings.FindBool("nav_snake_flat", &value) == B_OK)
+					flat = value;
 			}
 		}
 	}
 
 	sAccent = accent;
 	sTrail = trail;
+	sFlat = flat;
 }
 
 
@@ -126,6 +131,15 @@ Accent()
 	RefreshSettings();
 	BAutolock lock(SettingsLock());
 	return sAccent;
+}
+
+
+bool
+FlatFill()
+{
+	RefreshSettings();
+	BAutolock lock(SettingsLock());
+	return sFlat;
 }
 
 
@@ -204,10 +218,12 @@ DrawLoneSelector(BView* view, BRect frame)
 	view->SetDrawingMode(B_OP_ALPHA);
 	view->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
 
-	view->SetHighColor(Light(accent));
-	view->FillRoundRect(r.OffsetByCopy(0, -1), kSelR, kSelR);
-	view->SetHighColor(Dark(accent));
-	view->FillRoundRect(r.OffsetByCopy(0, 1), kSelR, kSelR);
+	if (!FlatFill()) {
+		view->SetHighColor(Light(accent));
+		view->FillRoundRect(r.OffsetByCopy(0, -1), kSelR, kSelR);
+		view->SetHighColor(Dark(accent));
+		view->FillRoundRect(r.OffsetByCopy(0, 1), kSelR, kSelR);
+	}
 	view->SetHighColor(accent);
 	view->FillRoundRect(r, kSelR, kSelR);
 
@@ -392,10 +408,11 @@ private:
 		{
 			rgb_color accent = fBridge->Accent();
 			int h = fBridge->Height();
+			const bool flat = SnakeSelector::FlatFill();
 			for (int y = 0; y < h; y++) {
-				if (y == 0)
+				if (y == 0 && !flat)
 					SetHighColor(SnakeSelector::Light(accent));
-				else if (y == h - 1)
+				else if (y == h - 1 && !flat)
 					SetHighColor(SnakeSelector::Dark(accent));
 				else
 					SetHighColor(accent);
@@ -795,7 +812,9 @@ DrawTrail(BMenu* menu)
 	BBitmap bitmap(BRect(0, 0, w - 1, h - 1), B_RGBA32);
 	if (bitmap.InitCheck() != B_OK)
 		return;
-	const rgb_color base = Accent(), light = Light(base), dark = Dark(base);
+	const bool flatFill = FlatFill();
+	const rgb_color base = Accent(), light = flatFill ? base : Light(base), dark = flatFill ? base : Dark(base);
+	const rgb_color outlineColor = Mix(base, 0, 0.72f);
 	uint8* bits = (uint8*)bitmap.Bits();
 	const int32 bpr = bitmap.BytesPerRow();
 	bool any = false;
@@ -822,8 +841,22 @@ DrawTrail(BMenu* menu)
 				}
 			}
 
-			// selector layer
+			// a one pixel dark outline just outside the shape (not along the window's own edges)
 			float c0 = CoverAt(cover, w, h, x, y);
+			if (c0 < 1.0f) {
+				float ol = 0.0f;
+				if (x > 0) ol = std::max(ol, cover[(size_t)y * w + x - 1]);
+				if (x < w - 1) ol = std::max(ol, cover[(size_t)y * w + x + 1]);
+				if (y > 0) ol = std::max(ol, cover[(size_t)(y - 1) * w + x]);
+				if (y < h - 1) ol = std::max(ol, cover[(size_t)(y + 1) * w + x]);
+				ol *= (1.0f - c0);
+				if (ol > fa) {
+					fa = ol;
+					fr = outlineColor.red;  fg = outlineColor.green;  fb = outlineColor.blue;
+				}
+			}
+
+			// selector layer
 			float sr = 0, sg = 0, sb = 0;
 			if (c0 > 0.0f) {
 				float a2 = c0 * CoverAt(cover, w, h, x, y - 1), a3 = a2 * CoverAt(cover, w, h, x, y + 1);

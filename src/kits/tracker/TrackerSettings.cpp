@@ -78,6 +78,7 @@ private:
 	BooleanValueSetting* fTypeAheadFiltering;
 	BooleanValueSetting* fGenerateImageThumbnails;
 	BooleanValueSetting* fSnakeTrail;
+	BooleanValueSetting* fSnakeFlat;
 	HexScalarValueSetting* fSnakeAccent;
 
 	ScalarValueSetting* fRecentApplicationsCount;
@@ -142,6 +143,7 @@ TTrackerState::TTrackerState()
 	fTypeAheadFiltering(NULL),
 	fGenerateImageThumbnails(NULL),
 	fSnakeTrail(NULL),
+	fSnakeFlat(NULL),
 	fSnakeAccent(NULL),
 	fRecentApplicationsCount(NULL),
 	fRecentDocumentsCount(NULL),
@@ -174,6 +176,7 @@ TTrackerState::TTrackerState(const TTrackerState&)
 	fTypeAheadFiltering(NULL),
 	fGenerateImageThumbnails(NULL),
 	fSnakeTrail(NULL),
+	fSnakeFlat(NULL),
 	fSnakeAccent(NULL),
 	fRecentApplicationsCount(NULL),
 	fRecentDocumentsCount(NULL),
@@ -242,6 +245,7 @@ TTrackerState::LoadSettingsIfNeeded()
 		= new BooleanValueSetting("GenerateImageThumbnails", kDefaultGenerateImageThumbnails));
 
 	Add(fSnakeTrail = new BooleanValueSetting("SnakeTrail", kDefaultSnakeTrail));
+	Add(fSnakeFlat = new BooleanValueSetting("SnakeFlat", kDefaultSnakeFlat));
 	Add(fSnakeAccent
 		= new HexScalarValueSetting("SnakeAccent", RGBTOHEX(kDefaultSnakeAccent), "", ""));
 
@@ -500,6 +504,20 @@ void
 TrackerSettings::SetSnakeTrail(bool enabled)
 {
 	gTrackerState.fSnakeTrail->SetValue(enabled);
+}
+
+
+bool
+TrackerSettings::SnakeFlat()
+{
+	return gTrackerState.fSnakeFlat->Value();
+}
+
+
+void
+TrackerSettings::SetSnakeFlat(bool flat)
+{
+	gTrackerState.fSnakeFlat->SetValue(flat);
 }
 
 

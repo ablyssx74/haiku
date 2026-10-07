@@ -125,6 +125,7 @@ private:
 	BCheckBox* fTypeAheadFilteringCheckBox;
 	BCheckBox* fGenerateImageThumbnailsCheckBox;
 	BCheckBox* fSnakeTrailCheckBox;
+	BCheckBox* fSnakeFlatCheckBox;
 	BColorControl* fSnakeAccentControl;
 
 	bool fShowFullPathInTitleBar;
@@ -136,6 +137,7 @@ private:
 	bool fTypeAheadFiltering;
 	bool fGenerateImageThumbnails;
 	bool fSnakeTrail;
+	bool fSnakeFlat;
 	rgb_color fSnakeAccent;
 
 	typedef SettingsView _inherited;

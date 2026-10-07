@@ -23,6 +23,7 @@ namespace SnakeSelector {
 
 rgb_color	Accent();
 bool		TrailEnabled();
+bool		FlatFill();
 rgb_color	Light(rgb_color);
 rgb_color	Dark(rgb_color);
 rgb_color	TextOn(rgb_color accent);

@@ -419,6 +419,7 @@ WindowsSettingsView::WindowsSettingsView()
 	fTypeAheadFilteringCheckBox(NULL),
 	fGenerateImageThumbnailsCheckBox(NULL),
 	fSnakeTrailCheckBox(NULL),
+	fSnakeFlatCheckBox(NULL),
 	fSnakeAccentControl(NULL),
 	fShowFullPathInTitleBar(kDefaultShowFullPathInTitleBar),
 	fSingleWindowBrowse(kDefaultSingleWindowBrowse),
@@ -429,6 +430,7 @@ WindowsSettingsView::WindowsSettingsView()
 	fTypeAheadFiltering(kDefaultTypeAheadFiltering),
 	fGenerateImageThumbnails(kDefaultGenerateImageThumbnails),
 	fSnakeTrail(kDefaultSnakeTrail),
+	fSnakeFlat(kDefaultSnakeFlat),
 	fSnakeAccent(kDefaultSnakeAccent)
 {
 	fShowFullPathInTitleBarCheckBox = new BCheckBox("",
@@ -467,6 +469,10 @@ WindowsSettingsView::WindowsSettingsView()
 		B_TRANSLATE("Snake trail in folder menus"),
 		new BMessage(kSnakeTrailChanged));
 
+	fSnakeFlatCheckBox = new BCheckBox("",
+		B_TRANSLATE("Flat menu selector"),
+		new BMessage(kSnakeFlatChanged));
+
 	fSnakeAccentControl = new BColorControl(BPoint(0, 0), B_CELLS_32x8, 4,
 		"snake_accent", new BMessage(kSnakeAccentChanged));
 
@@ -490,6 +496,7 @@ WindowsSettingsView::WindowsSettingsView()
 			.End()
 		.AddGroup(B_VERTICAL, 0)
 			.Add(fSnakeTrailCheckBox)
+			.Add(fSnakeFlatCheckBox)
 			.Add(new BStringView("", B_TRANSLATE("Menu selector color:")))
 			.Add(fSnakeAccentControl)
 			.SetInsets(0, spacing, 0, 0)
@@ -511,6 +518,7 @@ WindowsSettingsView::AttachedToWindow()
 	fTypeAheadFilteringCheckBox->SetTarget(this);
 	fGenerateImageThumbnailsCheckBox->SetTarget(this);
 	fSnakeTrailCheckBox->SetTarget(this);
+	fSnakeFlatCheckBox->SetTarget(this);
 	fSnakeAccentControl->SetTarget(this);
 }
 
@@ -621,6 +629,13 @@ WindowsSettingsView::MessageReceived(BMessage* message)
 			break;
 		}
 
+		case kSnakeFlatChanged:
+		{
+			settings.SetSnakeFlat(fSnakeFlatCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+		}
+
 		case kSnakeAccentChanged:
 		{
 			settings.SetSnakeAccent(fSnakeAccentControl->ValueAsColor());
@@ -690,6 +705,7 @@ WindowsSettingsView::SetDefaults()
 	}
 
 	settings.SetSnakeTrail(kDefaultSnakeTrail);
+	settings.SetSnakeFlat(kDefaultSnakeFlat);
 	settings.SetSnakeAccent(kDefaultSnakeAccent);
 
 	ShowCurrentSettings();
@@ -710,6 +726,7 @@ WindowsSettingsView::IsDefaultable() const
 		|| settings.TypeAheadFiltering() != kDefaultTypeAheadFiltering
 		|| settings.GenerateImageThumbnails() != kDefaultGenerateImageThumbnails
 		|| settings.SnakeTrail() != kDefaultSnakeTrail
+		|| settings.SnakeFlat() != kDefaultSnakeFlat
 		|| _ColorValue(settings.SnakeAccent()) != _ColorValue(kDefaultSnakeAccent);
 }
 
@@ -769,6 +786,7 @@ WindowsSettingsView::Revert()
 	}
 
 	settings.SetSnakeTrail(fSnakeTrail);
+	settings.SetSnakeFlat(fSnakeFlat);
 	settings.SetSnakeAccent(fSnakeAccent);
 
 	ShowCurrentSettings();
@@ -793,6 +811,7 @@ WindowsSettingsView::ShowCurrentSettings()
 	fGenerateImageThumbnailsCheckBox->SetValue(
 		settings.GenerateImageThumbnails());
 	fSnakeTrailCheckBox->SetValue(settings.SnakeTrail());
+	fSnakeFlatCheckBox->SetValue(settings.SnakeFlat());
 	fSnakeAccentControl->SetValue(settings.SnakeAccent());
 }
 
@@ -811,6 +830,7 @@ WindowsSettingsView::RecordRevertSettings()
 	fTypeAheadFiltering = settings.TypeAheadFiltering();
 	fGenerateImageThumbnails = settings.GenerateImageThumbnails();
 	fSnakeTrail = settings.SnakeTrail();
+	fSnakeFlat = settings.SnakeFlat();
 	fSnakeAccent = settings.SnakeAccent();
 }
 
@@ -829,6 +849,7 @@ WindowsSettingsView::IsRevertable() const
 		|| fTypeAheadFiltering != settings.TypeAheadFiltering()
 		|| fGenerateImageThumbnails != settings.GenerateImageThumbnails()
 		|| fSnakeTrail != settings.SnakeTrail()
+		|| fSnakeFlat != settings.SnakeFlat()
 		|| _ColorValue(fSnakeAccent) != _ColorValue(settings.SnakeAccent());
 }
 

@@ -141,6 +141,7 @@ const uint32 kHideDotFilesChanged = 'Hdfc';
 const uint32 kTypeAheadFilteringChanged = 'Tafc';
 const uint32 kGenerateImageThumbnailsChanged = 'GITc';
 const uint32 kSnakeTrailChanged = 'SnkT';
+const uint32 kSnakeFlatChanged = 'SnkF';
 const uint32 kSnakeAccentChanged = 'SnkA';
 
 const uint32 kDesktopFilePanelRootChanged = 'Dfpr';

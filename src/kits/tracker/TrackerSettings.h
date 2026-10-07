@@ -98,6 +98,8 @@ public:
 	void SetGenerateImageThumbnails(bool enabled);
 	bool SnakeTrail();
 	void SetSnakeTrail(bool enabled);
+	bool SnakeFlat();
+	void SetSnakeFlat(bool flat);
 	rgb_color SnakeAccent();
 	void SetSnakeAccent(rgb_color color);
 
