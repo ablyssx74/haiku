@@ -38,6 +38,8 @@
 #include <File.h>
 #include <FindDirectory.h>
 #include <Locker.h>
+#include <MessageRunner.h>
+#include <Messenger.h>
 #include <Menu.h>
 #include <MenuBar.h>
 #include <MenuItem.h>
@@ -323,6 +325,153 @@ FindParentLink(BMenu* menu)
 }
 
 
+// A one pixel column of the window system's border runs between two menu windows that sit side by side, and
+// shows as a dark seam through the joined selector. It can't be painted over from inside either window, so a
+// borderless window one pixel wide is put over it, in the selector's colours, for as long as the submenu is
+// shown.
+class SeamBridge : public BWindow {
+public:
+	SeamBridge(BWindow* child)
+		:
+		BWindow(BRect(0, 0, 0, 7), "seam", B_NO_BORDER_WINDOW_LOOK, (window_feel)1025,
+			B_NOT_MOVABLE | B_NOT_CLOSABLE | B_NOT_ZOOMABLE | B_NOT_MINIMIZABLE | B_NOT_RESIZABLE
+				| B_AVOID_FOCUS),
+		fChild(child),
+		fRunner(NULL),
+		fAccent(Accent()),
+		fHeight(8)
+	{
+		SetSizeLimits(0, 0, 0, 4000);
+		BView* view = new SeamView(this);
+		AddChild(view);
+		BMessage tick('Tick');
+		fRunner = new BMessageRunner(BMessenger(this), &tick, 100000);
+	}
+
+	~SeamBridge()
+	{
+		delete fRunner;
+	}
+
+	// from the submenu's thread: where the seam is
+	void Place(BRect strip, rgb_color accent)
+	{
+		if (!Lock())
+			return;
+		fAccent = accent;
+		fHeight = (int)strip.Height() + 1;
+		ResizeTo(0, strip.Height());
+		MoveTo(strip.LeftTop());
+		if (IsHidden())
+			Show();
+		ChildAt(0)->Invalidate();
+		Unlock();
+	}
+
+	virtual void MessageReceived(BMessage* message)
+	{
+		if (message->what == 'Tick') {
+			// gone when the submenu's window is
+			bool gone = true;
+			if (fChild.LockTarget()) {
+				BLooper* looper = NULL;
+				fChild.Target(&looper);
+				BWindow* window = dynamic_cast<BWindow*>(looper);
+				gone = window == NULL || window->IsHidden();
+				if (looper != NULL)
+					looper->Unlock();
+			}
+			if (gone)
+				PostMessage(B_QUIT_REQUESTED);
+			return;
+		}
+		BWindow::MessageReceived(message);
+	}
+
+	rgb_color Color() const { return fAccent; }
+	int Height() const { return fHeight; }
+
+private:
+	class SeamView : public BView {
+	public:
+		SeamView(SeamBridge* bridge)
+			:
+			BView(BRect(0, 0, 0, 7), "seam", B_FOLLOW_ALL, B_WILL_DRAW),
+			fBridge(bridge)
+		{
+			SetViewColor(B_TRANSPARENT_COLOR);
+		}
+
+		virtual void Draw(BRect)
+		{
+			rgb_color accent = fBridge->Color();
+			int h = fBridge->Height();
+			for (int y = 0; y < h; y++) {
+				if (y == 0)
+					SetHighColor(Light(accent));
+				else if (y == h - 1)
+					SetHighColor(Dark(accent));
+				else
+					SetHighColor(accent);
+				FillRect(BRect(0, y, 0, y));
+			}
+		}
+
+	private:
+		SeamBridge*	fBridge;
+	};
+
+	BMessenger		fChild;
+	BMessageRunner*	fRunner;
+	rgb_color		fAccent;
+	int				fHeight;
+};
+
+
+static std::map<BWindow*, SeamBridge*>&
+Bridges()
+{
+	static std::map<BWindow*, SeamBridge*>* bridges = new std::map<BWindow*, SeamBridge*>();
+	return *bridges;
+}
+
+
+static void
+PlaceBridge(BMenu* menu, BRect strip)
+{
+	BWindow* child = menu->Window();
+	SeamBridge* bridge;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BWindow*, SeamBridge*>::iterator it = Bridges().find(child);
+		if (it == Bridges().end()) {
+			bridge = new SeamBridge(child);
+			bridge->Run();
+			Bridges()[child] = bridge;
+		} else
+			bridge = it->second;
+	}
+	bridge->Place(strip, Accent());
+}
+
+
+static void
+DropBridge(BWindow* child)
+{
+	SeamBridge* bridge = NULL;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BWindow*, SeamBridge*>::iterator it = Bridges().find(child);
+		if (it != Bridges().end()) {
+			bridge = it->second;
+			Bridges().erase(it);
+		}
+	}
+	if (bridge != NULL)
+		bridge->PostMessage(B_QUIT_REQUESTED);
+}
+
+
 // What the trail drawn last time depended on. When it changes while only part of the menu is being
 // redrawn (stock items only invalidate their own rows), the whole menu is invalidated so the bar and
 // fillets between rows are repainted too.
@@ -370,6 +519,13 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	if (trailOn)
 		link = FindParentLink(menu);
 	const bool parentOnLeft = link.valid && link.windowLeft < myLeft;
+
+	// cover the window border that runs between this menu and its parent, along the parent's open row
+	if (link.valid) {
+		BRect frame = menu->Window()->Frame();
+		float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
+		PlaceBridge(menu, BRect(x, link.rowTop + 1, x, link.rowBottom - 2));
+	}
 
 	{
 		DrawState state;
