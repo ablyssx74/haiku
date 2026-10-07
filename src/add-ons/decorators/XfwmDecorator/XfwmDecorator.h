@@ -65,6 +65,8 @@ protected:
 
 private:
 							BRegion				fShown;
+							BRegion				fUnreported;
+								// areas the bar covered earlier that no change has told the desktop about yet
 								// what the tabs covered after the last layout: the old area to clean up when the title bar changes size
 			// where everything of the title bar goes, worked out from the frame and the theme
 			struct TabSlot {

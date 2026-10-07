@@ -292,6 +292,7 @@ XfwmDecorator::_DoTabLayout()
 	BRegion bit;
 	_GetFootprint(&bit);
 	fTabsRegion = bit;
+	fUnreported.Include(&fShown);
 	fShown = bit;
 }
 
@@ -377,7 +378,9 @@ XfwmDecorator::_ResizeBy(BPoint offset, BRegion* dirty)
 		return;
 	}
 
-	BRegion before(fShown);
+	const BRect oldBar = fTitleBarRect;
+	BRegion before(fUnreported);
+	before.Include(&fShown);
 	if (_IsModal() && dirty != NULL)
 		_GetFootprint(&before);
 
@@ -386,11 +389,13 @@ XfwmDecorator::_ResizeBy(BPoint offset, BRegion* dirty)
 	_DoLayout();
 	_InvalidateFootprint();
 
+	fUnreported.MakeEmpty();
 	if (dirty != NULL) {
 		BRegion after;
 		_GetFootprint(&after);
 		dirty->Include(&before);
 		dirty->Include(&after);
+		dirty->Include(oldBar.InsetByCopy(-2, -2) | fTitleBarRect.InsetByCopy(-2, -2));
 	}
 }
 
@@ -404,17 +409,21 @@ XfwmDecorator::_SetTitle(Decorator::Tab* tab, const char* string, BRegion* updat
 	}
 
 	// the title is already the new one, so the old area is the one remembered from the last layout
-	BRegion before(fShown);
+	const BRect oldBar = fTitleBarRect;
+	BRegion before(fUnreported);
+	before.Include(&fShown);
 
 	_DoLayout();
 	_DoOutlineLayout();
 	_InvalidateFootprint();
 
+	fUnreported.MakeEmpty();
 	if (updateRegion != NULL) {
 		BRegion after;
 		_GetFootprint(&after);
 		updateRegion->Include(&before);
 		updateRegion->Include(&after);
+		updateRegion->Include(oldBar.InsetByCopy(-2, -2) | fTitleBarRect.InsetByCopy(-2, -2));
 	}
 }
 
