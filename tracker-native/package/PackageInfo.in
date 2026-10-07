@@ -1,6 +1,6 @@
 name			snaketracker
 version			@VERSION@-1
-architecture	x86_64
+architecture	@ARCH@
 summary			"Tracker, Deskbar and menus with the hDesktop snake-trail look"
 description		"Tracker and Deskbar built with a rounded, beveled menu selector and a
 \"snake trail\" that runs unbroken through every open submenu, plus an optional

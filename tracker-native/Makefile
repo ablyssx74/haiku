@@ -10,6 +10,10 @@ KIT    := $(TOP)/src/kits/tracker
 SC     := $(TOP)/src/add-ons/input_server/filters/shortcut_catcher
 INFO   := $(KIT)/infowindow
 DEV    := /boot/system/develop
+# x86_64, or x86_gcc2 (32-bit Haiku, whose gcc 2.95 is old: no -MP, no -Wno-deprecated-declarations)
+ARCH     := $(shell getarch)
+ARCH_INC := $(if $(findstring x86_64,$(ARCH)),x86_64,x86)
+GCC2     := $(findstring gcc2,$(ARCH))
 
 TRACKER_SRCS := $(filter-out $(KIT)/FilePanel.cpp,$(wildcard $(KIT)/*.cpp))
 # libtracker.so's own list (see src/kits/tracker/Jamfile) -- the wildcard above is trimmed to it below.
@@ -33,8 +37,8 @@ SCOBJS := $(addprefix $(OUT)/sc/,$(addsuffix .o,$(SCSRCS)))
 HDR := -I$(TOP)/headers/private/tracker -I$(KIT) -I$(INFO) -I$(SC) \
   -I$(DEV)/headers/private/interface -I$(DEV)/headers/private/mount -I$(DEV)/headers/private/shared \
   -I$(DEV)/headers/private/storage -I$(DEV)/headers/private/support -I$(DEV)/headers/private/tracker \
-  -I$(DEV)/headers/private/system -I$(DEV)/headers/private/system/arch/x86_64 -I$(DEV)/headers/private
-CXXFLAGS := -MMD -MP -O2 -fPIC -Wno-multichar -Wno-deprecated-declarations -D_BUILDING_tracker=1 -D_SUPPORTS_RESOURCES=1 $(HDR)
+  -I$(DEV)/headers/private/system -I$(DEV)/headers/private/system/arch/$(ARCH_INC) -I$(DEV)/headers/private
+CXXFLAGS := -MMD $(if $(GCC2),,-MP -Wno-deprecated-declarations) -O2 -fPIC -Wno-multichar -D_BUILDING_tracker=1 -D_SUPPORTS_RESOURCES=1 $(HDR)
 LIBS := -lbe -llocalestub -ltranslation -lshared -lcolumnlistview -lsupc++ -lstdc++
 
 all: $(OUT)/libtracker.so
@@ -144,7 +148,7 @@ uninstall: uninstall-launch
 	rm -f /boot/system/non-packaged/lib/libtracker.so /boot/system/non-packaged/Tracker /boot/system/non-packaged/Deskbar
 
 # A package for people who want to try the look without a source build:
-#   make package    -> out/snaketracker-$(PKG_VERSION)-1-x86_64.hpkg
+#   make package    -> out/snaketracker-$(PKG_VERSION)-1-$(ARCH).hpkg
 # It installs next to (not over) the system's Tracker and Deskbar:
 #   /boot/system/apps/SnakeTracker/{Tracker,Deskbar,lib/libtracker.so}
 #   /boot/system/add-ons/control_look/SnakeControlLook
@@ -166,9 +170,9 @@ package: all app look
 	cp $(OUT)/SnakeControlLook $(PKG)/add-ons/control_look/
 	cp package/x-snake-tracker $(PKG)/data/user_launch/
 	cp package/README.md $(PKG)/documentation/packages/snaketracker/
-	sed 's/@VERSION@/$(PKG_VERSION)/' package/PackageInfo.in > $(PKG)/.PackageInfo
-	rm -f $(OUT)/snaketracker-$(PKG_VERSION)-1-x86_64.hpkg
-	package create -C $(PKG) $(OUT)/snaketracker-$(PKG_VERSION)-1-x86_64.hpkg
+	sed 's/@VERSION@/$(PKG_VERSION)/; s/@ARCH@/$(ARCH)/' package/PackageInfo.in > $(PKG)/.PackageInfo
+	rm -f $(OUT)/snaketracker-$(PKG_VERSION)-1-$(ARCH).hpkg
+	package create -C $(PKG) $(OUT)/snaketracker-$(PKG_VERSION)-1-$(ARCH).hpkg
 
 clean:
 	rm -rf $(OUT)
