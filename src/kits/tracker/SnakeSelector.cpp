@@ -247,6 +247,21 @@ FilletCoverage(float px, float py, float cx, float cy, int dx, int dy, float r)
 }
 
 
+// (plain functions rather than lambdas: Haiku's old gcc 2 cannot compile lambdas)
+static float
+CornerRadius(bool flush, bool exposed)
+{
+	return (!flush || exposed) ? kSelR : 0.0f;
+}
+
+
+static float
+CoverAt(const std::vector<float>& cover, int w, int h, int x, int y)
+{
+	return (x < 0 || y < 0 || x >= w || y >= h) ? 0.0f : cover[(size_t)y * w + x];
+}
+
+
 struct Piece {
 	float x, y, w, h, tl, tr, br, bl;
 };
@@ -392,11 +407,10 @@ DrawTrail(BMenu* menu)
 			bool rightFlush = (childEdge && childOnRight) || (onTrail && !parentOnLeft);
 			float x0 = leftFlush ? 0.0f : 3.0f, x1 = rightFlush ? (float)w : w - 3.0f;
 			bool expTop = onTrail && top < pTop - 0.5f, expBottom = onTrail && bottom > pBottom + 0.5f;
-			auto cornerR = [&](bool flush, bool exposed) { return (!flush || exposed) ? kSelR : 0.0f; };
-			float tl = cutTop ? 0.0f : cornerR(leftFlush, onTrail && parentOnLeft && expTop);
-			float tr = cutTop ? 0.0f : cornerR(rightFlush, onTrail && !parentOnLeft && expTop);
-			float br = cutBottom ? 0.0f : cornerR(rightFlush, onTrail && !parentOnLeft && expBottom);
-			float bl = cutBottom ? 0.0f : cornerR(leftFlush, onTrail && parentOnLeft && expBottom);
+			float tl = cutTop ? 0.0f : CornerRadius(leftFlush, onTrail && parentOnLeft && expTop);
+			float tr = cutTop ? 0.0f : CornerRadius(rightFlush, onTrail && !parentOnLeft && expTop);
+			float br = cutBottom ? 0.0f : CornerRadius(rightFlush, onTrail && !parentOnLeft && expBottom);
+			float bl = cutBottom ? 0.0f : CornerRadius(leftFlush, onTrail && parentOnLeft && expBottom);
 			Piece p = {x0, t, x1 - x0, b - t, tl, tr, br, bl};
 			pieces.push_back(p);
 		}
@@ -496,9 +510,6 @@ DrawTrail(BMenu* menu)
 	const rgb_color base = Accent(), light = Light(base), dark = Dark(base);
 	uint8* bits = (uint8*)bitmap.Bits();
 	const int32 bpr = bitmap.BytesPerRow();
-	auto at = [&](int x, int y) -> float {
-		return (x < 0 || y < 0 || x >= w || y >= h) ? 0.0f : cover[(size_t)y * w + x];
-	};
 	bool any = false;
 	for (int y = 0; y < h; ++y) {
 		uint8* row = bits + y * bpr;
@@ -524,10 +535,10 @@ DrawTrail(BMenu* menu)
 			}
 
 			// selector layer
-			float c0 = at(x, y);
+			float c0 = CoverAt(cover, w, h, x, y);
 			float sr = 0, sg = 0, sb = 0;
 			if (c0 > 0.0f) {
-				float a2 = c0 * at(x, y - 1), a3 = a2 * at(x, y + 1);
+				float a2 = c0 * CoverAt(cover, w, h, x, y - 1), a3 = a2 * CoverAt(cover, w, h, x, y + 1);
 				sr = light.red;  sg = light.green;  sb = light.blue;
 				sr += (dark.red - sr) * a2;  sg += (dark.green - sg) * a2;  sb += (dark.blue - sb) * a2;
 				sr += (base.red - sr) * a3;  sg += (base.green - sg) * a3;  sb += (base.blue - sb) * a3;
