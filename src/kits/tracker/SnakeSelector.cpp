@@ -298,8 +298,8 @@ public:
 	// from the submenu's thread: where the seam is
 	void Place(BRect strip, rgb_color accent)
 	{
-		if (!Lock())
-			return;
+		if (LockWithTimeout(20000) != B_OK)
+			return;		// busy; the next draw places it
 		fAccent = accent;
 		fHeight = (int)strip.Height() + 1;
 		ResizeTo(0, strip.Height());
@@ -314,15 +314,19 @@ public:
 	{
 		if (message->what == 'Tick') {
 			// gone when the submenu's window is
+			// Never wait for the submenu's window: its thread may be waiting for this one (Place()), and
+			// two threads each waiting for the other froze Tracker. If it is busy, ask again next tick.
 			bool gone = true;
-			if (fChild.LockTarget()) {
+			status_t status = fChild.LockTargetWithTimeout(0);
+			if (status == B_OK) {
 				BLooper* looper = NULL;
 				fChild.Target(&looper);
 				BWindow* window = dynamic_cast<BWindow*>(looper);
 				gone = window == NULL || window->IsHidden();
 				if (looper != NULL)
 					looper->Unlock();
-			}
+			} else if (status == B_TIMED_OUT)
+				gone = false;
 			if (gone)
 				PostMessage(B_QUIT_REQUESTED);
 			return;
