@@ -403,8 +403,10 @@ public:
 					hide = true;
 				if (looper != NULL)
 					looper->Unlock();
-			} else if (status != B_TIMED_OUT)
-				gone = true;
+			} else if (status == B_TIMED_OUT || status == B_WOULD_BLOCK)
+				gone = false;	// busy (a zero timeout reports B_WOULD_BLOCK): ask again next tick
+			else
+				gone = !fChild.IsValid();
 
 			if (gone) {
 				ForgetBridge(this);
