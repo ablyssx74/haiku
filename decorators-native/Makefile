@@ -14,13 +14,18 @@ THEMES  := $(TOP)/ablyss/xfwm4-themes-4.10.0/themes
 ADDONS  := /boot/system/non-packaged/add-ons/decorators
 DATA    := /boot/system/non-packaged/data/xfwm4-themes
 THEME   ?= b6
+# x86_64, or x86_gcc2 (32-bit Haiku: no -MP, and gcc 2 links its own libstdc++)
+ARCH     := $(shell getarch)
+ARCH_INC := $(if $(findstring x86_64,$(ARCH)),x86_64,x86)
+GCC2     := $(findstring gcc2,$(ARCH))
+CXXLIBS  := $(if $(GCC2),,-lsupc++ -lstdc++)
 
 INC := -iquote $(APP) -iquote $(APP)/stackandtile -iquote $(APP)/decorator -iquote $(APP)/drawing \
   -iquote $(APP)/drawing/Painter -iquote $(APP)/font -iquote $(SRC) \
   -I$(DEV)/private/app -I$(DEV)/private/shared -I$(DEV)/private/interface -I$(DEV)/private/graphics \
-  -I$(DEV)/private/system -I$(DEV)/private/system/arch/x86_64 -I$(DEV)/private -I$(TOP)/headers/libs/agg \
+  -I$(DEV)/private/system -I$(DEV)/private/system/arch/$(ARCH_INC) -I$(DEV)/private -I$(TOP)/headers/libs/agg \
   -I$(DEV)/freetype2 -I$(DEV)/private/binary_compatibility
-CXXFLAGS := -MMD -MP -O2 -fPIC -Wno-multichar -DDEBUG=0 $(INC)
+CXXFLAGS := -MMD $(if $(GCC2),,-MP) -O2 -fPIC -Wno-multichar -DDEBUG=0 $(INC)
 OBJS := $(OUT)/XfwmDecorator.o $(OUT)/XfwmTheme.o
 
 all: $(OUT)/Xfwm-base
@@ -30,7 +35,7 @@ $(OUT)/%.o: $(SRC)/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(OUT)/Xfwm-base: $(OBJS)
-	$(CXX) -shared -Xlinker -soname=Xfwm-decorator -o $@ $(OBJS) /boot/system/servers/app_server -lbe -lsupc++ -lstdc++
+	$(CXX) -shared -Xlinker -soname=Xfwm-decorator -o $@ $(OBJS) /boot/system/servers/app_server -lbe $(CXXLIBS)
 
 # one add-on file per theme: the same code with its own name in Appearance
 install: all
@@ -60,7 +65,6 @@ deactivate: $(OUT)/setdecor
 #   make package    -> out/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg
 # /boot/system/add-ons/decorators/Xfwm-<theme> and /boot/system/data/xfwm4-themes/<theme>/
 PKG_VERSION := 1.0.0
-ARCH := $(shell getarch)
 PKG := $(OUT)/package
 package: all
 	rm -rf $(PKG)
