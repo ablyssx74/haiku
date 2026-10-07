@@ -259,12 +259,14 @@ SelectedItem(BMenu* menu)
 // be read without waiting (the parent window is locked by the tracking thread, which may be waiting
 // for this one, so only a try-lock is safe).
 struct ParentLink {
-	ParentLink() : valid(false), rowTop(0), rowBottom(0), windowLeft(0) {}
+	ParentLink() : valid(false), rowTop(0), rowBottom(0), windowLeft(0), parentTop(0), parentBottom(0) {}
 
 	bool	valid;
 	float	rowTop;			// the parent's open row, in screen coordinates
 	float	rowBottom;
 	float	windowLeft;		// the parent window's left edge, in screen coordinates
+	float	parentTop;		// and its vertical extent, to check the row against
+	float	parentBottom;
 };
 
 static BLocker&
@@ -302,6 +304,8 @@ FindParentLink(BMenu* menu)
 		link.rowTop = row.top;
 		link.rowBottom = row.bottom + 1;
 		link.windowLeft = parentWindow->Frame().left;
+		link.parentTop = parentWindow->Frame().top;
+		link.parentBottom = parentWindow->Frame().bottom;
 
 		bool isNew;
 		{
@@ -401,6 +405,15 @@ public:
 					gone = true;
 				else if (window->IsHidden())
 					hide = true;
+				else {
+					// still beside the submenu? (it may have moved since the bridge was placed)
+					BRect frame = window->Frame();
+					BRect mine = Frame();
+					bool beside = (mine.left == frame.left - 1 || mine.left == frame.right + 1)
+						&& mine.top >= frame.top - 2 && mine.bottom <= frame.bottom + 2;
+					if (!beside)
+						hide = true;
+				}
 				if (looper != NULL)
 					looper->Unlock();
 			} else if (status == B_TIMED_OUT || status == B_WOULD_BLOCK)
@@ -482,10 +495,60 @@ ForgetBridge(SeamBridge* bridge)
 }
 
 
+// Opt-in diagnostics: if the file ~/config/settings/snake_debug exists, bridge placements are appended to
+// ~/config/settings/snake_debug.log (to find out where a stray seam line comes from on real hardware).
 static void
-PlaceBridge(BMenu* menu, BRect strip)
+SeamLog(const char* what, BWindow* child, BRect strip, float parentTop, float parentBottom)
+{
+	static bigtime_t lastCheck = 0;
+	static bool enabled = false;
+	bigtime_t now = system_time();
+	if (now - lastCheck > 2000000) {
+		lastCheck = now;
+		BPath path;
+		enabled = find_directory(B_USER_SETTINGS_DIRECTORY, &path) == B_OK
+			&& path.Append("snake_debug") == B_OK && BEntry(path.Path()).Exists();
+	}
+	if (!enabled)
+		return;
+	BPath path;
+	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) != B_OK || path.Append("snake_debug.log") != B_OK)
+		return;
+	FILE* file = fopen(path.Path(), "a");
+	if (file == NULL)
+		return;
+	BRect frame = child->Frame();
+	fprintf(file, "%s child=%g,%g,%g,%g strip=%g,%g,%g,%g parent y=%g..%g\n", what, frame.left, frame.top,
+		frame.right, frame.bottom, strip.left, strip.top, strip.right, strip.bottom, parentTop,
+		parentBottom);
+	fclose(file);
+}
+
+
+static void
+PlaceBridge(BMenu* menu, BRect strip, float parentTop, float parentBottom)
 {
 	BWindow* child = menu->Window();
+
+	// The seam only exists where the two windows are side by side. If the strip is not inside both
+	// windows' vertical extent, the geometry is stale (a window still being moved, which was seen as a
+	// stray one pixel line on the desktop), so the bridge is hidden rather than placed.
+	BRect childFrame = child->Frame();
+	if (strip.top < childFrame.top - 2 || strip.bottom > childFrame.bottom + 2
+		|| strip.top < parentTop - 2 || strip.bottom > parentBottom + 2) {
+		SeamBridge* existing = NULL;
+		{
+			BAutolock lock(LinkLock());
+			std::map<BWindow*, SeamBridge*>::iterator it = Bridges().find(child);
+			if (it != Bridges().end())
+				existing = it->second;
+		}
+		if (existing != NULL)
+			existing->PostMessage('Hide');
+		SeamLog("rejected", child, strip, parentTop, parentBottom);
+		return;
+	}
+
 	SeamBridge* bridge;
 	{
 		BAutolock lock(LinkLock());
@@ -498,6 +561,7 @@ PlaceBridge(BMenu* menu, BRect strip)
 			bridge = it->second;
 	}
 	bridge->Place(strip, Accent());
+	SeamLog("placed", child, strip, parentTop, parentBottom);
 }
 
 
@@ -570,7 +634,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	if (link.valid) {
 		BRect frame = menu->Window()->Frame();
 		float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
-		PlaceBridge(menu, BRect(x, link.rowTop + 1, x, link.rowBottom - 2));
+		PlaceBridge(menu, BRect(x, link.rowTop + 1, x, link.rowBottom - 2), link.parentTop, link.parentBottom);
 	}
 
 	{
