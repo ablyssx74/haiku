@@ -1,0 +1,31 @@
+name			xfwm_decorators
+version			@VERSION@-1
+architecture	@ARCH@
+summary			"Window decorators made from xfwm4 themes"
+description		"A window decorator that draws any xfwm4 theme, and 90+ themes to choose
+from (Appearance > Decorator, entries starting with \"xfwm4:\").
+
+The title bar is part of the theme's artwork, so tabs don't slide; stacked
+windows get one tab each in the same bar. Titled, document, floating, modal
+and bordered windows are supported. The shade, stick and menu buttons of
+xfwm4 are not."
+packager		"ablyssx74 <ablyssx74@users.noreply.github.com>"
+vendor			"ablyssx74"
+copyrights {
+	"2001-2026 Haiku, Inc."
+	"xfwm4 themes: their respective authors (see documentation)"
+	"2026 ablyssx74"
+}
+licenses {
+	"MIT"
+	"GNU GPL v2"
+}
+provides {
+	xfwm_decorators = @VERSION@
+}
+requires {
+	haiku >= r1~beta6
+}
+urls {
+	"https://github.com/ablyssx74/haiku"
+}

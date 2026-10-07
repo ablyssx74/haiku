@@ -56,9 +56,33 @@ activate: $(OUT)/setdecor
 deactivate: $(OUT)/setdecor
 	$(OUT)/setdecor Default
 
+# A package with the add-on for every theme:
+#   make package    -> out/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg
+# /boot/system/add-ons/decorators/Xfwm-<theme> and /boot/system/data/xfwm4-themes/<theme>/
+PKG_VERSION := 1.0.0
+ARCH := $(shell getarch)
+PKG := $(OUT)/package
+package: all
+	rm -rf $(PKG)
+	mkdir -p $(PKG)/add-ons/decorators $(PKG)/data/xfwm4-themes $(PKG)/documentation/packages/xfwm_decorators
+	for t in $$(ls $(THEMES)); do [ -f $(THEMES)/$$t/themerc ] || continue; \
+		mkdir -p $(PKG)/data/xfwm4-themes/$$t; \
+		cp $(THEMES)/$$t/themerc $(THEMES)/$$t/*.xpm $(PKG)/data/xfwm4-themes/$$t/; \
+		sed 's/"name"\t\t\t\t= "xfwm4 theme"/"name"\t\t\t\t= "xfwm4: '$$t'"/' $(SRC)/resources.rdef > $(OUT)/res-$$t.rdef; \
+		rc -o $(OUT)/res-$$t.rsrc $(OUT)/res-$$t.rdef; \
+		cp $(OUT)/Xfwm-base $(PKG)/add-ons/decorators/Xfwm-$$t; \
+		xres -o $(PKG)/add-ons/decorators/Xfwm-$$t $(OUT)/res-$$t.rsrc; \
+	done
+	cp $(TOP)/ablyss/xfwm4-themes-4.10.0/AUTHORS $(TOP)/ablyss/xfwm4-themes-4.10.0/COPYING \
+		$(PKG)/documentation/packages/xfwm_decorators/
+	sed 's/@VERSION@/$(PKG_VERSION)/; s/@ARCH@/$(ARCH)/' package/PackageInfo.in > $(PKG)/.PackageInfo
+	rm -f $(OUT)/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg
+	package create -C $(PKG) $(OUT)/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg
+
 clean:
 	rm -rf $(OUT)
 
 -include $(wildcard $(OUT)/*.d)
 
-.PHONY: all install install-all activate deactivate clean
+
+.PHONY: package all install install-all activate deactivate clean
