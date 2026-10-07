@@ -149,18 +149,22 @@ uninstall: uninstall-launch
 #   /boot/system/apps/SnakeTracker/{Tracker,Deskbar,lib/libtracker.so}
 #   /boot/system/add-ons/control_look/SnakeControlLook
 #   /boot/system/data/user_launch/x-snake-tracker   (makes the launch daemon start the two above)
+#   /boot/system/settings/user_launch/snake-tracker (the same, read after the system's own launch files,
+#                                                    so the order the files are read in can't undo it)
+# It has to be installed for the system (not "home"): the launch files point at /system/apps.
 # Removing the package puts the stock Tracker and Deskbar back. A package can't replace files that
 # another package (haiku.hpkg) owns, hence the separate folder and the launch file.
-PKG_VERSION := 1.0.0
+PKG_VERSION := 1.0.1
 PKG := $(OUT)/package
 package: all app look
 	rm -rf $(PKG)
 	mkdir -p $(PKG)/apps/SnakeTracker/lib $(PKG)/add-ons/control_look $(PKG)/data/user_launch \
-		$(PKG)/documentation/packages/snaketracker
+		$(PKG)/settings/user_launch $(PKG)/documentation/packages/snaketracker
 	cp $(OUT)/Tracker $(OUT)/Deskbar $(PKG)/apps/SnakeTracker/
 	cp $(OUT)/libtracker.so $(PKG)/apps/SnakeTracker/lib/
 	cp $(OUT)/SnakeControlLook $(PKG)/add-ons/control_look/
 	cp package/x-snake-tracker $(PKG)/data/user_launch/
+	cp package/x-snake-tracker $(PKG)/settings/user_launch/snake-tracker
 	cp package/README.md $(PKG)/documentation/packages/snaketracker/
 	sed 's/@VERSION@/$(PKG_VERSION)/' package/PackageInfo.in > $(PKG)/.PackageInfo
 	rm -f $(OUT)/snaketracker-$(PKG_VERSION)-1-x86_64.hpkg

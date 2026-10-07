@@ -8,6 +8,8 @@ Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 * Selector colour: hDesktop's Selector Color while hDesktop is running; otherwise Tracker preferences >
   Windows > "Menu selector color"; otherwise blue.
 
+**Install it for the whole system** (the launch files point at `/system/apps`): double-click the `.hpkg` and choose "System", or copy it to `/boot/system/packages/`. A "home" install puts the files under `~/config` and the launch files then point at nothing.
+
 The package installs to `/boot/system/apps/SnakeTracker` and a launch file in
 `/boot/system/data/user_launch`, so the system's own Tracker and Deskbar are left alone. They are
 replaced at the next start (log out and in, or restart). To go back, remove the package and pick the
