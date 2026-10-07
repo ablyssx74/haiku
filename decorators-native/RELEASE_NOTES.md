@@ -1,11 +1,12 @@
-# xfwm_decorators 1.0.1
+# xfwm_decorators 1.0.2
 
 Window decorators for Haiku made from xfwm4 themes. One decorator draws any xfwm4 theme, and the package carries 93 of them. Pick one in **Appearance > Decorator** (entries named "xfwm4: <theme>"), for example `xfwm4: b6`.
 
 ## Install
-Two packages are attached: `xfwm_decorators-1.0.1-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.1-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
+Two packages are attached: `xfwm_decorators-1.0.2-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.2-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
 
 ## Changes since 1.0.0
+- Hardened the ghost-image fix: the old title bar area is now always redrawn, even after other layout changes (such as a focus change) happened in between.
 - Fixed a ghost image left on the desktop when a window's title got shorter and the title bar shrank.
 
 ## What you get
