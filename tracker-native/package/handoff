@@ -1,5 +1,6 @@
 #!/bin/sh
-# Hands Tracker and Deskbar over to the snake-trail builds if the launch daemon started the system's.
+# Hands Tracker and Deskbar over to the snake-trail builds if the launch daemon is going to start the
+# system's.
 #
 # The package's launch file (data/user_launch/x-snake-tracker) tells the launch daemon to start the
 # builds in this folder, but the daemon applies its launch files in the order they were installed, and
@@ -19,22 +20,42 @@ fi
 
 . /system/boot/SetupEnvironment
 
-# runs a program again if it dies abnormally; a normal quit ends it
+# waits (up to ~15 s) until no program of that name is running any more
+wait_gone() {
+	n=0
+	while ps | grep -q "[ /]$1 "; do
+		n=$((n + 1))
+		[ $n -gt 30 ] && return 1
+		sleep 0.5
+	done
+	return 0
+}
+
+# Runs a program, again if it dies abnormally or right away (the system's copy may still be shutting down,
+# and Tracker and Deskbar refuse to run twice). A normal quit after it ran for a while ends it.
 supervise() {
+	tries=0
 	while true; do
+		start=$(date +%s)
 		"$1"
-		[ $? -eq 0 ] && break
+		status=$?
+		ran=$(( $(date +%s) - start ))
+		[ $status -eq 0 ] && [ $ran -ge 10 ] && break
+		tries=$((tries + 1))
+		[ $tries -gt 20 ] && break
 		sleep 2
 	done
 }
 
 if ! uses_ours x-vnd.be-trak; then
 	launch_roster stop x-vnd.be-trak
+	wait_gone /boot/system/Tracker
 	supervise $APP/Tracker &
 fi
 
 if ! uses_ours x-vnd.be-tskb; then
 	launch_roster stop x-vnd.be-tskb
+	wait_gone /boot/system/Deskbar
 	supervise $APP/Deskbar &
 fi
 
