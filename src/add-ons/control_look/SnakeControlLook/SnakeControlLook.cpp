@@ -639,6 +639,7 @@ public:
 		// right text colour. Menu bar titles get a rounded selector of their own.
 		BMenu* menu = dynamic_cast<BMenu*>(view);
 		BMenuBar* bar = dynamic_cast<BMenuBar*>(view);
+		{ FILE* d = fopen("/tmp/cl.log", "a"); if (d) { fprintf(d, "activated view=%p bar=%p menu=%p rect=%g,%g,%g,%g\n", (void*)view, (void*)bar, (void*)menu, rect.left, rect.top, rect.right, rect.bottom); fclose(d); } }
 		if (bar != NULL) {
 			if (ShouldDraw(view, rect, updateRect)) {
 				bool open = false;
