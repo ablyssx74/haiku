@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
 #include <new>
 #include <string>
 
@@ -266,6 +267,59 @@ XfwmImage::Load(const char* path)
 }
 
 
+bool
+XfwmImage::LoadFlipped(const XfwmImage& source)
+{
+	if (!source.IsValid())
+		return false;
+
+	UtilityBitmap* bitmap = new(std::nothrow) UtilityBitmap(BRect(0, 0, source.fWidth - 1, source.fHeight - 1),
+		B_RGBA32, 0);
+	if (bitmap == NULL)
+		return false;
+	if (!bitmap->IsValid()) {
+		delete bitmap;
+		return false;
+	}
+
+	fRuns.clear();
+	int32 minX = source.fWidth, minY = source.fHeight, maxX = -1, maxY = -1;
+	for (int32 y = 0; y < source.fHeight; y++) {
+		const uint8* in = source.fBitmap->Bits() + (source.fHeight - 1 - y) * source.fBitmap->BytesPerRow();
+		uint8* out = bitmap->Bits() + y * bitmap->BytesPerRow();
+		memcpy(out, in, source.fWidth * 4);
+
+		int32 runStart = -1;
+		for (int32 x = 0; x < source.fWidth; x++) {
+			if (out[x * 4 + 3] > 0) {
+				if (runStart < 0)
+					runStart = x;
+				minX = std::min(minX, x);
+				maxX = std::max(maxX, x);
+				minY = std::min(minY, y);
+				maxY = std::max(maxY, y);
+			} else if (runStart >= 0) {
+				Run run = {y, runStart, x - 1};
+				fRuns.push_back(run);
+				runStart = -1;
+			}
+		}
+		if (runStart >= 0) {
+			Run run = {y, runStart, source.fWidth - 1};
+			fRuns.push_back(run);
+		}
+	}
+
+	if (fBitmap != NULL)
+		fBitmap->ReleaseReference();
+	fBitmap = bitmap;
+	fWidth = source.fWidth;
+	fHeight = source.fHeight;
+	fBounds = maxX >= 0 ? BRect(minX, minY, maxX, maxY) : BRect(0, 0, -1, -1);
+	return true;
+}
+
+
 void
 XfwmImage::IncludeIn(BRegion& region, int32 x, int32 y) const
 {
@@ -299,6 +353,8 @@ XfwmTheme::XfwmTheme()
 	fButtonSpacing(0),
 	fButtonLayout("O|HMC")
 {
+	fOutline.red = fOutline.green = fOutline.blue = 0;
+	fOutline.alpha = 255;
 	fActiveText.red = fActiveText.green = fActiveText.blue = 0;
 	fActiveText.alpha = 255;
 	fInactiveText = fActiveText;
@@ -395,6 +451,24 @@ XfwmTheme::Load(const char* name)
 	fTitleHeight = fTitle[2][0].Height();
 	if (fButton[kButtonClose][kStateActive].IsValid())
 		fButtonWidth = fButton[kButtonClose][kStateActive].Width();
+
+	for (int32 state = 0; state < 2; state++) {
+		fTopFrame[state].LoadFlipped(fBottom[state]);
+		fTopLeftCorner[state].LoadFlipped(fBottomLeft[state]);
+		fTopRightCorner[state].LoadFlipped(fBottomRight[state]);
+	}
+
+	// the outer line of the border: the outermost opaque pixel of the left picture, halfway down
+	{
+		ServerBitmap* bitmap = left.Bitmap();
+		int32 column = (int32)left.OpaqueBounds().left;
+		int32 row = left.Height() / 2;
+		const uint8* pixel = bitmap->Bits() + row * bitmap->BytesPerRow() + column * 4;
+		fOutline.blue = pixel[0];
+		fOutline.green = pixel[1];
+		fOutline.red = pixel[2];
+		fOutline.alpha = 255;
+	}
 
 	fValid = true;
 	return true;

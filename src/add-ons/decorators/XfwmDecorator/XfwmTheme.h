@@ -23,6 +23,8 @@ public:
 								~XfwmImage();
 
 			bool				Load(const char* path);
+			// the same picture upside down (the bottom border as a top border)
+			bool				LoadFlipped(const XfwmImage& source);
 			bool				IsValid() const { return fBitmap != NULL; }
 
 			ServerBitmap*		Bitmap() const { return fBitmap; }
@@ -85,6 +87,14 @@ public:
 			const XfwmImage&	BottomRight(bool active) const { return fBottomRight[active ? 0 : 1]; }
 			const XfwmImage&	Button(int32 button, int32 state) const { return fButton[button][state]; }
 
+			// a top border and corners for windows without a title bar: the bottom ones, turned over
+			const XfwmImage&	TopFrame(bool active) const { return fTopFrame[active ? 0 : 1]; }
+			const XfwmImage&	TopLeftCorner(bool active) const { return fTopLeftCorner[active ? 0 : 1]; }
+			const XfwmImage&	TopRightCorner(bool active) const { return fTopRightCorner[active ? 0 : 1]; }
+
+			// the colour of the outermost line of the border (for one pixel frames)
+			rgb_color			OutlineColor() const { return fOutline; }
+
 			// measurements, taken from the pictures
 			int32				BorderWidth() const { return fBorderWidth; }
 			int32				LeftMargin() const { return fLeftMargin; }	// transparent columns left of the border
@@ -112,6 +122,10 @@ private:
 			XfwmImage			fBottom[2];
 			XfwmImage			fBottomLeft[2];
 			XfwmImage			fBottomRight[2];
+			XfwmImage			fTopFrame[2];
+			XfwmImage			fTopLeftCorner[2];
+			XfwmImage			fTopRightCorner[2];
+			rgb_color			fOutline;
 			XfwmImage			fButton[kButtonCount][kStateCount];
 
 			int32				fBorderWidth;

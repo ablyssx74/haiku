@@ -74,6 +74,8 @@ private:
 			};
 
 			bool				_HasTab() const;
+			bool				_IsModal() const;
+			bool				_IsBordered() const;
 			void				_ComputeBar(Decorator::Tab* tab, BarLayout& bar) const;
 			void				_LayoutButtons(Decorator::Tab* tab, const BarLayout& bar);
 			void				_Blit(const XfwmImage& image, BPoint at);

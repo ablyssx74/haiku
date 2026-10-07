@@ -70,6 +70,20 @@ XfwmDecorator::_HasTab() const
 }
 
 
+bool
+XfwmDecorator::_IsModal() const
+{
+	return fTopTab != NULL && fTopTab->look == B_MODAL_WINDOW_LOOK;
+}
+
+
+bool
+XfwmDecorator::_IsBordered() const
+{
+	return fTopTab != NULL && fTopTab->look == B_BORDERED_WINDOW_LOOK;
+}
+
+
 // The tab can't be slid: the title bar is part of the theme's artwork.
 bool
 XfwmDecorator::_SetTabLocation(Decorator::Tab* tab, float location, bool isShifting, BRegion* updateRegion)
@@ -84,6 +98,32 @@ XfwmDecorator::_SetTabLocation(Decorator::Tab* tab, float location, bool isShift
 void
 XfwmDecorator::_DoLayout()
 {
+	if (_IsModal()) {
+		// no title bar: a border all the way round, the top one made from the bottom border turned over
+		const bool active = _Active(fTopTab);
+		const int32 bw = fTheme->BorderWidth();
+		fBorderWidth = bw;
+		fResizeKnobSize = 18;
+		fBorderResizeLength = 22;
+
+		fLeftBorder.Set(fFrame.left - bw, fFrame.top, fFrame.left - 1, fFrame.bottom);
+		fRightBorder.Set(fFrame.right + 1, fFrame.top, fFrame.right + bw, fFrame.bottom);
+		fTopBorder.Set(fFrame.left - bw, fFrame.top - bw, fFrame.right + bw, fFrame.top - 1);
+		fBottomBorder.Set(fFrame.left - bw, fFrame.bottom + 1, fFrame.right + bw, fFrame.bottom + bw);
+		fResizeRect.Set(0, 0, -1, -1);
+
+		for (int32 i = 0; i < fTabList.CountItems(); i++)
+			fTabList.ItemAt(i)->tabRect.Set(0, 0, -1, -1);
+		fTitleBarRect.Set(0, 0, -1, -1);
+		fTabsRegion.MakeEmpty();
+
+		const int32 x0 = (int32)fFrame.left - fTheme->Left(active).Width();
+		const int32 frameEnd = (int32)fFrame.right + 1 + fTheme->Right(active).Width();
+		const int32 top = (int32)fFrame.top - fTheme->TopFrame(active).Height();
+		fBorderRect.Set(x0, top, frameEnd - 1, fFrame.bottom + fTheme->Bottom(active).Height());
+		return;
+	}
+
 	if (!_HasTab()) {
 		SATDecorator::_DoLayout();
 		return;
@@ -261,7 +301,7 @@ XfwmDecorator::_LayoutButtons(Decorator::Tab* tab, const BarLayout& bar)
 void
 XfwmDecorator::_ResizeBy(BPoint offset, BRegion* dirty)
 {
-	if (!_HasTab()) {
+	if (!_HasTab() && !_IsModal()) {
 		SATDecorator::_ResizeBy(offset, dirty);
 		return;
 	}
@@ -314,6 +354,24 @@ XfwmDecorator::_GetFootprint(BRegion* region)
 {
 	if (region == NULL)
 		return;
+	if (_IsModal()) {
+		const bool active = _Active(fTopTab);
+		region->Include(fLeftBorder);
+		region->Include(fRightBorder);
+		region->Include(fBottomBorder);
+		region->Include(fTopBorder);
+
+		const int32 x0 = (int32)fFrame.left - fTheme->Left(active).Width();
+		const int32 frameEnd = (int32)fFrame.right + 1 + fTheme->Right(active).Width();
+		const int32 top = (int32)fFrame.top - fTheme->TopFrame(active).Height();
+		const int32 bottomEnd = (int32)fFrame.bottom + 1 + fTheme->Bottom(active).Height();
+		fTheme->TopLeftCorner(active).IncludeIn(*region, x0, top);
+		fTheme->TopRightCorner(active).IncludeIn(*region, frameEnd - fTheme->TopRightCorner(active).Width(), top);
+		fTheme->BottomLeft(active).IncludeIn(*region, x0, bottomEnd - fTheme->BottomLeft(active).Height());
+		fTheme->BottomRight(active).IncludeIn(*region, frameEnd - fTheme->BottomRight(active).Width(),
+			bottomEnd - fTheme->BottomRight(active).Height());
+		return;
+	}
 	if (!_HasTab()) {
 		SATDecorator::_GetFootprint(region);
 		return;
@@ -437,7 +495,14 @@ XfwmDecorator::_BlitTiled(const XfwmImage& image, BRect area, bool horizontal)
 void
 XfwmDecorator::_DrawFrame(BRect invalid)
 {
-	if (!_HasTab()) {
+	if (_IsBordered()) {
+		// menus and the like: a one pixel line in the theme's outline colour
+		fDrawingEngine->StrokeRect(BRect(fFrame.left - 1, fFrame.top - 1, fFrame.right + 1, fFrame.bottom + 1),
+			fTheme->OutlineColor());
+		return;
+	}
+
+	if (!_HasTab() && !_IsModal()) {
 		SATDecorator::_DrawFrame(invalid);
 		return;
 	}
@@ -467,6 +532,15 @@ XfwmDecorator::_DrawFrame(BRect invalid)
 	const int32 bottomEnd = (int32)fFrame.bottom + 1 + bottom.Height();
 	_Blit(bottomLeft, BPoint(bar.x0, bottomEnd - bottomLeft.Height()));
 	_Blit(bottomRight, BPoint(bar.frameEnd - bottomRight.Width(), bottomEnd - bottomRight.Height()));
+
+	if (_IsModal()) {
+		// the top border and its corners
+		const XfwmImage& topFrame = fTheme->TopFrame(active);
+		const int32 top = (int32)fFrame.top - topFrame.Height();
+		_BlitTiled(topFrame, BRect(fFrame.left - bw, top, fFrame.right + bw, top + topFrame.Height() - 1), true);
+		_Blit(fTheme->TopLeftCorner(active), BPoint(bar.x0, top));
+		_Blit(fTheme->TopRightCorner(active), BPoint(bar.frameEnd - fTheme->TopRightCorner(active).Width(), top));
+	}
 
 	fDrawingEngine->SetDrawingMode(oldMode);
 }
