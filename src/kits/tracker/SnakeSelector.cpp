@@ -309,9 +309,27 @@ InvalidateParent(BMenu* parent)
 }
 
 
+// A menu window has a one pixel border drawn by the window system outside the menu itself, so two menus
+// side by side are separated by two dark pixels that the trail can't paint over. The menu draws its own
+// border inside the window anyway, so the window's is dropped -- here, while the window is still hidden
+// (the menu is being attached to it); doing it to a window that is already on screen made it vanish.
+static void
+RemoveWindowBorder(BMenu* menu)
+{
+	BWindow* window = menu->Window();
+	if (window != NULL && window->IsHidden() && window->Look() == B_BORDERED_WINDOW_LOOK
+		&& (int)window->Feel() == 1025) {	// the menu windows' feel (kMenuWindowFeel)
+		window->SetLook(B_NO_BORDER_WINDOW_LOOK);
+	}
+}
+
+
 void
 AttachLink(BMenu* submenu)
 {
+	if (TrailEnabled())
+		RemoveWindowBorder(submenu);
+
 	BMenu* parent = submenu->Supermenu();
 	BMenuItem* item = submenu->Superitem();
 	ParentLink link;
