@@ -621,7 +621,6 @@ public:
 	virtual	void DrawMenuBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
-		{ FILE* d = fopen("/tmp/snake_dbg.log", "a"); if (d) { fprintf(d, "menu bg\n"); fclose(d); } }
 		HaikuControlLook::DrawMenuBackground(view, rect, updateRect, base, flags, borders);
 
 		BMenu* menu = dynamic_cast<BMenu*>(view);
@@ -632,7 +631,6 @@ public:
 	virtual	void DrawMenuItemBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
-		{ FILE* d = fopen("/tmp/snake_dbg.log", "a"); if (d) { fprintf(d, "item bg flags=%u\n", (unsigned)flags); fclose(d); } }
 		if ((flags & B_ACTIVATED) == 0) {
 			HaikuControlLook::DrawMenuItemBackground(view, rect, updateRect, base, flags, borders);
 			return;
@@ -642,7 +640,6 @@ public:
 		// right text colour. Menu bar titles get a rounded selector of their own.
 		BMenu* menu = dynamic_cast<BMenu*>(view);
 		BMenuBar* bar = dynamic_cast<BMenuBar*>(view);
-		fprintf(stderr, "activated view=%p bar=%p menu=%p rect=%g,%g,%g,%g flags=%u\n", (void*)view, (void*)bar, (void*)menu, rect.left, rect.top, rect.right, rect.bottom, (unsigned)flags);
 		if (bar != NULL) {
 			if (ShouldDraw(view, rect, updateRect)) {
 				bool open = false;
