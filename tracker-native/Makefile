@@ -14,7 +14,7 @@ DEV    := /boot/system/develop
 ARCH     := $(shell getarch)
 ARCH_INC := $(if $(findstring x86_64,$(ARCH)),x86_64,x86)
 GCC2     := $(findstring gcc2,$(ARCH))
-CXXLIBS  := $(if $(GCC2),-lstdc++,-lsupc++ -lstdc++)
+CXXLIBS  := $(if $(GCC2),,-lsupc++ -lstdc++)   # gcc 2 links its own libstdc++ (.r4)
 
 TRACKER_SRCS := $(filter-out $(KIT)/FilePanel.cpp,$(wildcard $(KIT)/*.cpp))
 # libtracker.so's own list (see src/kits/tracker/Jamfile) -- the wildcard above is trimmed to it below.
