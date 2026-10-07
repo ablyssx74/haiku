@@ -271,6 +271,10 @@ static BLocker& LinkLock();
 // shows as a dark seam through the joined selector. It can't be painted over from inside either window, so a
 // borderless window one pixel wide is put over it, in the selector's colours, for as long as the submenu is
 // shown.
+class SeamBridge;
+static void ForgetBridge(SeamBridge* bridge);
+
+
 class SeamBridge : public BWindow {
 public:
 	SeamBridge(BWindow* child)
@@ -312,23 +316,32 @@ public:
 
 	virtual void MessageReceived(BMessage* message)
 	{
-		if (message->what == 'Tick') {
-			// gone when the submenu's window is
-			// Never wait for the submenu's window: its thread may be waiting for this one (Place()), and
-			// two threads each waiting for the other froze Tracker. If it is busy, ask again next tick.
-			bool gone = true;
+		if (message->what == 'Tick' || message->what == 'Hide') {
+			// Hide when the submenu's window is, and quit when it is gone for good. The window is kept
+			// otherwise: the menu windows are reused, and the same bridge is shown again with the next
+			// submenu. Never wait for the submenu's window: its thread may be waiting for this one (Place()),
+			// and two threads each waiting for the other froze Tracker. If it is busy, ask again next tick.
+			bool hide = message->what == 'Hide';
+			bool gone = false;
 			status_t status = fChild.LockTargetWithTimeout(0);
 			if (status == B_OK) {
 				BLooper* looper = NULL;
 				fChild.Target(&looper);
 				BWindow* window = dynamic_cast<BWindow*>(looper);
-				gone = window == NULL || window->IsHidden();
+				if (window == NULL)
+					gone = true;
+				else if (window->IsHidden())
+					hide = true;
 				if (looper != NULL)
 					looper->Unlock();
-			} else if (status == B_TIMED_OUT)
-				gone = false;
-			if (gone)
+			} else if (status != B_TIMED_OUT)
+				gone = true;
+
+			if (gone) {
+				ForgetBridge(this);
 				PostMessage(B_QUIT_REQUESTED);
+			} else if (hide && !IsHidden())
+				Hide();
 			return;
 		}
 		BWindow::MessageReceived(message);
@@ -383,6 +396,20 @@ Bridges()
 
 
 static void
+ForgetBridge(SeamBridge* bridge)
+{
+	BAutolock lock(LinkLock());
+	std::map<BWindow*, SeamBridge*>::iterator it = Bridges().begin();
+	while (it != Bridges().end()) {
+		if (it->second == bridge)
+			Bridges().erase(it++);
+		else
+			++it;
+	}
+}
+
+
+static void
 PlaceBridge(BMenu* menu, BRect strip)
 {
 	BWindow* child = menu->Window();
@@ -408,13 +435,11 @@ DropBridge(BWindow* child)
 	{
 		BAutolock lock(LinkLock());
 		std::map<BWindow*, SeamBridge*>::iterator it = Bridges().find(child);
-		if (it != Bridges().end()) {
+		if (it != Bridges().end())
 			bridge = it->second;
-			Bridges().erase(it);
-		}
 	}
 	if (bridge != NULL)
-		bridge->PostMessage(B_QUIT_REQUESTED);
+		bridge->PostMessage('Hide');
 }
 
 
