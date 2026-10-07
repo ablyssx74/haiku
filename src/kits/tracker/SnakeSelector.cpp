@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <math.h>
+#include <typeinfo>
 #include <vector>
 
 #include <Bitmap.h>
@@ -21,6 +22,9 @@
 #include <Path.h>
 #include <Roster.h>
 #include <string.h>
+#include <typeinfo>
+
+#include <ControlLook.h>
 #include <time.h>
 #include <Autolock.h>
 #include <Locker.h>
@@ -540,9 +544,22 @@ DetachLink(BMenu* submenu)
 }
 
 
+// SnakeControlLook (when it is the control look) draws the trail and its seam bridge for every menu in the
+// program, Tracker's too; drawing them here as well would put two of everything on top of each other.
+static bool
+ControlLookDraws()
+{
+	return be_control_look != NULL
+		&& strstr(typeid(*be_control_look).name(), "SnakeControlLook") != NULL;
+}
+
+
 void
 DrawTrail(BMenu* menu)
 {
+	if (ControlLookDraws())
+		return;
+
 	ParentLink link;
 	{
 		BAutolock lock(LinkLock());
