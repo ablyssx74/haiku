@@ -621,6 +621,7 @@ public:
 	virtual	void DrawMenuBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
+		debug_printf("snake: menu bg\n");
 		HaikuControlLook::DrawMenuBackground(view, rect, updateRect, base, flags, borders);
 
 		BMenu* menu = dynamic_cast<BMenu*>(view);
