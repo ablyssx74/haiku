@@ -4,8 +4,8 @@
 # The package's launch file (data/user_launch/x-snake-tracker) tells the launch daemon to start the
 # builds in this folder, but the daemon applies its launch files in the order they were installed, and
 # a later system file (or a leftover file of your own in ~/config/settings/launch) can undo it. This job
-# runs after Tracker and Deskbar have started and does nothing if the daemon already has it right.
-# Otherwise it stops the system's ones and runs ours, restarting them if they crash.
+# does nothing if the daemon already has it right. Otherwise it stops the system's ones and runs ours,
+# restarting them if they crash.
 
 APP=/system/apps/SnakeTracker
 

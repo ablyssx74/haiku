@@ -15,11 +15,10 @@ target desktop {
 	}
 
 	# If this file was read before the system's, the system's launch lines replace the two above. This job
-	# checks once Tracker and Deskbar are running and hands over to the snake-trail ones if that happened.
+	# checks what the launch daemon is going to start and hands over to the snake-trail ones if it is the
+	# system's. It must not "require" the two services: stopping a service stops the jobs that require it.
 	job snaketracker-handoff {
 		launch /bin/sh /system/apps/SnakeTracker/handoff
-		requires x-vnd.Be-TRAK
-		requires x-vnd.Be-TSKB
 		on initial_volumes_mounted
 	}
 }
