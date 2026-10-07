@@ -314,12 +314,14 @@ public:
 	{
 		if (message->what == 'Tick') {
 			// gone when the submenu's window is
-			BLooper* looper = fChild.LockTarget();
-			bool gone = looper == NULL;
-			if (looper != NULL) {
+			bool gone = true;
+			if (fChild.LockTarget()) {
+				BLooper* looper = NULL;
+				fChild.Target(&looper);
 				BWindow* window = dynamic_cast<BWindow*>(looper);
 				gone = window == NULL || window->IsHidden();
-				looper->Unlock();
+				if (looper != NULL)
+					looper->Unlock();
 			}
 			if (gone)
 				PostMessage(B_QUIT_REQUESTED);
