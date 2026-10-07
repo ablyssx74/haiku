@@ -350,6 +350,20 @@ States()
 }
 
 
+// A menu window has a one pixel border drawn by the window system outside the menu itself, so two
+// menus side by side are separated by two dark pixels that the trail can't paint over. The menu draws
+// its own border inside the window anyway, so the window's is dropped.
+static void
+RemoveWindowBorder(BMenu* menu)
+{
+	BWindow* window = menu->Window();
+	if (window != NULL && window->Look() == B_BORDERED_WINDOW_LOOK
+		&& (int)window->Feel() == 1025) {	// the menu windows' feel (kMenuWindowFeel)
+		window->SetLook(B_NO_BORDER_WINDOW_LOOK);
+	}
+}
+
+
 static void
 DrawTrail(BMenu* menu, const BRect& updateRect)
 {
@@ -360,6 +374,8 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	const float vt = bounds.top;	// view y of the bitmap's first row
 
 	const bool trailOn = TrailEnabled();
+	if (trailOn)
+		RemoveWindowBorder(menu);
 	BMenuItem* selected = SelectedItem(menu);
 	const bool active = selected != NULL && (selected->IsEnabled() || selected->Submenu() != NULL);
 	BMenu* child = active ? selected->Submenu() : NULL;
