@@ -232,13 +232,12 @@ struct Fillet {
 };
 
 
-// BMenuItem::IsSelected() is protected; naming it through a derived class makes it reachable.
+// BMenuItem::IsSelected() is protected; a derived class that adds no data can read it from a plain
+// BMenuItem (the cast only changes which member functions may be called, not the object).
 struct ItemAccess : public BMenuItem {
-	static bool Selected(const BMenuItem* item)
-	{
-		bool (BMenuItem::*selected)() const = &ItemAccess::IsSelected;
-		return (item->*selected)();
-	}
+	ItemAccess() : BMenuItem((const char*)NULL, (BMessage*)NULL) {}
+
+	bool Selected() const { return IsSelected(); }
 };
 
 
@@ -247,7 +246,7 @@ SelectedItem(BMenu* menu)
 {
 	for (int32 i = 0; i < menu->CountItems(); i++) {
 		BMenuItem* item = menu->ItemAt(i);
-		if (ItemAccess::Selected(item))
+		if (static_cast<const ItemAccess*>(item)->Selected())
 			return item;
 	}
 	return NULL;

@@ -14,6 +14,7 @@ DEV    := /boot/system/develop
 ARCH     := $(shell getarch)
 ARCH_INC := $(if $(findstring x86_64,$(ARCH)),x86_64,x86)
 GCC2     := $(findstring gcc2,$(ARCH))
+CXXLIBS  := $(if $(GCC2),-lstdc++,-lsupc++ -lstdc++)
 
 TRACKER_SRCS := $(filter-out $(KIT)/FilePanel.cpp,$(wildcard $(KIT)/*.cpp))
 # libtracker.so's own list (see src/kits/tracker/Jamfile) -- the wildcard above is trimmed to it below.
@@ -39,7 +40,7 @@ HDR := -I$(TOP)/headers/private/tracker -I$(KIT) -I$(INFO) -I$(SC) \
   -I$(DEV)/headers/private/storage -I$(DEV)/headers/private/support -I$(DEV)/headers/private/tracker \
   -I$(DEV)/headers/private/system -I$(DEV)/headers/private/system/arch/$(ARCH_INC) -I$(DEV)/headers/private
 CXXFLAGS := -MMD $(if $(GCC2),,-MP -Wno-deprecated-declarations) -O2 -fPIC -Wno-multichar -D_BUILDING_tracker=1 -D_SUPPORTS_RESOURCES=1 $(HDR)
-LIBS := -lbe -llocalestub -ltranslation -lshared -lcolumnlistview -lsupc++ -lstdc++
+LIBS := -lbe -llocalestub -ltranslation -lshared -lcolumnlistview $(CXXLIBS)
 
 all: $(OUT)/libtracker.so
 
@@ -99,7 +100,7 @@ $(OUT)/Deskbar.rsrc: $(DESK)/Deskbar.rdef $(DESK)/icons.rdef
 	rc -o $@ $(OUT)/Deskbar.pp.rdef $(OUT)/icons.pp.rdef
 
 $(OUT)/Deskbar: $(DESK_OBJS) $(OUT)/Deskbar.rsrc $(OUT)/libtracker.so
-	$(CXX) -o $@ $(DESK_OBJS) -L$(OUT) -ltracker -lbe -llocalestub -lshared -lsupc++ -lstdc++ -L$(DEV)/lib
+	$(CXX) -o $@ $(DESK_OBJS) -L$(OUT) -ltracker -lbe -llocalestub -lshared $(CXXLIBS) -L$(DEV)/lib
 	xres -o $@ $(OUT)/Deskbar.rsrc
 	mimeset -f $@ >/dev/null 2>&1 || true
 
@@ -120,7 +121,7 @@ CL_DIR := /boot/system/non-packaged/add-ons/control_look
 $(OUT)/SnakeControlLook: $(CL)/SnakeControlLook.cpp
 	@mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) -I$(DEV)/headers/private/interface -shared -Xlinker -soname=SnakeControlLook \
-		-o $@ $< -lbe -lsupc++ -lstdc++ -L$(DEV)/lib
+		-o $@ $< -lbe $(CXXLIBS) -L$(DEV)/lib
 
 look: $(OUT)/SnakeControlLook
 install-look: look
