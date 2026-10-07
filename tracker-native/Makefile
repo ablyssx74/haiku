@@ -153,13 +153,15 @@ uninstall: uninstall-launch
 # launch daemon only reads /boot/system/data/user_launch, so a home install is silently ignored.
 # Removing the package puts the stock Tracker and Deskbar back. A package can't replace files that
 # another package (haiku.hpkg) owns, hence the separate folder and the launch file.
-PKG_VERSION := 1.0.1
+PKG_VERSION := 1.0.2
 PKG := $(OUT)/package
 package: all app look
 	rm -rf $(PKG)
 	mkdir -p $(PKG)/apps/SnakeTracker/lib $(PKG)/add-ons/control_look $(PKG)/data/user_launch \
 		$(PKG)/documentation/packages/snaketracker
 	cp $(OUT)/Tracker $(OUT)/Deskbar $(PKG)/apps/SnakeTracker/
+	cp package/handoff $(PKG)/apps/SnakeTracker/handoff
+	chmod +x $(PKG)/apps/SnakeTracker/handoff
 	cp $(OUT)/libtracker.so $(PKG)/apps/SnakeTracker/lib/
 	cp $(OUT)/SnakeControlLook $(PKG)/add-ons/control_look/
 	cp package/x-snake-tracker $(PKG)/data/user_launch/

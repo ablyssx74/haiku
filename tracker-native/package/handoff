@@ -1,0 +1,41 @@
+#!/bin/sh
+# Hands Tracker and Deskbar over to the snake-trail builds if the launch daemon started the system's.
+#
+# The package's launch file (data/user_launch/x-snake-tracker) tells the launch daemon to start the
+# builds in this folder, but the daemon applies its launch files in the order they were installed, and
+# a later system file (or a leftover file of your own in ~/config/settings/launch) can undo it. This job
+# runs after Tracker and Deskbar have started and does nothing if the daemon already has it right.
+# Otherwise it stops the system's ones and runs ours, restarting them if they crash.
+
+APP=/system/apps/SnakeTracker
+
+uses_ours() {
+	launch_roster info "$1" 2>/dev/null | grep -q "SnakeTracker"
+}
+
+if uses_ours x-vnd.be-trak && uses_ours x-vnd.be-tskb; then
+	exit 0
+fi
+
+. /system/boot/SetupEnvironment
+
+# runs a program again if it dies abnormally; a normal quit ends it
+supervise() {
+	while true; do
+		"$1"
+		[ $? -eq 0 ] && break
+		sleep 2
+	done
+}
+
+if ! uses_ours x-vnd.be-trak; then
+	launch_roster stop x-vnd.be-trak
+	supervise $APP/Tracker &
+fi
+
+if ! uses_ours x-vnd.be-tskb; then
+	launch_roster stop x-vnd.be-tskb
+	supervise $APP/Deskbar &
+fi
+
+wait

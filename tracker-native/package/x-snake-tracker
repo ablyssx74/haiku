@@ -7,3 +7,15 @@ service x-vnd.Be-TRAK {
 service x-vnd.Be-TSKB {
 	launch /system/apps/SnakeTracker/Deskbar
 }
+
+# The launch daemon applies its files in the order they were installed, so a system file read after this
+# one can put the system's Tracker and Deskbar back. This job checks once they are running and hands
+# over to the snake-trail ones if that happened.
+target desktop {
+	job snaketracker-handoff {
+		launch /bin/sh /system/apps/SnakeTracker/handoff
+		requires x-vnd.Be-TRAK
+		requires x-vnd.Be-TSKB
+		on initial_volumes_mounted
+	}
+}
