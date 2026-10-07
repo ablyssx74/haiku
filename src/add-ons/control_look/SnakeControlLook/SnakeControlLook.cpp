@@ -632,6 +632,12 @@ public:
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
 		if ((flags & B_ACTIVATED) == 0) {
+			// Newer Haiku calls this for every row, not just the selected one. In a menu the background
+			// (and the trail's bar down the edge) is already painted by DrawMenuBackground(), and a row
+			// that fills itself would erase the bar wherever it passes a row.
+			BMenu* plainMenu = dynamic_cast<BMenu*>(view);
+			if (plainMenu != NULL && dynamic_cast<BMenuBar*>(plainMenu) == NULL)
+				return;
 			HaikuControlLook::DrawMenuItemBackground(view, rect, updateRect, base, flags, borders);
 			return;
 		}
