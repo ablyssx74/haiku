@@ -621,7 +621,7 @@ public:
 	virtual	void DrawMenuBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
-		debug_printf("snake: menu bg\n");
+		{ FILE* d = fopen("/tmp/snake_dbg.log", "a"); if (d) { fprintf(d, "menu bg\n"); fclose(d); } }
 		HaikuControlLook::DrawMenuBackground(view, rect, updateRect, base, flags, borders);
 
 		BMenu* menu = dynamic_cast<BMenu*>(view);
@@ -632,7 +632,7 @@ public:
 	virtual	void DrawMenuItemBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
-		debug_printf("snake: item bg flags=%u\n", (unsigned)flags);
+		{ FILE* d = fopen("/tmp/snake_dbg.log", "a"); if (d) { fprintf(d, "item bg flags=%u\n", (unsigned)flags); fclose(d); } }
 		if ((flags & B_ACTIVATED) == 0) {
 			HaikuControlLook::DrawMenuItemBackground(view, rect, updateRect, base, flags, borders);
 			return;
