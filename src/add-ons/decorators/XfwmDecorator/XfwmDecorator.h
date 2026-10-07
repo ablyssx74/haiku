@@ -97,6 +97,16 @@ private:
 			int32				_IndexOf(Decorator::Tab* tab) const;
 			void				_Blit(const XfwmImage& image, BPoint at);
 			void				_BlitTiled(const XfwmImage& image, BRect area, bool horizontal);
+
+			// where the border pictures go: each is anchored by the edge that touches the window's content, so
+			// no gap opens between the border and the content however wide the other borders are
+			BRect				_LeftArea(bool active) const;
+			BRect				_RightArea(bool active) const;
+			BRect				_BottomArea(bool active) const;
+			BRect				_TopFrameArea(bool active) const;
+			// adds the opaque pixels of a tiled border picture, clipped to its area, to a region
+			void				_IncludeTiled(BRegion& region, const XfwmImage& image, BRect area,
+									bool horizontal) const;
 			void				_DrawButton(Decorator::Tab* tab, int32 button, bool pressed, BRect rect, bool direct);
 			bool				_Active(Decorator::Tab* tab) const { return tab->isFocused || tab->buttonFocus; }
 

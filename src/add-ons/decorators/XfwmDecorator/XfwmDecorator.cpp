@@ -462,10 +462,10 @@ XfwmDecorator::_GetFootprint(BRegion* region)
 		return;
 	if (_IsModal()) {
 		const bool active = _Active(fTopTab);
-		region->Include(fLeftBorder);
-		region->Include(fRightBorder);
-		region->Include(fBottomBorder);
-		region->Include(fTopBorder);
+		_IncludeTiled(*region, fTheme->Left(active), _LeftArea(active), false);
+		_IncludeTiled(*region, fTheme->Right(active), _RightArea(active), false);
+		_IncludeTiled(*region, fTheme->Bottom(active), _BottomArea(active), true);
+		_IncludeTiled(*region, fTheme->TopFrame(active), _TopFrameArea(active), true);
 
 		const int32 x0 = (int32)fFrame.left - fTheme->Left(active).Width();
 		const int32 frameEnd = (int32)fFrame.right + 1 + fTheme->Right(active).Width();
@@ -484,9 +484,9 @@ XfwmDecorator::_GetFootprint(BRegion* region)
 	}
 
 	const bool active = _Active(fTopTab);
-	region->Include(fLeftBorder);
-	region->Include(fRightBorder);
-	region->Include(fBottomBorder);
+	_IncludeTiled(*region, fTheme->Left(active), _LeftArea(active), false);
+	_IncludeTiled(*region, fTheme->Right(active), _RightArea(active), false);
+	_IncludeTiled(*region, fTheme->Bottom(active), _BottomArea(active), true);
 
 	BarLayout bar;
 	_ComputeBar(bar);
@@ -563,6 +563,63 @@ XfwmDecorator::_Blit(const XfwmImage& image, BPoint at)
 }
 
 
+BRect
+XfwmDecorator::_LeftArea(bool active) const
+{
+	const XfwmImage& left = fTheme->Left(active);
+	return BRect(fFrame.left - left.Width(), fFrame.top, fFrame.left - 1, fFrame.bottom);
+}
+
+
+BRect
+XfwmDecorator::_RightArea(bool active) const
+{
+	const XfwmImage& right = fTheme->Right(active);
+	float x = fFrame.right + 1 - right.OpaqueBounds().left;
+	return BRect(x, fFrame.top, x + right.Width() - 1, fFrame.bottom);
+}
+
+
+BRect
+XfwmDecorator::_BottomArea(bool active) const
+{
+	const XfwmImage& bottom = fTheme->Bottom(active);
+	const int32 bw = fTheme->BorderWidth();
+	float y = fFrame.bottom + 1 - bottom.OpaqueBounds().top;
+	return BRect(fFrame.left - bw, y, fFrame.right + bw, y + bottom.Height() - 1);
+}
+
+
+BRect
+XfwmDecorator::_TopFrameArea(bool active) const
+{
+	const XfwmImage& topFrame = fTheme->TopFrame(active);
+	const int32 bw = fTheme->BorderWidth();
+	float y = fFrame.top - topFrame.Height();
+	return BRect(fFrame.left - bw, y, fFrame.right + bw, y + topFrame.Height() - 1);
+}
+
+
+void
+XfwmDecorator::_IncludeTiled(BRegion& region, const XfwmImage& image, BRect area, bool horizontal) const
+{
+	if (!image.IsValid() || !area.IsValid())
+		return;
+
+	BRegion pieces;
+	if (horizontal) {
+		for (float x = area.left; x <= area.right; x += image.Width())
+			image.IncludeIn(pieces, (int32)x, (int32)area.top);
+	} else {
+		for (float y = area.top; y <= area.bottom; y += image.Height())
+			image.IncludeIn(pieces, (int32)area.left, (int32)y);
+	}
+	BRegion clip(area);
+	pieces.IntersectWith(&clip);
+	region.Include(&pieces);
+}
+
+
 void
 XfwmDecorator::_BlitTiled(const XfwmImage& image, BRect area, bool horizontal)
 {
@@ -629,12 +686,9 @@ XfwmDecorator::_DrawFrame(BRect invalid)
 	const XfwmImage& right = fTheme->Right(active);
 	const XfwmImage& bottom = fTheme->Bottom(active);
 
-	_BlitTiled(left, BRect(fFrame.left - bw - left.OpaqueBounds().left, fFrame.top,
-		fFrame.left - bw - left.OpaqueBounds().left + left.Width() - 1, fFrame.bottom), false);
-	_BlitTiled(right, BRect(fFrame.right + 1 - right.OpaqueBounds().left, fFrame.top,
-		fFrame.right + 1 - right.OpaqueBounds().left + right.Width() - 1, fFrame.bottom), false);
-	_BlitTiled(bottom, BRect(fFrame.left - bw, fFrame.bottom + 1 - bottom.OpaqueBounds().top,
-		fFrame.right + bw, fFrame.bottom + 1 - bottom.OpaqueBounds().top + bottom.Height() - 1), true);
+	_BlitTiled(left, _LeftArea(active), false);
+	_BlitTiled(right, _RightArea(active), false);
+	_BlitTiled(bottom, _BottomArea(active), true);
 
 	if (fTopTab->look == B_DOCUMENT_WINDOW_LOOK) {
 		// the resize knob inside the frame's bottom right corner
@@ -655,7 +709,7 @@ XfwmDecorator::_DrawFrame(BRect invalid)
 		// the top border and its corners
 		const XfwmImage& topFrame = fTheme->TopFrame(active);
 		const int32 top = (int32)fFrame.top - topFrame.Height();
-		_BlitTiled(topFrame, BRect(fFrame.left - bw, top, fFrame.right + bw, top + topFrame.Height() - 1), true);
+		_BlitTiled(topFrame, _TopFrameArea(active), true);
 		_Blit(fTheme->TopLeftCorner(active), BPoint(bar.x0, top));
 		_Blit(fTheme->TopRightCorner(active), BPoint(bar.frameEnd - fTheme->TopRightCorner(active).Width(), top));
 	}
