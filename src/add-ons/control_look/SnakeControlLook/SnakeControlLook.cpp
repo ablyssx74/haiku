@@ -33,7 +33,6 @@
 #include <vector>
 
 #include <Autolock.h>
-#include <OS.h>
 #include <Bitmap.h>
 #include <Entry.h>
 #include <File.h>
@@ -259,10 +258,9 @@ SelectedItem(BMenu* menu)
 // be read without waiting (the parent window is locked by the tracking thread, which may be waiting
 // for this one, so only a try-lock is safe).
 struct ParentLink {
-	ParentLink() : valid(false), fromAbove(false), rowTop(0), rowBottom(0), windowLeft(0) {}
+	ParentLink() : valid(false), rowTop(0), rowBottom(0), windowLeft(0) {}
 
 	bool	valid;
-	bool	fromAbove;		// the parent is a menu bar and this menu hangs below its title
 	float	rowTop;			// the parent's open row, in screen coordinates
 	float	rowBottom;
 	float	windowLeft;		// the parent window's left edge, in screen coordinates
@@ -290,7 +288,7 @@ FindParentLink(BMenu* menu)
 	BMenu* parent = menu->Supermenu();
 	BMenuItem* item = menu->Superitem();
 	ParentLink link;
-	if (parent == NULL || item == NULL || parent->Window() == NULL) {
+	if (parent == NULL || item == NULL || parent->Window() == NULL || dynamic_cast<BMenuBar*>(parent) != NULL) {
 		BAutolock lock(LinkLock());
 		Links().erase(menu);
 		return link;
@@ -303,10 +301,6 @@ FindParentLink(BMenu* menu)
 		link.rowTop = row.top;
 		link.rowBottom = row.bottom + 1;
 		link.windowLeft = parentWindow->Frame().left;
-		link.fromAbove = dynamic_cast<BMenuBar*>(parent) != NULL;
-		// a menu bar title only joins a menu that opens below it
-		if (link.fromAbove && menu->Window() != NULL && menu->Window()->Frame().top < row.top)
-			link.valid = false;
 
 		bool isNew;
 		{
@@ -327,78 +321,6 @@ FindParentLink(BMenu* menu)
 	if (it != Links().end())
 		link = it->second;
 	return link;
-}
-
-
-// Rasterises the pieces and fillets into a bitmap (union of their coverage, with the bevel). The bevel's
-// light top edge is left out for the first `aboveCoveredWidth` columns when something joins the shape
-// from above, and its dark bottom edge when `belowCovered`. The caller deletes the bitmap.
-static BBitmap*
-RenderSelector(const std::vector<Piece>& pieces, const std::vector<Fillet>& fillets, int w, int h,
-	int aboveCoveredWidth, bool belowCovered)
-{
-	std::vector<float> cover((size_t)w * h, 0.0f);
-	for (size_t k = 0; k < pieces.size(); k++) {
-		const Piece& p = pieces[k];
-		int x0 = std::max(0, (int)floorf(p.x) - 1), x1 = std::min(w - 1, (int)ceilf(p.x + p.w) + 1);
-		int y0 = std::max(0, (int)floorf(p.y) - 1), y1 = std::min(h - 1, (int)ceilf(p.y + p.h) + 1);
-		for (int y = y0; y <= y1; ++y) {
-			for (int x = x0; x <= x1; ++x) {
-				float c = RoundRectCoverage(x + 0.5f, y + 0.5f, p.x, p.y, p.w, p.h, p.tl, p.tr,
-					p.br, p.bl);
-				float& dst = cover[(size_t)y * w + x];
-				dst = std::max(dst, c);
-			}
-		}
-	}
-	for (size_t k = 0; k < fillets.size(); k++) {
-		const Fillet& f = fillets[k];
-		int x0 = std::max(0, (int)floorf(std::min(f.x, f.x + f.dx * kFilletR)) - 1);
-		int x1 = std::min(w - 1, (int)ceilf(std::max(f.x, f.x + f.dx * kFilletR)) + 1);
-		int y0 = std::max(0, (int)floorf(std::min(f.y, f.y + f.dy * kFilletR)) - 1);
-		int y1 = std::min(h - 1, (int)ceilf(std::max(f.y, f.y + f.dy * kFilletR)) + 1);
-		for (int y = y0; y <= y1; ++y) {
-			for (int x = x0; x <= x1; ++x) {
-				float c = FilletCoverage(x + 0.5f, y + 0.5f, f.x, f.y, f.dx, f.dy, kFilletR);
-				float& dst = cover[(size_t)y * w + x];
-				dst = std::max(dst, c);
-			}
-		}
-	}
-
-	// composite with the bevel: light where the pixel above is empty, dark where the one below is
-	BBitmap* bitmap = new BBitmap(BRect(0, 0, w - 1, h - 1), B_RGBA32);
-	if (bitmap->InitCheck() != B_OK) {
-		delete bitmap;
-		return NULL;
-	}
-	const rgb_color base = Accent(), light = Light(base), dark = Dark(base);
-	uint8* bits = (uint8*)bitmap->Bits();
-	const int32 bpr = bitmap->BytesPerRow();
-	for (int y = 0; y < h; ++y) {
-		uint8* row = bits + y * bpr;
-		for (int x = 0; x < w; ++x) {
-			float c0 = cover[(size_t)y * w + x];
-			uint8* px = row + x * 4;
-			if (c0 <= 0.0f) {
-				px[0] = px[1] = px[2] = px[3] = 0;
-				continue;
-			}
-			float above = y > 0 ? cover[(size_t)(y - 1) * w + x] : (x < aboveCoveredWidth ? c0 : 0.0f);
-			float below = y < h - 1 ? cover[(size_t)(y + 1) * w + x] : (belowCovered ? c0 : 0.0f);
-			float a2 = c0 * above, a3 = a2 * below;
-			float cr = light.red, cg = light.green, cb = light.blue;
-			cr += (dark.red - cr) * a2;  cg += (dark.green - cg) * a2;  cb += (dark.blue - cb) * a2;
-			cr += (base.red - cr) * a3;  cg += (base.green - cg) * a3;  cb += (base.blue - cb) * a3;
-			px[0] = (uint8)lroundf(std::min(255.0f, cb));
-			px[1] = (uint8)lroundf(std::min(255.0f, cg));
-			px[2] = (uint8)lroundf(std::min(255.0f, cr));
-			px[3] = (uint8)lroundf(c0 * 255.0f);
-		}
-	}
-
-
-	return bitmap;
 }
 
 
@@ -448,8 +370,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	ParentLink link;
 	if (trailOn)
 		link = FindParentLink(menu);
-	const bool fromAbove = link.valid && link.fromAbove;
-	const bool parentOnLeft = fromAbove || (link.valid && link.windowLeft < myLeft);
+	const bool parentOnLeft = link.valid && link.windowLeft < myLeft;
 
 	{
 		DrawState state;
@@ -471,11 +392,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	std::vector<Fillet> fillets;
 
 	float pTop = 0, pBottom = 0;
-	if (fromAbove) {
-		// the title is above the menu: the bar starts at the menu's top edge
-		pTop = -1;
-		pBottom = 0;
-	} else if (link.valid) {
+	if (link.valid) {
 		pTop = menu->ConvertFromScreen(BPoint(0, link.rowTop)).y - vt + 1;
 		pBottom = menu->ConvertFromScreen(BPoint(0, link.rowBottom)).y - vt - 1;
 	}
@@ -549,44 +466,69 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	if (pieces.empty())
 		return;
 
-	BBitmap* bitmap = RenderSelector(pieces, fillets, w, h, fromAbove ? (int)kBarW : 0, false);
-	if (bitmap == NULL)
+	std::vector<float> cover((size_t)w * h, 0.0f);
+	for (size_t k = 0; k < pieces.size(); k++) {
+		const Piece& p = pieces[k];
+		int x0 = std::max(0, (int)floorf(p.x) - 1), x1 = std::min(w - 1, (int)ceilf(p.x + p.w) + 1);
+		int y0 = std::max(0, (int)floorf(p.y) - 1), y1 = std::min(h - 1, (int)ceilf(p.y + p.h) + 1);
+		for (int y = y0; y <= y1; ++y) {
+			for (int x = x0; x <= x1; ++x) {
+				float c = RoundRectCoverage(x + 0.5f, y + 0.5f, p.x, p.y, p.w, p.h, p.tl, p.tr,
+					p.br, p.bl);
+				float& dst = cover[(size_t)y * w + x];
+				dst = std::max(dst, c);
+			}
+		}
+	}
+	for (size_t k = 0; k < fillets.size(); k++) {
+		const Fillet& f = fillets[k];
+		int x0 = std::max(0, (int)floorf(std::min(f.x, f.x + f.dx * kFilletR)) - 1);
+		int x1 = std::min(w - 1, (int)ceilf(std::max(f.x, f.x + f.dx * kFilletR)) + 1);
+		int y0 = std::max(0, (int)floorf(std::min(f.y, f.y + f.dy * kFilletR)) - 1);
+		int y1 = std::min(h - 1, (int)ceilf(std::max(f.y, f.y + f.dy * kFilletR)) + 1);
+		for (int y = y0; y <= y1; ++y) {
+			for (int x = x0; x <= x1; ++x) {
+				float c = FilletCoverage(x + 0.5f, y + 0.5f, f.x, f.y, f.dx, f.dy, kFilletR);
+				float& dst = cover[(size_t)y * w + x];
+				dst = std::max(dst, c);
+			}
+		}
+	}
+
+	// composite with the bevel: light where the pixel above is empty, dark where the one below is
+	BBitmap bitmap(BRect(0, 0, w - 1, h - 1), B_RGBA32);
+	if (bitmap.InitCheck() != B_OK)
 		return;
+	const rgb_color base = Accent(), light = Light(base), dark = Dark(base);
+	uint8* bits = (uint8*)bitmap.Bits();
+	const int32 bpr = bitmap.BytesPerRow();
+	for (int y = 0; y < h; ++y) {
+		uint8* row = bits + y * bpr;
+		for (int x = 0; x < w; ++x) {
+			float c0 = cover[(size_t)y * w + x];
+			uint8* px = row + x * 4;
+			if (c0 <= 0.0f) {
+				px[0] = px[1] = px[2] = px[3] = 0;
+				continue;
+			}
+			float above = y > 0 ? cover[(size_t)(y - 1) * w + x] : 0.0f;
+			float below = y < h - 1 ? cover[(size_t)(y + 1) * w + x] : 0.0f;
+			float a2 = c0 * above, a3 = a2 * below;
+			float cr = light.red, cg = light.green, cb = light.blue;
+			cr += (dark.red - cr) * a2;  cg += (dark.green - cg) * a2;  cb += (dark.blue - cb) * a2;
+			cr += (base.red - cr) * a3;  cg += (base.green - cg) * a3;  cb += (base.blue - cb) * a3;
+			px[0] = (uint8)lroundf(std::min(255.0f, cb));
+			px[1] = (uint8)lroundf(std::min(255.0f, cg));
+			px[2] = (uint8)lroundf(std::min(255.0f, cr));
+			px[3] = (uint8)lroundf(c0 * 255.0f);
+		}
+	}
 
 	menu->PushState();
 	menu->SetDrawingMode(B_OP_ALPHA);
 	menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
-	menu->DrawBitmap(bitmap, bounds.LeftTop());
+	menu->DrawBitmap(&bitmap, bounds.LeftTop());
 	menu->PopState();
-	delete bitmap;
-}
-
-
-// The selector for a menu bar title. While its menu is open the bottom is flat and runs down to the bar's
-// edge, so it meets the bar the menu draws down its own left edge.
-static void
-DrawBarSelector(BMenuBar* bar, BRect frame, bool open)
-{
-	const int w = (int)frame.Width() + 1;
-	const int h = (int)(open ? bar->Bounds().bottom - frame.top : frame.Height()) + 1;
-	if (w < 8 || h < 6)
-		return;
-
-	std::vector<Piece> pieces;
-	Piece p = {1, 1, (float)w - 2, (float)h - (open ? 1.0f : 2.0f), kSelR, kSelR,
-		open ? 0.0f : kSelR, open ? 0.0f : kSelR};
-	pieces.push_back(p);
-	std::vector<Fillet> fillets;
-	BBitmap* bitmap = RenderSelector(pieces, fillets, w, h, 0, open);
-	if (bitmap == NULL)
-		return;
-
-	bar->PushState();
-	bar->SetDrawingMode(B_OP_ALPHA);
-	bar->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
-	bar->DrawBitmap(bitmap, frame.LeftTop());
-	bar->PopState();
-	delete bitmap;
 }
 
 
@@ -632,12 +574,6 @@ public:
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
 		if ((flags & B_ACTIVATED) == 0) {
-			// Newer Haiku calls this for every row, not just the selected one. In a menu the background
-			// (and the trail's bar down the edge) is already painted by DrawMenuBackground(), and a row
-			// that fills itself would erase the bar wherever it passes a row.
-			BMenu* plainMenu = dynamic_cast<BMenu*>(view);
-			if (plainMenu != NULL && dynamic_cast<BMenuBar*>(plainMenu) == NULL)
-				return;
 			HaikuControlLook::DrawMenuItemBackground(view, rect, updateRect, base, flags, borders);
 			return;
 		}
@@ -645,21 +581,8 @@ public:
 		// The selector was drawn under the items by DrawMenuBackground(); the item only needs the
 		// right text colour. Menu bar titles get a rounded selector of their own.
 		BMenu* menu = dynamic_cast<BMenu*>(view);
-		BMenuBar* bar = dynamic_cast<BMenuBar*>(view);
-		if (bar != NULL) {
-			if (ShouldDraw(view, rect, updateRect)) {
-				bool open = false;
-				for (int32 i = 0; i < bar->CountItems(); i++) {
-					BMenuItem* item = bar->ItemAt(i);
-					if (item->Frame() == rect && item->Submenu() != NULL
-						&& item->Submenu()->Window() != NULL && TrailEnabled()) {
-						open = true;
-					}
-				}
-				DrawBarSelector(bar, rect, open);
-			}
-		} else if (menu == NULL) {
-			if (ShouldDraw(view, rect, updateRect))
+		if (menu == NULL || dynamic_cast<BMenuBar*>(menu) != NULL) {
+			if (view->Bounds().IsValid() && ShouldDraw(view, rect, updateRect))
 				DrawLoneSelector(view, rect);
 		}
 		view->SetLowColor(Accent());
