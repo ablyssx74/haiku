@@ -51,6 +51,8 @@ using namespace BPrivate;
 
 namespace SnakeSelector {
 
+static const bool kBulge = true;	// prototype: a tab of the selector outside the menu's outer edge, in an overlay window
+static const int kBulgeW = 3;
 static const float kBarW = 7.0f;		// the elbow bar down a submenu's edge
 static const float kSelR = 4.0f;		// corner radius of a selector row
 static const float kBarR = 3.0f;
@@ -165,6 +167,13 @@ rgb_color
 Light(rgb_color c)
 {
 	return Mix(c, 255, 0.35f);
+}
+
+
+rgb_color
+Outline(rgb_color c)
+{
+	return Mix(c, 0, 0.72f);
 }
 
 
@@ -298,19 +307,22 @@ static void ForgetBridge(SeamBridge* bridge);
 
 class SeamBridge : public BWindow {
 public:
-	SeamBridge(BWindow* child)
+	SeamBridge(BWindow* child, int width = 1, bool bulge = false)
 		:
-		BWindow(BRect(0, 0, 0, 7), "seam", B_NO_BORDER_WINDOW_LOOK, (window_feel)1025,
+		BWindow(BRect(0, 0, width - 1, 7), "seam", B_NO_BORDER_WINDOW_LOOK, (window_feel)1025,
 			B_NOT_MOVABLE | B_NOT_CLOSABLE | B_NOT_ZOOMABLE | B_NOT_MINIMIZABLE | B_NOT_RESIZABLE
 				| B_AVOID_FOCUS),
 		fChild(child),
 		fRunner(NULL),
 		fAccent(SnakeSelector::Accent()),
+		fWidth(width),
+		fBulge(bulge),
+		fBulgeRight(true),
 		fHeight(8),
 		fLeft(-1),
 		fTop(-1)
 	{
-		SetSizeLimits(0, 0, 0, 4000);
+		SetSizeLimits(0, width - 1, 0, 4000);
 		BView* view = new SeamView(this);
 		AddChild(view);
 		BMessage tick('Tick');
@@ -324,20 +336,21 @@ public:
 
 	// from the submenu's thread: where the seam is. The submenu redraws on every hover change, so nothing is
 	// touched unless the seam actually moved or changed colour (a needless resize or redraw flickers).
-	void Place(BRect strip, rgb_color accent)
+	void Place(BRect strip, rgb_color accent, bool bulgeRight = true)
 	{
 		if (LockWithTimeout(20000) != B_OK)
 			return;		// busy; the next draw places it
 		const int left = (int)strip.left, top = (int)strip.top, height = (int)strip.Height() + 1;
 		bool same = !IsHidden() && left == fLeft && top == fTop && height == fHeight
-			&& accent.red == fAccent.red && accent.green == fAccent.green
+			&& bulgeRight == fBulgeRight && accent.red == fAccent.red && accent.green == fAccent.green
 			&& accent.blue == fAccent.blue;
 		if (!same) {
 			fAccent = accent;
+			fBulgeRight = bulgeRight;
 			fHeight = height;
 			fLeft = left;
 			fTop = top;
-			ResizeTo(0, height - 1);
+			ResizeTo(fWidth - 1, height - 1);
 			MoveTo(left, top);
 			if (IsHidden())
 				Show();
@@ -368,7 +381,7 @@ public:
 					// still beside the submenu? (it may have moved since the bridge was placed)
 					BRect frame = window->Frame();
 					BRect mine = Frame();
-					bool beside = (mine.left == frame.left - 1 || mine.left == frame.right + 1)
+					bool beside = (mine.right == frame.left - 1 || mine.left == frame.right + 1)
 						&& mine.top >= frame.top - 2 && mine.bottom <= frame.bottom + 2;
 					if (!beside)
 						hide = true;
@@ -392,13 +405,16 @@ public:
 
 	rgb_color Accent() const { return fAccent; }
 	int Height() const { return fHeight; }
+	int Width() const { return fWidth; }
+	bool IsBulge() const { return fBulge; }
+	bool BulgeRight() const { return fBulgeRight; }
 
 private:
 	class SeamView : public BView {
 	public:
 		SeamView(SeamBridge* bridge)
 			:
-			BView(BRect(0, 0, 0, 7), "seam", B_FOLLOW_ALL, B_WILL_DRAW),
+			BView(BRect(0, 0, bridge->Width() - 1, 7), "seam", B_FOLLOW_ALL, B_WILL_DRAW),
 			fBridge(bridge)
 		{
 			SetViewColor(B_TRANSPARENT_COLOR);
@@ -408,6 +424,19 @@ private:
 		{
 			rgb_color accent = fBridge->Accent();
 			int h = fBridge->Height();
+			if (fBridge->IsBulge()) {
+				// a tab of the selector sticking out of the menu: the side against the window is joined to
+				// the row, the other three sides are outlined
+				int w = fBridge->Width();
+				SetHighColor(accent);
+				FillRect(BRect(0, 0, w - 1, h - 1));
+				SetHighColor(SnakeSelector::Outline(accent));
+				StrokeLine(BPoint(0, 0), BPoint(w - 1, 0));
+				StrokeLine(BPoint(0, h - 1), BPoint(w - 1, h - 1));
+				float far = fBridge->BulgeRight() ? w - 1 : 0;
+				StrokeLine(BPoint(far, 0), BPoint(far, h - 1));
+				return;
+			}
 			const bool flat = SnakeSelector::FlatFill();
 			for (int y = 0; y < h; y++) {
 				if (y == 0 && !flat)
@@ -427,6 +456,9 @@ private:
 	BMessenger		fChild;
 	BMessageRunner*	fRunner;
 	rgb_color		fAccent;
+	int				fWidth;
+	bool			fBulge;
+	bool			fBulgeRight;
 	int				fHeight;
 	int				fLeft;
 	int				fTop;
@@ -441,10 +473,24 @@ Bridges()
 }
 
 
+static std::map<BWindow*, SeamBridge*>&
+Bulges()
+{
+	static std::map<BWindow*, SeamBridge*>* bulges = new std::map<BWindow*, SeamBridge*>();
+	return *bulges;
+}
+
+
 static void
 ForgetBridge(SeamBridge* bridge)
 {
 	BAutolock lock(LinkLock());
+	for (std::map<BWindow*, SeamBridge*>::iterator it = Bulges().begin(); it != Bulges().end();) {
+		if (it->second == bridge)
+			Bulges().erase(it++);
+		else
+			++it;
+	}
 	std::map<BWindow*, SeamBridge*>::iterator it = Bridges().begin();
 	while (it != Bridges().end()) {
 		if (it->second == bridge)
@@ -525,9 +571,54 @@ PlaceBridge(BMenu* menu, BRect strip, float parentTop, float parentBottom)
 }
 
 
+static void SeamLog(const char* what, BWindow* child, BRect strip, float parentTop, float parentBottom);
+
+
+static void
+HideBulge(BWindow* child)
+{
+	SeamBridge* bulge = NULL;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BWindow*, SeamBridge*>::iterator it = Bulges().find(child);
+		if (it != Bulges().end())
+			bulge = it->second;
+	}
+	if (bulge != NULL)
+		bulge->PostMessage('Hide');
+}
+
+
+static void
+PlaceBulge(BMenu* menu, BRect strip, bool right)
+{
+	BWindow* child = menu->Window();
+	BRect childFrame = child->Frame();
+	if (strip.top < childFrame.top - 2 || strip.bottom > childFrame.bottom + 2) {
+		HideBulge(child);
+		return;
+	}
+
+	SeamBridge* bulge;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BWindow*, SeamBridge*>::iterator it = Bulges().find(child);
+		if (it == Bulges().end()) {
+			bulge = new SeamBridge(child, kBulgeW, true);
+			bulge->Run();
+			Bulges()[child] = bulge;
+		} else
+			bulge = it->second;
+	}
+	SeamLog("bulge", child, strip, 0, 0);
+	bulge->Place(strip, Accent(), right);
+}
+
+
 static void
 DropBridge(BWindow* child)
 {
+	HideBulge(child);
 	SeamBridge* bridge = NULL;
 	{
 		BAutolock lock(LinkLock());
@@ -676,6 +767,8 @@ DrawTrail(BMenu* menu)
 	const float myLeft = menu->Window()->Frame().left;
 	const bool childOnRight = open && child->Window()->Frame().left > myLeft;
 	const bool parentOnLeft = link.valid && link.windowLeft < myLeft;
+	// the side the selected row's bulge sticks out of: away from the neighbouring menu
+	const bool bulgeRight = link.valid ? parentOnLeft : (open ? !childOnRight : true);
 
 	// cover the window border that runs between this menu and its parent, along the parent's open row
 	if (link.valid) {
@@ -708,8 +801,8 @@ DrawTrail(BMenu* menu)
 		bool cutTop = top < 0, cutBottom = bottom > h;
 		float t = std::max(top, 0.0f), b = std::min(bottom, (float)h);
 		if (b > t) {
-			bool leftFlush = (childEdge && !childOnRight) || (onTrail && parentOnLeft);
-			bool rightFlush = (childEdge && childOnRight) || (onTrail && !parentOnLeft);
+			bool leftFlush = (childEdge && !childOnRight) || (onTrail && parentOnLeft) || (kBulge && !bulgeRight);
+			bool rightFlush = (childEdge && childOnRight) || (onTrail && !parentOnLeft) || (kBulge && bulgeRight);
 			float x0 = leftFlush ? 0.0f : 3.0f, x1 = rightFlush ? (float)w : w - 3.0f;
 			bool expTop = onTrail && top < pTop - 0.5f, expBottom = onTrail && bottom > pBottom + 0.5f;
 			float tl = cutTop ? 0.0f : CornerRadius(leftFlush, onTrail && parentOnLeft && expTop);
@@ -719,6 +812,20 @@ DrawTrail(BMenu* menu)
 			Piece p = {x0, t, x1 - x0, b - t, tl, tr, br, bl};
 			pieces.push_back(p);
 		}
+	}
+
+	// the bulge: a tab of the selector outside the edge away from the neighbouring menu
+	if (kBulge) {
+		BRect row;
+		if (hasOwn && ownBottom > ownTop && ownTop >= 0 && ownBottom <= h)
+			row = menu->ConvertToScreen(selected->Frame());
+		if (row.IsValid()) {
+			bool right = bulgeRight;
+			BRect frame = menu->Window()->Frame();
+			float x = right ? frame.right + 1 : frame.left - kBulgeW;
+			PlaceBulge(menu, BRect(x, row.top + 1, x + kBulgeW - 1, row.bottom - 1), right);
+		} else
+			HideBulge(menu->Window());
 	}
 
 	// the elbow bar down the edge that faces the parent, from the parent's row to our own

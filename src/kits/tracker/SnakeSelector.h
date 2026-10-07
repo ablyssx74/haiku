@@ -26,6 +26,7 @@ bool		TrailEnabled();
 bool		FlatFill();
 rgb_color	Light(rgb_color);
 rgb_color	Dark(rgb_color);
+rgb_color	Outline(rgb_color);
 rgb_color	TextOn(rgb_color accent);
 
 // Selector for one item in a menu that doesn't draw the trail itself.

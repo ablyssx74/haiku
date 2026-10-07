@@ -2,7 +2,7 @@
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
-* Tracker and Deskbar menus: a rounded selector with a dark outline that stays joined through every open submenu. It is flat by default; Tracker preferences > Windows > "Flat menu selector" brings back the beveled edges.
+* Tracker and Deskbar menus: a rounded selector with a dark outline that stays joined through every open submenu. The selected row sticks out of the menu on its outer edge as a small outlined tab. It is flat by default; Tracker preferences > Windows > "Flat menu selector" brings back the beveled edges.
 * **SnakeControlLook** (Appearance > Control look): the same look for every program's menus, tray
   replicants (ProcessController and the like) and software installed later.
 * Selector colour: hDesktop's Selector Color while hDesktop is running; otherwise Tracker preferences >
