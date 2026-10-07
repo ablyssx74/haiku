@@ -1,0 +1,10 @@
+resource("be:decor:info") message('deco') {
+	"name"				= "xfwm4 theme",
+	"authors"			= "ablyssx74",
+	"short_descr"		= "Draws windows with an xfwm4 theme",
+	"long_descr"		= "Draws window frames, title bars and buttons from the XPM pictures of an xfwm4 theme. The theme is the one named in the add-on's file name (Xfwm-b6 is the b6 theme); the title bar's tab does not slide.",
+	"lic_url"			= "",
+	"lic_name"			= "MIT",
+	"support_url"		= "http://www.haiku-os.org/",
+	float "version"		= 1.0
+};
