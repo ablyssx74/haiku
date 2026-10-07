@@ -1,4 +1,4 @@
-# snaketracker 1.0.0
+# snaketracker 1.0.1
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look, as an installable Haiku package.
 
@@ -13,13 +13,17 @@ Tracker, Deskbar and menus with the hDesktop "snake trail" look, as an installab
   otherwise blue.
 
 ## Install
-Download `snaketracker-1.0.0-1-x86_64.hpkg` and copy it to `/boot/home/config/packages/`
-(or double-click it in Tracker). Then **log out and in or restart**: the launch daemon starts the new
-Tracker and Deskbar at the next boot. To get the look in every program, open Appearance and choose
-**SnakeControlLook** as the control look, then restart the programs you want it in.
+Download `snaketracker-1.0.1-1-x86_64.hpkg` and install it **for the whole system**, not for "home":
+double-click it in Tracker and choose **System**, or copy it to `/boot/system/packages/`
+(or `pkgman install` it). A home install is silently ignored, because the file that tells Haiku to start
+the new Tracker and Deskbar is only read from the system location.
+
+The new Tracker and Deskbar are used the next time they start: restart, or quit both from
+ProcessController and the system starts them again. To get the look in every program, open Appearance
+and choose **SnakeControlLook** as the control look, then restart the programs you want it in.
 
 ## Remove
-Delete the package from `/boot/home/config/packages/` (or `pkgman uninstall snaketracker`), choose the
+Remove the package (`pkgman uninstall snaketracker`, or delete it from `/boot/system/packages/`), choose the
 default control look in Appearance, and restart. The system's own Tracker and Deskbar come back.
 
 ## Notes

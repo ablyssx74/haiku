@@ -1,6 +1,5 @@
-# Starts the snake-trail Tracker and Deskbar instead of the system's. A copy of this file is also
-# installed in settings/user_launch, which the launch daemon reads after the system's own "user" file,
-# so the system's definition can't win regardless of the order files are read in.
+# Starts the snake-trail Tracker and Deskbar instead of the system's. The launch daemon reads it from
+# /boot/system/data/user_launch, so the package must be installed for the system, not for "home".
 service x-vnd.Be-TRAK {
 	launch /system/apps/SnakeTracker/Tracker
 }
