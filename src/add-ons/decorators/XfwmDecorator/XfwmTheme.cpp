@@ -355,6 +355,7 @@ XfwmTheme::XfwmTheme()
 {
 	fOutline.red = fOutline.green = fOutline.blue = 0;
 	fOutline.alpha = 255;
+	fFill = fOutline;
 	fActiveText.red = fActiveText.green = fActiveText.blue = 0;
 	fActiveText.alpha = 255;
 	fInactiveText = fActiveText;
@@ -468,6 +469,14 @@ XfwmTheme::Load(const char* name)
 		fOutline.green = pixel[1];
 		fOutline.red = pixel[2];
 		fOutline.alpha = 255;
+
+		// the body of the border: the innermost opaque column
+		column = (int32)left.OpaqueBounds().right;
+		pixel = bitmap->Bits() + row * bitmap->BytesPerRow() + column * 4;
+		fFill.blue = pixel[0];
+		fFill.green = pixel[1];
+		fFill.red = pixel[2];
+		fFill.alpha = 255;
 	}
 
 	fValid = true;

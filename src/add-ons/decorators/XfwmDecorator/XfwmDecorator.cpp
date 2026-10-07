@@ -525,6 +525,13 @@ XfwmDecorator::_DrawFrame(BRect invalid)
 	_BlitTiled(bottom, BRect(fFrame.left - bw, fFrame.bottom + 1 - bottom.OpaqueBounds().top,
 		fFrame.right + bw, fFrame.bottom + 1 - bottom.OpaqueBounds().top + bottom.Height() - 1), true);
 
+	if (fTopTab->look == B_DOCUMENT_WINDOW_LOOK) {
+		// the resize knob inside the frame's bottom right corner
+		float knob = fResizeKnobSize - fBorderWidth;
+		fDrawingEngine->FillRect(BRect(fFrame.right - knob, fFrame.bottom - knob, fFrame.right, fFrame.bottom),
+			fTheme->FillColor());
+	}
+
 	const XfwmImage& bottomLeft = fTheme->BottomLeft(active);
 	const XfwmImage& bottomRight = fTheme->BottomRight(active);
 	BarLayout bar;
