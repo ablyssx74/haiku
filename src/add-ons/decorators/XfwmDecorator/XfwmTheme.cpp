@@ -777,67 +777,6 @@ XfwmImage::LoadFlipped(const XfwmImage& source)
 }
 
 
-// The hover look of a button the theme has no hover picture for. Only the background of the button changes, and
-// the glyph on it keeps its colours: a pixel changes in proportion to how close its brightness is to the typical
-// one of the picture. A dark button gets lighter, and a light one (where lighter would hardly show) darker.
-bool
-XfwmImage::LoadBrightened(const XfwmImage& source, float amount)
-{
-	if (!source.IsValid())
-		return false;
-
-	UtilityBitmap* bitmap = new(std::nothrow) UtilityBitmap(BRect(0, 0, source.fWidth - 1, source.fHeight - 1),
-		B_RGBA32, 0);
-	if (bitmap == NULL)
-		return false;
-	if (!bitmap->IsValid()) {
-		delete bitmap;
-		return false;
-	}
-
-	// the average brightness of the opaque pixels
-	float total = 0;
-	int32 count = 0;
-	for (int32 y = 0; y < source.fHeight; y++) {
-		const uint8* in = source.fBitmap->Bits() + y * source.fBitmap->BytesPerRow();
-		for (int32 x = 0; x < source.fWidth; x++) {
-			if (in[x * 4 + 3] < 128)
-				continue;
-			total += 0.114f * in[x * 4 + 0] + 0.587f * in[x * 4 + 1] + 0.299f * in[x * 4 + 2];
-			count++;
-		}
-	}
-	const float mean = count > 0 ? total / count : 128.0f;
-	const bool darken = mean > 170.0f;
-
-	for (int32 y = 0; y < source.fHeight; y++) {
-		const uint8* in = source.fBitmap->Bits() + y * source.fBitmap->BytesPerRow();
-		uint8* out = bitmap->Bits() + y * bitmap->BytesPerRow();
-		for (int32 x = 0; x < source.fWidth; x++) {
-			float brightness = 0.114f * in[x * 4 + 0] + 0.587f * in[x * 4 + 1] + 0.299f * in[x * 4 + 2];
-			// 1 for a pixel as bright as the picture's typical one, falling to 0 for the glyph's black or white
-			float weight = 1.0f - std::min(1.0f, fabsf(brightness - mean) / 70.0f);
-			float k = amount * weight;
-			for (int channel = 0; channel < 3; channel++) {
-				float value = in[x * 4 + channel];
-				value = darken ? value * (1.0f - k * 0.6f) : value + (255.0f - value) * k;
-				out[x * 4 + channel] = (uint8)value;
-			}
-			out[x * 4 + 3] = in[x * 4 + 3];
-		}
-	}
-
-	if (fBitmap != NULL)
-		fBitmap->ReleaseReference();
-	fBitmap = bitmap;
-	fWidth = source.fWidth;
-	fHeight = source.fHeight;
-	fBounds = source.fBounds;
-	fRuns = source.fRuns;
-	return true;
-}
-
-
 void
 XfwmImage::IncludeIn(BRegion& region, int32 x, int32 y) const
 {
@@ -937,26 +876,17 @@ XfwmTheme::Load(const char* name)
 	}
 
 	static const char* const kButtonNames[kButtonCount] = {"close", "maximize", "hide", "shade"};
-	static const char* const kStateNames[kStateCount] = {"active", "inactive", "pressed", "prelight", "prelight-inactive"};
+	static const char* const kStateNames[kStateCount] = {"active", "inactive", "pressed"};
 	for (int32 button = 0; button < kButtonCount; button++) {
 		for (int32 state = 0; state < kStateCount; state++) {
 			BString path(folder);
 			path << "/" << kButtonNames[button] << "-" << kStateNames[state] << ".xpm";
-			if (!fButton[button][state].Load(path.String()) && state != kStateActive && state != kStatePrelight
-			&& state != kStatePrelightInactive) {
+			if (!fButton[button][state].Load(path.String()) && state != kStateActive) {
 				BString active(folder);
 				active << "/" << kButtonNames[button] << "-active.xpm";
 				fButton[button][state].Load(active.String());
 			}
 		}
-	}
-
-	// a button the theme has no hover picture for gets a lighter one
-	for (int32 button = 0; button < kButtonCount; button++) {
-		if (!fButton[button][kStatePrelight].IsValid())
-			fButton[button][kStatePrelight].LoadBrightened(fButton[button][kStateActive], 0.4f);
-		// a window that isn't the active one has its own, paler buttons
-		fButton[button][kStatePrelightInactive].LoadBrightened(fButton[button][kStateInactive], 0.4f);
 	}
 
 	// everything the decorator draws must exist

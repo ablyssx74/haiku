@@ -44,9 +44,6 @@ public:
 
 	virtual	Region				RegionAt(BPoint where, int32& tab) const;
 
-			// The pointer is over a button of a tab (button: kButtonClose, kButtonMaximize or kButtonHide, or -1 for
-			// none). The areas of the old and the new button, which have to be redrawn, are added to dirty.
-			void				SetHover(int32 tab, int32 button, BRegion* dirty);
 
 protected:
 	virtual	void				_DoLayout();
@@ -68,8 +65,6 @@ protected:
 	virtual	void				_DrawMinimize(Decorator::Tab* tab, bool direct, BRect rect);
 
 private:
-							int32				fHoverTab;
-							int32				fHoverButton;
 							BRegion				fShown;
 							BRegion				fUnreported;
 								// areas the bar covered earlier that no change has told the desktop about yet
