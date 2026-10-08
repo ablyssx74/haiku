@@ -710,17 +710,15 @@ HideVBulge(BWindow* child)
 // parent menu, as the selected row hangs out of its menu.
 static void
 PlaceVBulge(BMenu* menu, BRect strip, bool right, bool edgeTop, bool edgeBottom, int skipFrom, int skipTo,
-	float parentTop, float parentBottom)
+	bool rounded)
 {
 	BWindow* child = menu->Window();
 	BRect childFrame = child->Frame();
-	if (strip.top < childFrame.top - 2 || strip.bottom > childFrame.bottom + 2 || strip.top < parentTop - 2
-		|| strip.bottom > parentBottom + 2) {
-		SeamLog("vbulge rejected", child, strip, parentTop, parentBottom);
+	// (the strip may run past the parent menu, over the desktop: only the child's own extent has to fit)
+	if (strip.top < childFrame.top - 2 || strip.bottom > childFrame.bottom + 2) {
 		HideVBulge(child);
 		return;
 	}
-	SeamLog("vbulge placed", child, strip, parentTop, parentBottom);
 
 	SeamBridge* bulge;
 	{
@@ -733,7 +731,7 @@ PlaceVBulge(BMenu* menu, BRect strip, bool right, bool edgeTop, bool edgeBottom,
 		} else
 			bulge = it->second;
 	}
-	bulge->Place(strip, Accent(), right, edgeTop, edgeBottom, skipFrom, skipTo, true);
+	bulge->Place(strip, Accent(), right, edgeTop, edgeBottom, skipFrom, skipTo, rounded);
 }
 
 
@@ -1002,8 +1000,11 @@ DrawTrail(BMenu* menu)
 			float x = parentOnLeft ? frame.left - kVBulgeW : frame.right + 1;
 			BRect strip(x, sy0, x + kVBulgeW - 1, sy1);
 			if (strip.IsValid()) {
+				// the free end is rounded only where it hangs over the parent menu's body (elsewhere it hangs over
+				// the desktop, and a window can't be see-through)
+				bool overParent = ownTop < pTop - 0.5f ? sy0 >= link.parentTop : sy1 <= link.parentBottom;
 				PlaceVBulge(menu, strip, !parentOnLeft, ownTop < pTop - 0.5f, ownBottom > pBottom + 0.5f,
-					(int)(pTop - eTop), (int)(pBottom - eTop) - 1, link.parentTop, link.parentBottom);
+					(int)(pTop - eTop), (int)(pBottom - eTop) - 1, overParent);
 				placed = true;
 			}
 		}
