@@ -30,11 +30,13 @@
 #include <algorithm>
 #include <map>
 #include <new>
+#include <typeinfo>
 #include <vector>
 
 #include <Autolock.h>
 #include <Bitmap.h>
 #include <Entry.h>
+#include <GradientLinear.h>
 #include <File.h>
 #include <FindDirectory.h>
 #include <Locker.h>
@@ -193,6 +195,15 @@ Mix(rgb_color c, float toward, float amount)
 }
 
 
+static rgb_color
+MixColors(rgb_color a, rgb_color b, float amount)
+{
+	return make_color((uint8)(a.red + (b.red - a.red) * amount),
+		(uint8)(a.green + (b.green - a.green) * amount),
+		(uint8)(a.blue + (b.blue - a.blue) * amount));
+}
+
+
 static rgb_color Light(rgb_color c) { return Mix(c, 255, 0.35f); }
 static rgb_color Dark(rgb_color c) { return Mix(c, 0, 0.38f); }
 static rgb_color Outline(rgb_color c) { return Mix(c, 0, 0.72f); }
@@ -348,6 +359,56 @@ FindParentLink(BMenu* menu)
 	if (it != Links().end())
 		link = it->second;
 	return link;
+}
+
+
+// The Deskbar's own menu (the leaf menu) has no parent menu, but its trail starts at the Deskbar. The menu opens
+// beside the Deskbar when that is a vertical, expanded one, and below or above the leaf (a menu bar title) in
+// the other layouts; the strip of the trail runs down the edge that faces the Deskbar, or the side the leaf is
+// on, and starts at the menu's top (or ends at its bottom, when the menu opens upwards).
+enum DeskbarPlace { kNotDeskbar, kBesideDeskbar, kBelowLeaf, kAboveLeaf };
+
+static DeskbarPlace
+FindDeskbarPlace(BMenu* menu, bool* stripOnLeft)
+{
+	if (menu->Window() == NULL || strstr(typeid(*menu).name(), "TDeskbarMenu") == NULL)
+		return kNotDeskbar;
+	BMenu* bar = menu->Supermenu();
+	BMenuItem* title = menu->Superitem();
+	if (bar == NULL || title == NULL || bar->Window() == NULL || bar->Window() == menu->Window())
+		return kNotDeskbar;
+	BRect desk = bar->Window()->Frame();
+	BRect frame = menu->Window()->Frame();
+	// the leaf's place on the screen: the Deskbar's window has to be locked to ask the menu bar
+	BRect leaf;
+	if (bar->Window()->LockWithTimeout(0) == B_OK) {
+		leaf = bar->ConvertToScreen(title->Frame());
+		bar->Window()->Unlock();
+	} else
+		leaf = desk;
+	const float slack = 8;
+
+	// beside the Deskbar
+	if (frame.bottom >= desk.top && frame.top <= desk.bottom) {
+		if (fabsf(frame.right + 1 - desk.left) <= slack) {
+			*stripOnLeft = false;
+			return kBesideDeskbar;
+		}
+		if (fabsf(desk.right + 1 - frame.left) <= slack) {
+			*stripOnLeft = true;
+			return kBesideDeskbar;
+		}
+	}
+
+	// below or above the leaf, on the side of the menu the leaf is on
+	if (frame.right >= leaf.left && frame.left <= leaf.right) {
+		*stripOnLeft = fabsf(frame.left - leaf.left) <= fabsf(frame.right - leaf.right);
+		if (fabsf(frame.top - (leaf.bottom + 1)) <= slack || fabsf(frame.top - (desk.bottom + 1)) <= slack)
+			return kBelowLeaf;
+		if (fabsf(frame.bottom + 1 - leaf.top) <= slack || fabsf(frame.bottom + 1 - desk.top) <= slack)
+			return kAboveLeaf;
+	}
+	return kNotDeskbar;
 }
 
 
@@ -660,6 +721,21 @@ SeamLog(const char* what, BWindow* child, BRect strip, float parentTop, float pa
 
 
 static void
+HideBridge(BWindow* window)
+{
+	SeamBridge* existing = NULL;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BWindow*, SeamBridge*>::iterator it = Bridges().find(window);
+		if (it != Bridges().end())
+			existing = it->second;
+	}
+	if (existing != NULL)
+		existing->PostMessage('Hide');
+}
+
+
+static void
 PlaceBridge(BMenu* menu, BRect strip, float parentTop, float parentBottom)
 {
 	BWindow* child = menu->Window();
@@ -852,12 +928,27 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	ParentLink link;
 	if (trailOn)
 		link = FindParentLink(menu);
+	// the trail starts at the Deskbar for its leaf menu: a parent row that sits at the menu's top
+	bool deskbarRoot = false, deskbarBeside = false, deskbarAbove = false;
+	if (trailOn && !link.valid) {
+		bool stripOnLeft = false;
+		DeskbarPlace place = FindDeskbarPlace(menu, &stripOnLeft);
+		if (place != kNotDeskbar) {
+			deskbarRoot = true;
+			deskbarBeside = place == kBesideDeskbar;
+			deskbarAbove = place == kAboveLeaf;
+			link.valid = true;
+			link.windowLeft = stripOnLeft ? myLeft - 1 : myLeft + 1;
+			link.rowTop = menu->Window()->Frame().top;
+			link.rowBottom = link.rowTop + 1;
+		}
+	}
 	const bool parentOnLeft = link.valid && link.windowLeft < myLeft;
 	// the side the selected row's bulge sticks out of: away from the neighbouring menu
 	const bool bulgeRight = link.valid ? parentOnLeft : (open ? !childOnRight : true);
 
 	// cover the window border that runs between this menu and its parent, along the parent's open row
-	if (link.valid) {
+	if (link.valid && !deskbarRoot) {
 		BRect frame = menu->Window()->Frame();
 		float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
 		PlaceBridge(menu, BRect(x, link.rowTop + 1, x, link.rowBottom - 2), link.parentTop, link.parentBottom);
@@ -886,6 +977,11 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	if (link.valid) {
 		pTop = menu->ConvertFromScreen(BPoint(0, link.rowTop)).y - vt + 1;
 		pBottom = menu->ConvertFromScreen(BPoint(0, link.rowBottom)).y - vt - 1;
+		if (deskbarRoot) {
+			// the "parent's row" is the leaf: at the top of the menu, or at its bottom when it opens upwards
+			pTop = deskbarAbove ? (float)h : 0.0f;
+			pBottom = pTop;
+		}
 	}
 
 	float ownTop = 0, ownBottom = 0;
@@ -932,6 +1028,17 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 			HideBulge(menu->Window());
 	}
 
+	// the window border between the Deskbar and its menu, covered along the trail's strip
+	if (deskbarRoot && deskbarBeside) {
+		BRect frame = menu->Window()->Frame();
+		float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
+		if (hasOwn && ownBottom > ownTop) {
+			float bottom = menu->ConvertToScreen(BPoint(0, ownBottom + vt)).y - 1;
+			PlaceBridge(menu, BRect(x, frame.top, x, std::min(bottom, frame.bottom)), frame.top, frame.bottom);
+		} else
+			HideBridge(menu->Window());
+	}
+
 	// the elbow bar down the edge that faces the parent, from the parent's row to our own
 	if (link.valid) {
 		float top = pTop, bottom = pBottom;
@@ -975,7 +1082,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	// the vertical part hangs into the parent menu, where it runs past the parent's row
 	if (kVBulge) {
 		bool placed = false;
-		if (link.valid && hasOwn && ownBottom > ownTop && (ownTop < pTop - 0.5f || ownBottom > pBottom + 0.5f)) {
+		if (link.valid && !deskbarRoot && hasOwn && ownBottom > ownTop && (ownTop < pTop - 0.5f || ownBottom > pBottom + 0.5f)) {
 			float eTop = std::min(ownTop, pTop), eBottom = std::max(ownBottom, pBottom);
 			float sy0 = menu->ConvertToScreen(BPoint(0, eTop + vt)).y;
 			float sy1 = menu->ConvertToScreen(BPoint(0, eBottom + vt)).y - 1;
@@ -1126,6 +1233,135 @@ public:
 		BMenu* menu = dynamic_cast<BMenu*>(view);
 		if (menu != NULL && dynamic_cast<BMenuBar*>(menu) == NULL)
 			DrawTrail(menu, updateRect);
+	}
+
+	// BScrollBar draws itself disabled both when there is nothing to scroll and when its window is not
+	// active; only the first keeps the stock look (it is told apart by B_PARTIALLY_ACTIVATED).
+	static bool StockScrollBar(uint32 flags)
+	{
+		return (flags & B_DISABLED) != 0 && (flags & B_PARTIALLY_ACTIVATED) == 0;
+	}
+
+	// The scroll bar's thumb: a pill in the accent colour, lit down its middle, instead of a
+	// bevelled button. The track is drawn in two pieces either side of the thumb, so the corners
+	// the pill leaves open are filled with the track's own colour first.
+	virtual	void DrawScrollBarThumb(BView* view, BRect& rect, const BRect& updateRect,
+		const rgb_color& base, uint32 flags, orientation orientation, uint32 knobStyle = B_KNOB_NONE)
+	{
+		if (StockScrollBar(flags) || !rect.IsValid()) {
+			HaikuControlLook::DrawScrollBarThumb(view, rect, updateRect, base, flags, orientation,
+				knobStyle);
+			return;
+		}
+		if (!ShouldDraw(view, rect, updateRect))
+			return;
+
+		rgb_color accent = Accent();
+		if ((flags & B_DISABLED) != 0) {
+			// the window is not active: the same pill, washed out
+			uint8 grey = (uint8)((accent.red + accent.green + accent.blue) / 3);
+			accent = MixColors(accent, make_color(grey, grey, grey), 0.7f);
+		}
+		rgb_color track = tint_color(base, 1.075f);
+		BRect pill = rect;
+		if (orientation == B_VERTICAL)
+			pill.InsetBy(2, 1);
+		else
+			pill.InsetBy(1, 2);
+		view->PushState();
+		view->ClipToRect(rect);
+
+		// Rasterised by hand over the track colour, so the edge is smooth and has no coloured fringe.
+		const bool vertical = orientation == B_VERTICAL;
+		const int32 width = (int32)rect.Width() + 1, height = (int32)rect.Height() + 1;
+		BBitmap bitmap(BRect(0, 0, width - 1, height - 1), B_RGBA32);
+		if (bitmap.InitCheck() == B_OK) {
+			const float px0 = pill.left - rect.left, py0 = pill.top - rect.top;
+			const float pw = pill.Width() + 1, ph = pill.Height() + 1;
+			const float radius = (vertical ? pw : ph) / 2;
+			rgb_color edge = Mix(accent, 0, 0.2f);
+			rgb_color middle = Mix(accent, 255, 0.45f);
+			rgb_color outline = Outline(accent);
+			// inside a stadium (rounded rect, fully rounded ends) at the given inset
+			struct Shape {
+				static bool Contains(float x, float y, float x0, float y0, float w, float h,
+					float r, float inset)
+				{
+					x -= x0 + inset;
+					y -= y0 + inset;
+					float sw = w - 2 * inset, sh = h - 2 * inset, sr = r - inset;
+					if (x < 0 || y < 0 || x > sw || y > sh)
+						return false;
+					float cx = x < sr ? sr : (x > sw - sr ? sw - sr : x);
+					float cy = y < sr ? sr : (y > sh - sr ? sh - sr : y);
+					return (x - cx) * (x - cx) + (y - cy) * (y - cy) <= sr * sr;
+				}
+			};
+			uint8* bits = (uint8*)bitmap.Bits();
+			for (int32 y = 0; y < height; y++) {
+				for (int32 x = 0; x < width; x++) {
+					float r = 0, g = 0, b = 0;
+					for (int sy = 0; sy < 4; sy++) {
+						for (int sx = 0; sx < 4; sx++) {
+							float fx = x + (sx + 0.5f) / 4, fy = y + (sy + 0.5f) / 4;
+							rgb_color c = track;
+							if (Shape::Contains(fx, fy, px0, py0, pw, ph, radius, 0)) {
+								if (!Shape::Contains(fx, fy, px0, py0, pw, ph, radius, 1)) {
+									c = outline;
+								} else {
+									float t = vertical ? (fx - px0) / pw : (fy - py0) / ph;
+									if (t < 0.47f)
+										c = MixColors(edge, middle, t / 0.47f);
+									else if (t < 0.745f)
+										c = MixColors(middle, accent, (t - 0.47f) / 0.275f);
+									else
+										c = MixColors(accent, edge, (t - 0.745f) / 0.255f);
+								}
+							}
+							r += c.red;
+							g += c.green;
+							b += c.blue;
+						}
+					}
+					uint8* p = bits + y * bitmap.BytesPerRow() + x * 4;
+					p[0] = (uint8)(b / 16);
+					p[1] = (uint8)(g / 16);
+					p[2] = (uint8)(r / 16);
+					p[3] = 255;
+				}
+			}
+			view->SetDrawingMode(B_OP_ALPHA);
+			view->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+			view->DrawBitmap(&bitmap, rect.LeftTop());
+		}
+		view->PopState();
+	}
+
+	// A flat track, with none of the stock look's edge lines at the ends of each piece: the thumb
+	// sits in it as one pill.
+	virtual	void DrawScrollBarBackground(BView* view, BRect& rect, const BRect& updateRect,
+		const rgb_color& base, uint32 flags, orientation orientation)
+	{
+		if (StockScrollBar(flags)) {
+			HaikuControlLook::DrawScrollBarBackground(view, rect, updateRect, base, flags,
+				orientation);
+			return;
+		}
+		if (!ShouldDraw(view, rect, updateRect))
+			return;
+		view->PushState();
+		view->ClipToRect(rect);
+		view->SetDrawingMode(B_OP_COPY);
+		view->SetHighColor(tint_color(base, 1.075f));
+		view->FillRect(rect);
+		view->PopState();
+	}
+
+	virtual	void DrawScrollBarBackground(BView* view, BRect& rect1, BRect& rect2,
+		const BRect& updateRect, const rgb_color& base, uint32 flags, orientation orientation)
+	{
+		DrawScrollBarBackground(view, rect1, updateRect, base, flags, orientation);
+		DrawScrollBarBackground(view, rect2, updateRect, base, flags, orientation);
 	}
 
 	virtual	void DrawMenuItemBackground(BView* view, BRect& rect, const BRect& updateRect,
