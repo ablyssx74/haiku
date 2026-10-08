@@ -56,6 +56,8 @@ namespace BPrivate {
 
 static const bool kBulge = true;	// a tab of the selector outside the menu's outer edge, in an overlay window
 static const int kBulgeW = 3;
+static const int kVBulgeW = 4;		// the same, and the column of window border between the two menus
+static const bool kVBulge = true;	// the vertical part of the trail also bulges, into the parent menu
 static const float kBarW = 7.0f;		// the elbow bar down a submenu's edge
 static const float kSelR = 4.0f;		// corner radius of a selector row
 static const float kBarR = 3.0f;
@@ -370,6 +372,11 @@ public:
 		fWidth(width),
 		fBulge(bulge),
 		fBulgeRight(true),
+		fEdgeTop(true),
+		fEdgeBottom(true),
+		fSkipFrom(-1),
+		fSkipTo(-1),
+		fRounded(false),
 		fHeight(8),
 		fLeft(-1),
 		fTop(-1)
@@ -388,17 +395,24 @@ public:
 
 	// from the submenu's thread: where the seam is. The submenu redraws on every hover change, so nothing is
 	// touched unless the seam actually moved or changed colour (a needless resize or redraw flickers).
-	void Place(BRect strip, rgb_color accent, bool bulgeRight = true)
+	void Place(BRect strip, rgb_color accent, bool bulgeRight = true, bool edgeTop = true, bool edgeBottom = true,
+		int skipFrom = -1, int skipTo = -1, bool rounded = false)
 	{
 		if (LockWithTimeout(20000) != B_OK)
 			return;		// busy; the next draw places it
 		const int left = (int)strip.left, top = (int)strip.top, height = (int)strip.Height() + 1;
 		bool same = !IsHidden() && left == fLeft && top == fTop && height == fHeight
-			&& bulgeRight == fBulgeRight && accent.red == fAccent.red && accent.green == fAccent.green
+			&& bulgeRight == fBulgeRight && edgeTop == fEdgeTop && edgeBottom == fEdgeBottom && skipFrom == fSkipFrom
+			&& skipTo == fSkipTo && rounded == fRounded && accent.red == fAccent.red && accent.green == fAccent.green
 			&& accent.blue == fAccent.blue;
 		if (!same) {
 			fAccent = accent;
 			fBulgeRight = bulgeRight;
+			fEdgeTop = edgeTop;
+			fEdgeBottom = edgeBottom;
+			fSkipFrom = skipFrom;
+			fSkipTo = skipTo;
+			fRounded = rounded;
 			fHeight = height;
 			fLeft = left;
 			fTop = top;
@@ -433,7 +447,8 @@ public:
 					// still beside the submenu? (it may have moved since the bridge was placed)
 					BRect frame = window->Frame();
 					BRect mine = Frame();
-					bool beside = (mine.right == frame.left - 1 || mine.left == frame.right + 1)
+					bool beside = ((mine.right <= frame.left - 1 && mine.right >= frame.left - 6)
+						|| (mine.left >= frame.right + 1 && mine.left <= frame.right + 6))
 						&& mine.top >= frame.top - 2 && mine.bottom <= frame.bottom + 2;
 					if (!beside)
 						hide = true;
@@ -460,6 +475,11 @@ public:
 	int Width() const { return fWidth; }
 	bool IsBulge() const { return fBulge; }
 	bool BulgeRight() const { return fBulgeRight; }
+	bool EdgeTop() const { return fEdgeTop; }
+	bool EdgeBottom() const { return fEdgeBottom; }
+	int SkipFrom() const { return fSkipFrom; }
+	int SkipTo() const { return fSkipTo; }
+	bool Rounded() const { return fRounded; }
 
 private:
 	class SeamView : public BView {
@@ -483,10 +503,47 @@ private:
 				SetHighColor(accent);
 				FillRect(BRect(0, 0, w - 1, h - 1));
 				SetHighColor(Outline(accent));
-				StrokeLine(BPoint(0, 0), BPoint(w - 1, 0));
-				StrokeLine(BPoint(0, h - 1), BPoint(w - 1, h - 1));
+				if (fBridge->EdgeTop())
+					StrokeLine(BPoint(0, 0), BPoint(w - 1, 0));
+				if (fBridge->EdgeBottom())
+					StrokeLine(BPoint(0, h - 1), BPoint(w - 1, h - 1));
 				float far = fBridge->BulgeRight() ? w - 1 : 0;
-				StrokeLine(BPoint(far, 0), BPoint(far, h - 1));
+				// the side away from the window it hangs on, except where it runs along a lit row
+				int from = 0;
+				int skipFrom = fBridge->SkipFrom(), skipTo = fBridge->SkipTo();
+				if (skipFrom >= 0 && skipTo >= skipFrom) {
+					if (skipFrom > 0)
+						StrokeLine(BPoint(far, 0), BPoint(far, skipFrom - 1));
+					from = skipTo + 1;
+				}
+				if (from < h)
+					StrokeLine(BPoint(far, from), BPoint(far, h - 1));
+
+				// Rounded corners at the free ends. This tab hangs over the body of a menu, whose colour is
+				// known, so the pixels outside the curve are painted in it.
+				if (fBridge->Rounded()) {
+					const rgb_color back = ui_color(B_MENU_BACKGROUND_COLOR);
+					const rgb_color edge = Outline(accent);
+					for (int end = 0; end < 2; end++) {
+						if (end == 0 ? !fBridge->EdgeTop() : !fBridge->EdgeBottom())
+							continue;
+						for (int u = 0; u < 3; u++) {
+							for (int v = 0; v < 3; v++) {
+								float dx = u + 0.5f - 3.0f, dy = v + 0.5f - 3.0f;
+								float d = sqrtf(dx * dx + dy * dy);
+								float outer = std::min(1.0f, std::max(0.0f, 3.0f - d + 0.5f));
+								float inner = std::min(1.0f, std::max(0.0f, 2.0f - d + 0.5f));
+								float r = back.red + (edge.red + (accent.red - edge.red) * inner - back.red) * outer;
+								float g = back.green + (edge.green + (accent.green - edge.green) * inner - back.green) * outer;
+								float b = back.blue + (edge.blue + (accent.blue - edge.blue) * inner - back.blue) * outer;
+								int x = fBridge->BulgeRight() ? w - 1 - u : u;
+								int y = end == 0 ? v : h - 1 - v;
+								SetHighColor((uint8)r, (uint8)g, (uint8)b);
+								FillRect(BRect(x, y, x, y));
+							}
+						}
+					}
+				}
 				return;
 			}
 			const bool flat = FlatFill();
@@ -511,6 +568,11 @@ private:
 	int				fWidth;
 	bool			fBulge;
 	bool			fBulgeRight;
+	bool			fEdgeTop;
+	bool			fEdgeBottom;
+	int				fSkipFrom;
+	int				fSkipTo;
+	bool			fRounded;
 	int				fHeight;
 	int				fLeft;
 	int				fTop;
@@ -533,10 +595,24 @@ Bulges()
 }
 
 
+static std::map<BWindow*, SeamBridge*>&
+VBulges()
+{
+	static std::map<BWindow*, SeamBridge*>* bulges = new std::map<BWindow*, SeamBridge*>();
+	return *bulges;
+}
+
+
 static void
 ForgetBridge(SeamBridge* bridge)
 {
 	BAutolock lock(LinkLock());
+	for (std::map<BWindow*, SeamBridge*>::iterator it = VBulges().begin(); it != VBulges().end();) {
+		if (it->second == bridge)
+			VBulges().erase(it++);
+		else
+			++it;
+	}
 	for (std::map<BWindow*, SeamBridge*>::iterator it = Bulges().begin(); it != Bulges().end();) {
 		if (it->second == bridge)
 			Bulges().erase(it++);
@@ -664,8 +740,53 @@ PlaceBulge(BMenu* menu, BRect strip, bool right)
 
 
 static void
+HideVBulge(BWindow* child)
+{
+	SeamBridge* bulge = NULL;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BWindow*, SeamBridge*>::iterator it = VBulges().find(child);
+		if (it != VBulges().end())
+			bulge = it->second;
+	}
+	if (bulge != NULL)
+		bulge->PostMessage('Hide');
+}
+
+
+// The vertical part of the trail, from the parent's row to the row of the submenu, hangs a few pixels into the
+// parent menu, as the selected row hangs out of its menu.
+static void
+PlaceVBulge(BMenu* menu, BRect strip, bool right, bool edgeTop, bool edgeBottom, int skipFrom, int skipTo,
+	float parentTop, float parentBottom)
+{
+	BWindow* child = menu->Window();
+	BRect childFrame = child->Frame();
+	if (strip.top < childFrame.top - 2 || strip.bottom > childFrame.bottom + 2 || strip.top < parentTop - 2
+		|| strip.bottom > parentBottom + 2) {
+		HideVBulge(child);
+		return;
+	}
+
+	SeamBridge* bulge;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BWindow*, SeamBridge*>::iterator it = VBulges().find(child);
+		if (it == VBulges().end()) {
+			bulge = new SeamBridge(child, kVBulgeW, true);
+			bulge->Run();
+			VBulges()[child] = bulge;
+		} else
+			bulge = it->second;
+	}
+	bulge->Place(strip, Accent(), right, edgeTop, edgeBottom, skipFrom, skipTo, true);
+}
+
+
+static void
 DropBridge(BWindow* child)
 {
+	HideVBulge(child);
 	SeamBridge* bridge = NULL;
 	{
 		BAutolock lock(LinkLock());
@@ -822,6 +943,11 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 		bottom = std::min(bottom, (float)h);
 		if (bottom > top) {
 			float rt = top < pTop - 0.5f ? kSelR : 0.0f, rb = bottom > pBottom + 0.5f ? kSelR : 0.0f;
+			// the strip hanging into the parent carries the curve at the free end of the vertical part
+			if (kVBulge) {
+				rt = 0.0f;
+				rb = 0.0f;
+			}
 			Piece p;
 			if (parentOnLeft) {
 				Piece q = {0, top, kBarW, bottom - top, rt, kBarR, kBarR, rb};
@@ -844,6 +970,26 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 				}
 			}
 		}
+	}
+
+	// the vertical part hangs into the parent menu, where it runs past the parent's row
+	if (kVBulge) {
+		bool placed = false;
+		if (link.valid && hasOwn && ownBottom > ownTop && (ownTop < pTop - 0.5f || ownBottom > pBottom + 0.5f)) {
+			float eTop = std::min(ownTop, pTop), eBottom = std::max(ownBottom, pBottom);
+			float sy0 = menu->ConvertToScreen(BPoint(0, eTop + vt)).y;
+			float sy1 = menu->ConvertToScreen(BPoint(0, eBottom + vt)).y - 1;
+			BRect frame = menu->Window()->Frame();
+			float x = parentOnLeft ? frame.left - kVBulgeW : frame.right + 1;
+			BRect strip(x, sy0, x + kVBulgeW - 1, sy1);
+			if (strip.IsValid()) {
+				PlaceVBulge(menu, strip, !parentOnLeft, ownTop < pTop - 0.5f, ownBottom > pBottom + 0.5f,
+					(int)(pTop - eTop), (int)(pBottom - eTop) - 1, link.parentTop, link.parentBottom);
+				placed = true;
+			}
+		}
+		if (!placed)
+			HideVBulge(menu->Window());
 	}
 
 	if (pieces.empty())
