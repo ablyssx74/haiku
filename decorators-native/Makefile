@@ -44,6 +44,7 @@ install: all
 	@test -d $(THEMES)/$(THEME) || { echo "no theme $(THEME)"; exit 1; }
 	mkdir -p $(ADDONS) $(DATA)/$(THEME)
 	cp $(THEMES)/$(THEME)/themerc $(THEMES)/$(THEME)/*.xpm $(DATA)/$(THEME)/
+	cp $(THEMES)/$(THEME)/*.png $(DATA)/$(THEME)/ 2>/dev/null || true
 	sed 's/"name"\t\t\t\t= "xfwm4 theme"/"name"\t\t\t\t= "xfwm4: $(THEME)"/' $(SRC)/resources.rdef > $(OUT)/res-$(THEME).rdef
 	rc -o $(OUT)/res-$(THEME).rsrc $(OUT)/res-$(THEME).rdef
 	cp $(OUT)/Xfwm-base $(OUT)/Xfwm-$(THEME)
@@ -74,6 +75,7 @@ package: all
 	for t in $$(ls $(THEMES)); do [ -f $(THEMES)/$$t/themerc ] || continue; \
 		mkdir -p $(PKG)/data/xfwm4-themes/$$t; \
 		cp $(THEMES)/$$t/themerc $(THEMES)/$$t/*.xpm $(PKG)/data/xfwm4-themes/$$t/; \
+		cp $(THEMES)/$$t/*.png $(PKG)/data/xfwm4-themes/$$t/ 2>/dev/null; \
 		sed 's/"name"\t\t\t\t= "xfwm4 theme"/"name"\t\t\t\t= "xfwm4: '$$t'"/' $(SRC)/resources.rdef > $(OUT)/res-$$t.rdef; \
 		rc -o $(OUT)/res-$$t.rsrc $(OUT)/res-$$t.rdef; \
 		cp $(OUT)/Xfwm-base $(PKG)/add-ons/decorators/Xfwm-$$t; \

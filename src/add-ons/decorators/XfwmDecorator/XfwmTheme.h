@@ -41,6 +41,8 @@ public:
 			void				IncludeIn(BRegion& region, int32 x, int32 y) const;
 
 private:
+			bool				_Adopt(int32 width, int32 height, const std::vector<uint8>& bgra);
+
 			struct Run {
 				int32	row;
 				int32	left;

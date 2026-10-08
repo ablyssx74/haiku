@@ -1,12 +1,14 @@
 #include "XfwmTheme.h"
 
 #include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <algorithm>
 #include <new>
+#include <set>
 #include <string>
 
 #include <Entry.h>
@@ -91,6 +93,414 @@ NamedColor(const std::string& name, uint8& red, uint8& green, uint8& blue)
 }	// namespace
 
 
+// #pragma mark - PNG reading (the themes' real artwork is a PNG where there is one; app_server loads no libraries
+// for it, so the few things needed are done here: a small inflate and the five filters)
+
+
+namespace {
+
+class Inflater {
+public:
+	Inflater(const uint8* in, size_t inLength, uint8* out, size_t outCapacity)
+		:
+		fIn(in),
+		fInLength(inLength),
+		fInPos(0),
+		fBitBuffer(0),
+		fBitCount(0),
+		fOut(out),
+		fOutCapacity(outCapacity),
+		fOutPos(0),
+		fFailed(false)
+	{
+	}
+
+	// a zlib stream: two header bytes, deflate blocks (the checksum is not looked at)
+	bool Run()
+	{
+		if (fInLength < 2 || (fIn[0] & 0x0f) != 8)
+			return false;
+		fInPos = 2;
+
+		bool last;
+		do {
+			last = _Bits(1) != 0;
+			int type = _Bits(2);
+			if (fFailed)
+				return false;
+			bool ok;
+			if (type == 0)
+				ok = _Stored();
+			else if (type == 1)
+				ok = _Fixed();
+			else if (type == 2)
+				ok = _Dynamic();
+			else
+				ok = false;
+			if (!ok || fFailed)
+				return false;
+		} while (!last);
+		return true;
+	}
+
+	size_t Produced() const { return fOutPos; }
+
+private:
+	struct Huffman {
+		uint16	count[16];
+		uint16	symbol[288];
+	};
+
+	int _Bits(int need)
+	{
+		while (fBitCount < need) {
+			if (fInPos >= fInLength) {
+				fFailed = true;
+				return 0;
+			}
+			fBitBuffer |= (uint32)fIn[fInPos++] << fBitCount;
+			fBitCount += 8;
+		}
+		int value = (int)(fBitBuffer & ((1u << need) - 1));
+		fBitBuffer >>= need;
+		fBitCount -= need;
+		return value;
+	}
+
+	int _Decode(const Huffman& h)
+	{
+		int code = 0, first = 0, index = 0;
+		for (int length = 1; length <= 15; length++) {
+			code |= _Bits(1);
+			if (fFailed)
+				return -1;
+			int count = h.count[length];
+			if (code - count < first)
+				return h.symbol[index + (code - first)];
+			index += count;
+			first += count;
+			first <<= 1;
+			code <<= 1;
+		}
+		return -1;
+	}
+
+	// 0: complete, > 0: incomplete, < 0: over-subscribed
+	static int _Construct(Huffman& h, const uint16* lengths, int n)
+	{
+		for (int i = 0; i < 16; i++)
+			h.count[i] = 0;
+		for (int i = 0; i < n; i++)
+			h.count[lengths[i]]++;
+		if (h.count[0] == n)
+			return 0;
+
+		int left = 1;
+		for (int length = 1; length <= 15; length++) {
+			left <<= 1;
+			left -= h.count[length];
+			if (left < 0)
+				return left;
+		}
+
+		uint16 offsets[16];
+		offsets[1] = 0;
+		for (int length = 1; length < 15; length++)
+			offsets[length + 1] = offsets[length] + h.count[length];
+		for (int symbol = 0; symbol < n; symbol++) {
+			if (lengths[symbol] != 0)
+				h.symbol[offsets[lengths[symbol]]++] = symbol;
+		}
+		return left;
+	}
+
+	bool _Codes(const Huffman& lengthCodes, const Huffman& distanceCodes)
+	{
+		static const uint16 kLengths[29] = {3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59,
+			67, 83, 99, 115, 131, 163, 195, 227, 258};
+		static const uint16 kLengthExtra[29] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4,
+			4, 5, 5, 5, 5, 0};
+		static const uint16 kDistances[30] = {1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385,
+			513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
+		static const uint16 kDistanceExtra[30] = {0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9,
+			10, 10, 11, 11, 12, 12, 13, 13};
+
+		for (;;) {
+			int symbol = _Decode(lengthCodes);
+			if (symbol < 0)
+				return false;
+			if (symbol < 256) {
+				if (fOutPos >= fOutCapacity)
+					return false;
+				fOut[fOutPos++] = (uint8)symbol;
+			} else if (symbol == 256) {
+				return true;
+			} else {
+				symbol -= 257;
+				if (symbol >= 29)
+					return false;
+				int length = kLengths[symbol] + _Bits(kLengthExtra[symbol]);
+				symbol = _Decode(distanceCodes);
+				if (symbol < 0 || symbol >= 30)
+					return false;
+				size_t distance = kDistances[symbol] + _Bits(kDistanceExtra[symbol]);
+				if (fFailed || distance > fOutPos || fOutPos + length > fOutCapacity)
+					return false;
+				for (int i = 0; i < length; i++, fOutPos++)
+					fOut[fOutPos] = fOut[fOutPos - distance];
+			}
+		}
+	}
+
+	bool _Stored()
+	{
+		fBitBuffer = 0;
+		fBitCount = 0;
+		if (fInPos + 4 > fInLength)
+			return false;
+		unsigned length = fIn[fInPos] | (fIn[fInPos + 1] << 8);
+		unsigned complement = fIn[fInPos + 2] | (fIn[fInPos + 3] << 8);
+		fInPos += 4;
+		if (length != (~complement & 0xffff) || fInPos + length > fInLength || fOutPos + length > fOutCapacity)
+			return false;
+		memcpy(fOut + fOutPos, fIn + fInPos, length);
+		fInPos += length;
+		fOutPos += length;
+		return true;
+	}
+
+	bool _Fixed()
+	{
+		uint16 lengths[288];
+		int i = 0;
+		for (; i < 144; i++)
+			lengths[i] = 8;
+		for (; i < 256; i++)
+			lengths[i] = 9;
+		for (; i < 280; i++)
+			lengths[i] = 7;
+		for (; i < 288; i++)
+			lengths[i] = 8;
+		Huffman lengthCodes, distanceCodes;
+		_Construct(lengthCodes, lengths, 288);
+		for (i = 0; i < 30; i++)
+			lengths[i] = 5;
+		_Construct(distanceCodes, lengths, 30);
+		return _Codes(lengthCodes, distanceCodes);
+	}
+
+	bool _Dynamic()
+	{
+		static const uint8 kOrder[19] = {16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15};
+
+		int lengthCount = _Bits(5) + 257;
+		int distanceCount = _Bits(5) + 1;
+		int codeCount = _Bits(4) + 4;
+		if (fFailed || lengthCount > 286 || distanceCount > 30)
+			return false;
+
+		uint16 lengths[320];
+		int index = 0;
+		for (; index < codeCount; index++)
+			lengths[kOrder[index]] = _Bits(3);
+		for (; index < 19; index++)
+			lengths[kOrder[index]] = 0;
+
+		Huffman lengthCodes, distanceCodes;
+		if (_Construct(lengthCodes, lengths, 19) != 0)
+			return false;
+
+		index = 0;
+		while (index < lengthCount + distanceCount) {
+			int symbol = _Decode(lengthCodes);
+			if (symbol < 0)
+				return false;
+			if (symbol < 16) {
+				lengths[index++] = symbol;
+			} else {
+				int previous = 0;
+				if (symbol == 16) {
+					if (index == 0)
+						return false;
+					previous = lengths[index - 1];
+					symbol = 3 + _Bits(2);
+				} else if (symbol == 17) {
+					symbol = 3 + _Bits(3);
+				} else {
+					symbol = 11 + _Bits(7);
+				}
+				if (fFailed || index + symbol > lengthCount + distanceCount)
+					return false;
+				while (symbol-- > 0)
+					lengths[index++] = previous;
+			}
+		}
+		if (lengths[256] == 0)
+			return false;
+
+		int error = _Construct(lengthCodes, lengths, lengthCount);
+		if (error != 0 && (error < 0 || lengthCount != lengthCodes.count[0] + lengthCodes.count[1]))
+			return false;
+		error = _Construct(distanceCodes, lengths + lengthCount, distanceCount);
+		if (error != 0 && (error < 0 || distanceCount != distanceCodes.count[0] + distanceCodes.count[1]))
+			return false;
+		return _Codes(lengthCodes, distanceCodes);
+	}
+
+	const uint8*	fIn;
+	size_t			fInLength;
+	size_t			fInPos;
+	uint32			fBitBuffer;
+	int				fBitCount;
+	uint8*			fOut;
+	size_t			fOutCapacity;
+	size_t			fOutPos;
+	bool			fFailed;
+};
+
+
+uint32
+BigEndian32(const uint8* p)
+{
+	return ((uint32)p[0] << 24) | ((uint32)p[1] << 16) | ((uint32)p[2] << 8) | p[3];
+}
+
+
+// 8 bit PNGs, not interlaced: grey, grey with alpha, colour (with or without alpha) and palette. -> BGRA, rows
+// top down, straight (not premultiplied) alpha
+bool
+DecodePng(const char* path, int32& width, int32& height, std::vector<uint8>& bgra)
+{
+	FILE* file = fopen(path, "rb");
+	if (file == NULL)
+		return false;
+	std::vector<uint8> data;
+	uint8 buffer[8192];
+	size_t got;
+	while ((got = fread(buffer, 1, sizeof(buffer), file)) > 0)
+		data.insert(data.end(), buffer, buffer + got);
+	fclose(file);
+
+	static const uint8 kSignature[8] = {0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
+	if (data.size() < 8 || memcmp(&data[0], kSignature, 8) != 0)
+		return false;
+
+	int colorType = -1;
+	std::vector<uint8> compressed, palette, paletteAlpha;
+	size_t pos = 8;
+	while (pos + 12 <= data.size()) {
+		uint32 length = BigEndian32(&data[pos]);
+		const uint8* type = &data[pos + 4];
+		const uint8* body = &data[pos + 8];
+		if (pos + 12 + length > data.size())
+			return false;
+		if (memcmp(type, "IHDR", 4) == 0 && length >= 13) {
+			width = (int32)BigEndian32(body);
+			height = (int32)BigEndian32(body + 4);
+			if (body[8] != 8 || body[12] != 0)
+				return false;		// 8 bits only, not interlaced
+			colorType = body[9];
+		} else if (memcmp(type, "PLTE", 4) == 0) {
+			palette.assign(body, body + length);
+		} else if (memcmp(type, "tRNS", 4) == 0) {
+			paletteAlpha.assign(body, body + length);
+		} else if (memcmp(type, "IDAT", 4) == 0) {
+			compressed.insert(compressed.end(), body, body + length);
+		} else if (memcmp(type, "IEND", 4) == 0) {
+			break;
+		}
+		pos += 12 + length;
+	}
+
+	int channels;
+	switch (colorType) {
+		case 0: channels = 1; break;
+		case 2: channels = 3; break;
+		case 3: channels = 1; break;
+		case 4: channels = 2; break;
+		case 6: channels = 4; break;
+		default: return false;
+	}
+	if (width <= 0 || height <= 0 || width > 4096 || height > 4096 || compressed.empty())
+		return false;
+
+	const size_t stride = (size_t)width * channels;
+	std::vector<uint8> raw((stride + 1) * height);
+	Inflater inflater(&compressed[0], compressed.size(), &raw[0], raw.size());
+	if (!inflater.Run() || inflater.Produced() != raw.size())
+		return false;
+
+	// undo the filters
+	std::vector<uint8> pixels(stride * height);
+	for (int32 y = 0; y < height; y++) {
+		const uint8 filter = raw[y * (stride + 1)];
+		const uint8* in = &raw[y * (stride + 1) + 1];
+		uint8* out = &pixels[y * stride];
+		const uint8* up = y > 0 ? &pixels[(y - 1) * stride] : NULL;
+		for (size_t i = 0; i < stride; i++) {
+			int a = i >= (size_t)channels ? out[i - channels] : 0;
+			int b = up != NULL ? up[i] : 0;
+			int c = (up != NULL && i >= (size_t)channels) ? up[i - channels] : 0;
+			int predicted;
+			switch (filter) {
+				case 0: predicted = 0; break;
+				case 1: predicted = a; break;
+				case 2: predicted = b; break;
+				case 3: predicted = (a + b) / 2; break;
+				case 4: {
+					int p = a + b - c;
+					int pa = abs(p - a), pb = abs(p - b), pc = abs(p - c);
+					predicted = (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c);
+					break;
+				}
+				default: return false;
+			}
+			out[i] = (uint8)(in[i] + predicted);
+		}
+	}
+
+	bgra.assign((size_t)width * height * 4, 0);
+	for (int32 y = 0; y < height; y++) {
+		for (int32 x = 0; x < width; x++) {
+			const uint8* p = &pixels[y * stride + (size_t)x * channels];
+			uint8* q = &bgra[((size_t)y * width + x) * 4];
+			uint8 r, g, b, a = 255;
+			switch (colorType) {
+				case 0:
+					r = g = b = p[0];
+					break;
+				case 2:
+					r = p[0]; g = p[1]; b = p[2];
+					break;
+				case 3: {
+					size_t index = p[0];
+					if (index * 3 + 2 >= palette.size())
+						return false;
+					r = palette[index * 3]; g = palette[index * 3 + 1]; b = palette[index * 3 + 2];
+					if (index < paletteAlpha.size())
+						a = paletteAlpha[index];
+					break;
+				}
+				case 4:
+					r = g = b = p[0];
+					a = p[1];
+					break;
+				default:
+					r = p[0]; g = p[1]; b = p[2]; a = p[3];
+					break;
+			}
+			q[0] = b;
+			q[1] = g;
+			q[2] = r;
+			q[3] = a;
+		}
+	}
+	return true;
+}
+
+}	// namespace
+
+
 // #pragma mark - XfwmImage
 
 
@@ -108,6 +518,64 @@ XfwmImage::~XfwmImage()
 {
 	if (fBitmap != NULL)
 		fBitmap->ReleaseReference();
+}
+
+
+// Takes decoded pixels (BGRA). A pixel is either part of the frame or not: the area the decorator owns on the
+// screen is made of opaque pixels, and a half transparent one would blend with whatever the screen showed there
+// before, not with the desktop behind the window.
+bool
+XfwmImage::_Adopt(int32 width, int32 height, const std::vector<uint8>& bgra)
+{
+	if (width <= 0 || height <= 0 || bgra.size() < (size_t)width * height * 4)
+		return false;
+
+	UtilityBitmap* bitmap = new(std::nothrow) UtilityBitmap(BRect(0, 0, width - 1, height - 1), B_RGBA32, 0);
+	if (bitmap == NULL)
+		return false;
+	if (!bitmap->IsValid()) {
+		delete bitmap;
+		return false;
+	}
+
+	fRuns.clear();
+	int32 minX = width, minY = height, maxX = -1, maxY = -1;
+	for (int32 y = 0; y < height; y++) {
+		uint8* out = bitmap->Bits() + y * bitmap->BytesPerRow();
+		int32 runStart = -1;
+		for (int32 x = 0; x < width; x++) {
+			const uint8* in = &bgra[((size_t)y * width + x) * 4];
+			const bool opaque = in[3] >= 128;
+			out[x * 4 + 0] = opaque ? in[0] : 0;
+			out[x * 4 + 1] = opaque ? in[1] : 0;
+			out[x * 4 + 2] = opaque ? in[2] : 0;
+			out[x * 4 + 3] = opaque ? 255 : 0;
+			if (opaque) {
+				if (runStart < 0)
+					runStart = x;
+				minX = std::min(minX, x);
+				maxX = std::max(maxX, x);
+				minY = std::min(minY, y);
+				maxY = std::max(maxY, y);
+			} else if (runStart >= 0) {
+				Run run = {y, runStart, x - 1};
+				fRuns.push_back(run);
+				runStart = -1;
+			}
+		}
+		if (runStart >= 0) {
+			Run run = {y, runStart, width - 1};
+			fRuns.push_back(run);
+		}
+	}
+
+	if (fBitmap != NULL)
+		fBitmap->ReleaseReference();
+	fBitmap = bitmap;
+	fWidth = width;
+	fHeight = height;
+	fBounds = maxX >= 0 ? BRect(minX, minY, maxX, maxY) : BRect(0, 0, -1, -1);
+	return true;
 }
 
 
@@ -202,68 +670,57 @@ XfwmImage::Load(const char* path)
 		colors.push_back(color);
 	}
 
-	UtilityBitmap* bitmap = new(std::nothrow) UtilityBitmap(BRect(0, 0, width - 1, height - 1), B_RGBA32, 0);
-	if (bitmap == NULL)
-		return false;
-	if (!bitmap->IsValid()) {
-		delete bitmap;
-		return false;
-	}
-
-	fRuns.clear();
-	int32 minX = width, minY = height, maxX = -1, maxY = -1;
+	std::vector<uint8> bgra((size_t)width * height * 4, 0);
+	std::set<unsigned long> flatColors;		// the opaque colours that really appear
 	for (int y = 0; y < height; y++) {
 		const std::string& row = strings[1 + colorCount + y];
-		uint8* out = bitmap->Bits() + y * bitmap->BytesPerRow();
-		int32 runStart = -1;
 		for (int x = 0; x < width; x++) {
-			uint8 blue = 0, green = 0, red = 0, alpha = 0;
-			if ((int)row.size() >= (x + 1) * charsPerPixel) {
-				for (size_t c = 0; c < colors.size(); c++) {
-					if (row.compare(x * charsPerPixel, charsPerPixel, colors[c].key) == 0) {
-						red = colors[c].red;
-						green = colors[c].green;
-						blue = colors[c].blue;
-						alpha = colors[c].alpha;
-						break;
+			uint8* out = &bgra[((size_t)y * width + x) * 4];
+			if ((int)row.size() < (x + 1) * charsPerPixel)
+				continue;
+			for (size_t c = 0; c < colors.size(); c++) {
+				if (row.compare(x * charsPerPixel, charsPerPixel, colors[c].key) == 0) {
+					out[0] = colors[c].blue;
+					out[1] = colors[c].green;
+					out[2] = colors[c].red;
+					out[3] = colors[c].alpha;
+					if (colors[c].alpha > 0)
+						flatColors.insert(((unsigned long)colors[c].red << 16) | (colors[c].green << 8)
+							| colors[c].blue);
+					break;
+				}
+			}
+		}
+	}
+
+	// A picture of one flat colour is a placeholder (xfce's default-4.4 to 4.8 recolour it from the GTK theme):
+	// the shading and the glyphs are in a PNG beside it, with some transparency, to be laid over it.
+	if (flatColors.size() <= 1) {
+		std::string png(path);
+		size_t dot = png.rfind('.');
+		if (dot != std::string::npos) {
+			png.replace(dot, std::string::npos, ".png");
+			int32 pngWidth = 0, pngHeight = 0;
+			std::vector<uint8> overlay;
+			if (DecodePng(png.c_str(), pngWidth, pngHeight, overlay) && pngWidth == width && pngHeight == height) {
+				for (size_t p = 0; p < (size_t)width * height; p++) {
+					uint8* base = &bgra[p * 4];
+					const uint8* over = &overlay[p * 4];
+					if (over[3] == 0)
+						continue;
+					if (base[3] == 0) {
+						// nothing under it: it stands on its own
+						memcpy(base, over, 4);
+					} else {
+						for (int k = 0; k < 3; k++)
+							base[k] = (uint8)((over[k] * over[3] + base[k] * (255 - over[3])) / 255);
 					}
 				}
 			}
-			out[x * 4 + 0] = blue;
-			out[x * 4 + 1] = green;
-			out[x * 4 + 2] = red;
-			out[x * 4 + 3] = alpha;
-
-			if (alpha > 0) {
-				if (runStart < 0)
-					runStart = x;
-				if (x < minX)
-					minX = x;
-				if (x > maxX)
-					maxX = x;
-				if (y < minY)
-					minY = y;
-				if (y > maxY)
-					maxY = y;
-			} else if (runStart >= 0) {
-				Run run = {y, runStart, x - 1};
-				fRuns.push_back(run);
-				runStart = -1;
-			}
-		}
-		if (runStart >= 0) {
-			Run run = {y, runStart, width - 1};
-			fRuns.push_back(run);
 		}
 	}
 
-	if (fBitmap != NULL)
-		fBitmap->ReleaseReference();
-	fBitmap = bitmap;
-	fWidth = width;
-	fHeight = height;
-	fBounds = maxX >= 0 ? BRect(minX, minY, maxX, maxY) : BRect(0, 0, -1, -1);
-	return true;
+	return _Adopt(width, height, bgra);
 }
 
 
@@ -320,6 +777,9 @@ XfwmImage::LoadFlipped(const XfwmImage& source)
 }
 
 
+// The hover look of a button the theme has no hover picture for. Only the background of the button changes, and
+// the glyph on it keeps its colours: a pixel changes in proportion to how close its brightness is to the typical
+// one of the picture. A dark button gets lighter, and a light one (where lighter would hardly show) darker.
 bool
 XfwmImage::LoadBrightened(const XfwmImage& source, float amount)
 {
@@ -335,13 +795,34 @@ XfwmImage::LoadBrightened(const XfwmImage& source, float amount)
 		return false;
 	}
 
+	// the average brightness of the opaque pixels
+	float total = 0;
+	int32 count = 0;
+	for (int32 y = 0; y < source.fHeight; y++) {
+		const uint8* in = source.fBitmap->Bits() + y * source.fBitmap->BytesPerRow();
+		for (int32 x = 0; x < source.fWidth; x++) {
+			if (in[x * 4 + 3] < 128)
+				continue;
+			total += 0.114f * in[x * 4 + 0] + 0.587f * in[x * 4 + 1] + 0.299f * in[x * 4 + 2];
+			count++;
+		}
+	}
+	const float mean = count > 0 ? total / count : 128.0f;
+	const bool darken = mean > 170.0f;
+
 	for (int32 y = 0; y < source.fHeight; y++) {
 		const uint8* in = source.fBitmap->Bits() + y * source.fBitmap->BytesPerRow();
 		uint8* out = bitmap->Bits() + y * bitmap->BytesPerRow();
 		for (int32 x = 0; x < source.fWidth; x++) {
-			out[x * 4 + 0] = (uint8)(in[x * 4 + 0] + (255 - in[x * 4 + 0]) * amount);
-			out[x * 4 + 1] = (uint8)(in[x * 4 + 1] + (255 - in[x * 4 + 1]) * amount);
-			out[x * 4 + 2] = (uint8)(in[x * 4 + 2] + (255 - in[x * 4 + 2]) * amount);
+			float brightness = 0.114f * in[x * 4 + 0] + 0.587f * in[x * 4 + 1] + 0.299f * in[x * 4 + 2];
+			// 1 for a pixel as bright as the picture's typical one, falling to 0 for the glyph's black or white
+			float weight = 1.0f - std::min(1.0f, fabsf(brightness - mean) / 70.0f);
+			float k = amount * weight;
+			for (int channel = 0; channel < 3; channel++) {
+				float value = in[x * 4 + channel];
+				value = darken ? value * (1.0f - k * 0.6f) : value + (255.0f - value) * k;
+				out[x * 4 + channel] = (uint8)value;
+			}
 			out[x * 4 + 3] = in[x * 4 + 3];
 		}
 	}
@@ -473,9 +954,9 @@ XfwmTheme::Load(const char* name)
 	// a button the theme has no hover picture for gets a lighter one
 	for (int32 button = 0; button < kButtonCount; button++) {
 		if (!fButton[button][kStatePrelight].IsValid())
-			fButton[button][kStatePrelight].LoadBrightened(fButton[button][kStateActive], 0.3f);
+			fButton[button][kStatePrelight].LoadBrightened(fButton[button][kStateActive], 0.4f);
 		// a window that isn't the active one has its own, paler buttons
-		fButton[button][kStatePrelightInactive].LoadBrightened(fButton[button][kStateInactive], 0.3f);
+		fButton[button][kStatePrelightInactive].LoadBrightened(fButton[button][kStateInactive], 0.4f);
 	}
 
 	// everything the decorator draws must exist
