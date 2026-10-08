@@ -1,0 +1,19 @@
+#!/bin/sh
+# Turns the buttons' hover effect of the xfwm4 decorators on or off:  xfwm-hover on | off | status
+# (off is a file in your settings folder; the decorators look for it once a second)
+file="$(finddir B_USER_SETTINGS_DIRECTORY)/xfwm_decorators_no_hover"
+case "$1" in
+	on)
+		rm -f "$file" && echo "Hover effect on."
+		;;
+	off)
+		touch "$file" && echo "Hover effect off."
+		;;
+	status)
+		if [ -e "$file" ]; then echo "Hover effect: off"; else echo "Hover effect: on"; fi
+		;;
+	*)
+		echo "usage: xfwm-hover on | off | status"
+		exit 1
+		;;
+esac

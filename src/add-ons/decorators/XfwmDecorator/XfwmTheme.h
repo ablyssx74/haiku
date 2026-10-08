@@ -25,6 +25,9 @@ public:
 			bool				Load(const char* path);
 			// the same picture upside down (the bottom border as a top border)
 			bool				LoadFlipped(const XfwmImage& source);
+			// a lighter (or, on a light button, darker) copy of another picture, background only: the hover look of a
+			// button the theme has no such picture for
+			bool				LoadBrightened(const XfwmImage& source, float amount);
 			bool				IsValid() const { return fBitmap != NULL; }
 
 			ServerBitmap*		Bitmap() const { return fBitmap; }
@@ -67,6 +70,8 @@ enum {
 	kStateActive,
 	kStateInactive,
 	kStatePressed,
+	kStatePrelight,
+	kStatePrelightInactive,
 	kStateCount
 };
 

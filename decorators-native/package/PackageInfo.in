@@ -8,7 +8,9 @@ from (Appearance > Decorator, entries starting with \"xfwm4:\").
 The title bar is part of the theme's artwork, so tabs don't slide; stacked
 windows get one tab each in the same bar. Titled, document, floating, modal
 and bordered windows are supported. The shade, stick and menu buttons of
-xfwm4 are not."
+xfwm4 are not.
+
+The buttons light up under the pointer; `xfwm-hover off` turns that off."
 packager		"ablyssx74 <ablyssx74@users.noreply.github.com>"
 vendor			"ablyssx74"
 copyrights {

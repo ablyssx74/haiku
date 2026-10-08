@@ -44,10 +44,15 @@ public:
 
 	virtual	Region				RegionAt(BPoint where, int32& tab) const;
 
+			// The pointer is over a button of a tab (button: kButtonClose, kButtonMaximize or kButtonHide, or -1 for
+			// none). The areas of the old and the new button, which have to be redrawn, are added to dirty.
+			void				SetHover(int32 tab, int32 button, BRegion* dirty);
+
 
 protected:
 	virtual	void				_DoLayout();
 	virtual	void				_DoTabLayout();
+	virtual	void				_MoveBy(BPoint offset);
 	virtual	void				_ResizeBy(BPoint offset, BRegion* dirty);
 	virtual	void				_SetTitle(Decorator::Tab* tab, const char* string, BRegion* updateRegion = NULL);
 	virtual	bool				_SetTabLocation(Decorator::Tab* tab, float location, bool isShifting,
@@ -65,6 +70,8 @@ protected:
 	virtual	void				_DrawMinimize(Decorator::Tab* tab, bool direct, BRect rect);
 
 private:
+							int32				fHoverTab;
+							int32				fHoverButton;
 							BRegion				fShown;
 							BRegion				fUnreported;
 								// areas the bar covered earlier that no change has told the desktop about yet
@@ -99,6 +106,7 @@ private:
 			void				_ButtonExtents(int32& leftEnd, int32& rightStart) const;
 			void				_DrawBarEnd(const BarLayout& bar);
 			void				_IncludeTab(BRegion& region, Decorator::Tab* tab, const BarLayout& bar) const;
+			void				_IncludeRow(BRegion& region, const XfwmImage& image, int32 from, int32 end, int32 y) const;
 			int32				_IndexOf(Decorator::Tab* tab) const;
 			void				_Blit(const XfwmImage& image, BPoint at);
 			void				_BlitTiled(const XfwmImage& image, BRect area, bool horizontal);

@@ -67,11 +67,11 @@ deactivate: $(OUT)/setdecor
 # A package with the add-on for every theme:
 #   make package    -> out/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg
 # /boot/system/add-ons/decorators/Xfwm-<theme> and /boot/system/data/xfwm4-themes/<theme>/
-PKG_VERSION := 1.0.4
+PKG_VERSION := 1.0.5
 PKG := $(OUT)/package
 package: all
 	rm -rf $(PKG)
-	mkdir -p $(PKG)/add-ons/decorators $(PKG)/data/xfwm4-themes $(PKG)/documentation/packages/xfwm_decorators
+	mkdir -p $(PKG)/add-ons/decorators $(PKG)/data/xfwm4-themes $(PKG)/documentation/packages/xfwm_decorators $(PKG)/bin
 	for t in $$(ls $(THEMES)); do [ -f $(THEMES)/$$t/themerc ] || continue; \
 		mkdir -p $(PKG)/data/xfwm4-themes/$$t; \
 		cp $(THEMES)/$$t/themerc $(THEMES)/$$t/*.xpm $(PKG)/data/xfwm4-themes/$$t/; \
@@ -81,6 +81,8 @@ package: all
 		cp $(OUT)/Xfwm-base $(PKG)/add-ons/decorators/Xfwm-$$t; \
 		xres -o $(PKG)/add-ons/decorators/Xfwm-$$t $(OUT)/res-$$t.rsrc; \
 	done
+	cp package/xfwm-hover $(PKG)/bin/xfwm-hover
+	chmod +x $(PKG)/bin/xfwm-hover
 	cp $(TOP)/ablyss/xfwm4-themes-4.10.0/AUTHORS $(TOP)/ablyss/xfwm4-themes-4.10.0/COPYING \
 		$(PKG)/documentation/packages/xfwm_decorators/
 	sed 's/@VERSION@/$(PKG_VERSION)/; s/@ARCH@/$(ARCH)/' package/PackageInfo.in > $(PKG)/.PackageInfo
