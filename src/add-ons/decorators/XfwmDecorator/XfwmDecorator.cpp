@@ -9,10 +9,165 @@
 #include <Region.h>
 
 #include "Desktop.h"
+#include "DesktopListener.h"
+#include "Window.h"
 #include "DesktopSettings.h"
 #include "DrawingEngine.h"
 #include "DrawState.h"
 #include "ServerBitmap.h"
+
+
+// #pragma mark - the hover listener
+
+
+// app_server tells a decorator nothing while the pointer merely moves over it, so the buttons could not light up
+// under the pointer. Every mouse event goes to the desktop's listeners though, and a decorator add-on may bring
+// one: this one finds the button under the pointer and tells the window's decorator.
+class XfwmHoverListener : public DesktopListener {
+public:
+	XfwmHoverListener()
+		:
+		fDesktop(NULL),
+		fWindow(NULL),
+		fTab(-1),
+		fButton(-1)
+	{
+	}
+
+	virtual int32 Identifier() { return 'XfHv'; }
+
+	virtual void ListenerRegistered(Desktop* desktop) { fDesktop = desktop; }
+	virtual void ListenerUnregistered() { fDesktop = NULL; fWindow = NULL; }
+
+	virtual bool HandleMessage(Window*, BPrivate::LinkReceiver&, BPrivate::LinkSender&) { return false; }
+
+	virtual void WindowAdded(Window*) {}
+	virtual void WindowRemoved(Window* window) { _Clear(window); }
+
+	virtual bool KeyPressed(uint32, int32, int32) { return false; }
+
+	virtual void MouseEvent(BMessage* message)
+	{
+		if (fDesktop == NULL)
+			return;
+		if (message->what != B_MOUSE_MOVED && message->what != B_MOUSE_DOWN && message->what != B_MOUSE_UP)
+			return;
+
+		BPoint where;
+		if (message->FindPoint("where", &where) != B_OK)
+			return;
+		int32 buttons = 0;
+		message->FindInt32("buttons", &buttons);
+
+		// a button being pressed is the window behaviour's business (the pressed picture), not ours
+		Window* window = buttons == 0 ? fDesktop->WindowAt(where) : NULL;
+		int32 tab = -1, button = -1;
+		if (window != NULL) {
+			XfwmDecorator* decorator = dynamic_cast<XfwmDecorator*>(window->Decorator());
+			if (decorator != NULL) {
+				switch (decorator->RegionAt(where, tab)) {
+					case Decorator::REGION_CLOSE_BUTTON:
+						button = kButtonClose;
+						break;
+					case Decorator::REGION_ZOOM_BUTTON:
+						button = kButtonMaximize;
+						break;
+					case Decorator::REGION_MINIMIZE_BUTTON:
+						button = kButtonHide;
+						break;
+					default:
+						break;
+				}
+			}
+			if (button < 0)
+				tab = -1;
+		}
+
+		if (window == fWindow && tab == fTab && button == fButton)
+			return;
+
+		// off the old button (and off the old window), then onto the new
+		if (fWindow != NULL)
+			_Set(fWindow, -1, -1);
+		if (window != NULL && button >= 0)
+			_Set(window, tab, button);
+		fWindow = button >= 0 ? window : NULL;
+		fTab = button >= 0 ? tab : -1;
+		fButton = button;
+	}
+
+	virtual void MouseDown(Window*, BMessage*, const BPoint&) {}
+	virtual void MouseUp(Window*, BMessage*, const BPoint&) {}
+	virtual void MouseMoved(Window*, BMessage*, const BPoint&) {}
+
+	virtual void WindowMoved(Window* window) { _Clear(window); }
+	virtual void WindowResized(Window* window) { _Clear(window); }
+	virtual void WindowActivated(Window*) {}
+	virtual void WindowSentBehind(Window*, Window*) {}
+	virtual void WindowWorkspacesChanged(Window*, uint32) {}
+	virtual void WindowHidden(Window* window, bool) { _Clear(window); }
+	virtual void WindowMinimized(Window* window, bool) { _Clear(window); }
+
+	virtual void WindowTabLocationChanged(Window*, float, bool) {}
+	virtual void SizeLimitsChanged(Window*, int32, int32, int32, int32) {}
+	virtual void WindowLookChanged(Window* window, window_look) { _Clear(window); }
+	virtual void WindowFeelChanged(Window*, window_feel) {}
+
+	virtual bool SetDecoratorSettings(Window*, const BMessage&) { return false; }
+	virtual void GetDecoratorSettings(Window*, BMessage&) {}
+
+private:
+	// the window the pointer was over changed or went away under it
+	void _Clear(Window* window)
+	{
+		if (window == fWindow) {
+			fWindow = NULL;
+			fTab = -1;
+			fButton = -1;
+		}
+	}
+
+	// Redraws what the hover changed the way the window redraws its border: clipped to what is visible of it,
+	// without showing every step, then the result copied to the screen.
+	void _Set(Window* window, int32 tab, int32 button)
+	{
+		XfwmDecorator* decorator = dynamic_cast<XfwmDecorator*>(window->Decorator());
+		if (decorator == NULL)
+			return;
+
+		BRegion* dirty = window->RegionPool()->GetRegion();
+		if (dirty == NULL)
+			return;
+		decorator->SetHover(tab, button, dirty);
+		if (dirty->CountRects() > 0) {
+			BRegion* border = window->RegionPool()->GetRegion();
+			if (border != NULL) {
+				window->GetBorderRegion(border);
+				border->IntersectWith(&window->VisibleRegion());
+				dirty->IntersectWith(border);
+				window->RegionPool()->Recycle(border);
+			}
+
+			DrawingEngine* engine = decorator->GetDrawingEngine();
+			if (dirty->CountRects() > 0 && engine->LockParallelAccess()) {
+				engine->ConstrainClippingRegion(dirty);
+				bool copyToFront = engine->CopyToFrontEnabled();
+				engine->SetCopyToFrontEnabled(false);
+				decorator->Draw(dirty->Frame());
+				engine->SetCopyToFrontEnabled(copyToFront);
+				engine->CopyToFront(*dirty);
+				window->ServerWindow()->ResyncDrawState();
+				engine->UnlockParallelAccess();
+			}
+		}
+		window->RegionPool()->Recycle(dirty);
+	}
+
+	Desktop*	fDesktop;
+	Window*		fWindow;
+	int32		fTab;
+	int32		fButton;
+};
 
 
 // #pragma mark - XfwmDecorAddOn
@@ -27,6 +182,8 @@ XfwmDecorAddOn::XfwmDecorAddOn(image_id id, const char* name)
 	if (themeName.IFindFirst("xfwm-") == 0)
 		themeName.Remove(0, 5);
 	fTheme.Load(themeName.String());
+
+	fDesktopListeners.AddItem(new(std::nothrow) XfwmHoverListener());
 }
 
 
@@ -50,7 +207,9 @@ XfwmDecorAddOn::_AllocateDecorator(DesktopSettings& settings, BRect rect, Deskto
 XfwmDecorator::XfwmDecorator(DesktopSettings& settings, BRect frame, Desktop* desktop, const XfwmTheme* theme)
 	:
 	SATDecorator(settings, frame, desktop),
-	fTheme(theme)
+	fTheme(theme),
+	fHoverTab(-1),
+	fHoverButton(-1)
 {
 }
 
@@ -625,6 +784,38 @@ XfwmDecorator::RegionAt(BPoint where, int32& tab) const
 
 
 void
+XfwmDecorator::SetHover(int32 tab, int32 button, BRegion* dirty)
+{
+	if (tab == fHoverTab && button == fHoverButton)
+		return;
+
+	const int32 oldTab = fHoverTab, oldButton = fHoverButton;
+	fHoverTab = tab;
+	fHoverButton = button;
+
+	for (int32 pass = 0; pass < 2; pass++) {
+		Decorator::Tab* t = fTabList.ItemAt(pass == 0 ? oldTab : tab);
+		const int32 b = pass == 0 ? oldButton : button;
+		if (t == NULL || b < 0 || dirty == NULL)
+			continue;
+		switch (b) {
+			case kButtonClose:
+				dirty->Include(t->closeRect);
+				break;
+			case kButtonMaximize:
+				dirty->Include(t->zoomRect);
+				break;
+			case kButtonHide:
+				dirty->Include(t->minimizeRect);
+				break;
+			default:
+				break;
+		}
+	}
+}
+
+
+void
 XfwmDecorator::_Blit(const XfwmImage& image, BPoint at)
 {
 	if (!image.IsValid())
@@ -898,8 +1089,11 @@ XfwmDecorator::_DrawButton(Decorator::Tab* tab, int32 button, bool pressed, BRec
 	if (!rect.IsValid())
 		return;
 
-	const XfwmImage& image
-		= fTheme->Button(button, pressed ? kStatePressed : (_Active(tab) ? kStateActive : kStateInactive));
+	const bool hovered = fHoverTab >= 0 && fTabList.ItemAt(fHoverTab) == tab && fHoverButton == button;
+	const XfwmImage& image = fTheme->Button(button,
+		pressed ? kStatePressed
+			: (hovered ? (_Active(tab) ? kStatePrelight : kStatePrelightInactive)
+				: (_Active(tab) ? kStateActive : kStateInactive)));
 	if (!image.IsValid())
 		return;
 

@@ -320,6 +320,43 @@ XfwmImage::LoadFlipped(const XfwmImage& source)
 }
 
 
+bool
+XfwmImage::LoadBrightened(const XfwmImage& source, float amount)
+{
+	if (!source.IsValid())
+		return false;
+
+	UtilityBitmap* bitmap = new(std::nothrow) UtilityBitmap(BRect(0, 0, source.fWidth - 1, source.fHeight - 1),
+		B_RGBA32, 0);
+	if (bitmap == NULL)
+		return false;
+	if (!bitmap->IsValid()) {
+		delete bitmap;
+		return false;
+	}
+
+	for (int32 y = 0; y < source.fHeight; y++) {
+		const uint8* in = source.fBitmap->Bits() + y * source.fBitmap->BytesPerRow();
+		uint8* out = bitmap->Bits() + y * bitmap->BytesPerRow();
+		for (int32 x = 0; x < source.fWidth; x++) {
+			out[x * 4 + 0] = (uint8)(in[x * 4 + 0] + (255 - in[x * 4 + 0]) * amount);
+			out[x * 4 + 1] = (uint8)(in[x * 4 + 1] + (255 - in[x * 4 + 1]) * amount);
+			out[x * 4 + 2] = (uint8)(in[x * 4 + 2] + (255 - in[x * 4 + 2]) * amount);
+			out[x * 4 + 3] = in[x * 4 + 3];
+		}
+	}
+
+	if (fBitmap != NULL)
+		fBitmap->ReleaseReference();
+	fBitmap = bitmap;
+	fWidth = source.fWidth;
+	fHeight = source.fHeight;
+	fBounds = source.fBounds;
+	fRuns = source.fRuns;
+	return true;
+}
+
+
 void
 XfwmImage::IncludeIn(BRegion& region, int32 x, int32 y) const
 {
@@ -419,17 +456,26 @@ XfwmTheme::Load(const char* name)
 	}
 
 	static const char* const kButtonNames[kButtonCount] = {"close", "maximize", "hide", "shade"};
-	static const char* const kStateNames[kStateCount] = {"active", "inactive", "pressed"};
+	static const char* const kStateNames[kStateCount] = {"active", "inactive", "pressed", "prelight", "prelight-inactive"};
 	for (int32 button = 0; button < kButtonCount; button++) {
 		for (int32 state = 0; state < kStateCount; state++) {
 			BString path(folder);
 			path << "/" << kButtonNames[button] << "-" << kStateNames[state] << ".xpm";
-			if (!fButton[button][state].Load(path.String()) && state != kStateActive) {
+			if (!fButton[button][state].Load(path.String()) && state != kStateActive && state != kStatePrelight
+			&& state != kStatePrelightInactive) {
 				BString active(folder);
 				active << "/" << kButtonNames[button] << "-active.xpm";
 				fButton[button][state].Load(active.String());
 			}
 		}
+	}
+
+	// a button the theme has no hover picture for gets a lighter one
+	for (int32 button = 0; button < kButtonCount; button++) {
+		if (!fButton[button][kStatePrelight].IsValid())
+			fButton[button][kStatePrelight].LoadBrightened(fButton[button][kStateActive], 0.3f);
+		// a window that isn't the active one has its own, paler buttons
+		fButton[button][kStatePrelightInactive].LoadBrightened(fButton[button][kStateInactive], 0.3f);
 	}
 
 	// everything the decorator draws must exist
