@@ -777,11 +777,17 @@ XfwmImage::LoadFlipped(const XfwmImage& source)
 }
 
 
-// The hover look of a button the theme has no hover picture for. Only the background of the button changes, and
-// the glyph on it keeps its colours: a pixel changes in proportion to how close its brightness is to the typical
-// one of the picture. A dark button gets lighter, and a light one (where lighter would hardly show) darker.
+// The hover look of a button the theme has no hover picture for. A pixel changes in proportion to how close its
+// brightness is to the typical one of the button, so a glyph keeps its colours. A dark button gets lighter, and a
+// light one (where lighter would hardly show) darker.
+//
+// Which pixels are "the button": a round button is a picture of a rectangle, the ball on a background of the title
+// bar's own colours. Pictures are put at the same height as the bar's, so a pixel that is the colour of the bar's
+// pixel in the same row is background. If what is left is a dense shape (a ball, a raised square) only that shape
+// changes, so the effect is as round or as square as the button. If it is sparse (a glyph on the bar) the whole
+// rectangle changes, as a box.
 bool
-XfwmImage::LoadBrightened(const XfwmImage& source, float amount)
+XfwmImage::LoadBrightened(const XfwmImage& source, float amount, const XfwmImage& bar)
 {
 	if (!source.IsValid())
 		return false;
@@ -795,19 +801,74 @@ XfwmImage::LoadBrightened(const XfwmImage& source, float amount)
 		return false;
 	}
 
-	// the average brightness of the opaque pixels
-	float total = 0;
-	int32 count = 0;
+	// how far each pixel is from the bar's pixel at the same place (1: certainly the button, 0: background)
+	std::vector<float> face((size_t)source.fWidth * source.fHeight, 0.0f);
+	int32 faceCount = 0, opaqueCount = 0, minX = source.fWidth, minY = source.fHeight, maxX = -1, maxY = -1;
+	if (bar.IsValid()) {
+		for (int32 y = 0; y < source.fHeight; y++) {
+			const uint8* in = source.fBitmap->Bits() + y * source.fBitmap->BytesPerRow();
+			const int32 barRow = std::min(y, bar.fHeight - 1);
+			const uint8* barBits = bar.fBitmap->Bits() + barRow * bar.fBitmap->BytesPerRow();
+			for (int32 x = 0; x < source.fWidth; x++) {
+				if (in[x * 4 + 3] < 128)
+					continue;
+				opaqueCount++;
+				const uint8* behind = barBits + (x % bar.fWidth) * 4;
+				float distance;
+				if (behind[3] < 128) {
+					distance = 255.0f;
+				} else {
+					distance = std::max(std::max(fabsf((float)in[x * 4 + 0] - behind[0]),
+						fabsf((float)in[x * 4 + 1] - behind[1])), fabsf((float)in[x * 4 + 2] - behind[2]));
+				}
+				// the background of a button picture is not always exactly the bar's: the ends of the row are the
+				// background too, where they agree with each other
+				const uint8* first = in;
+				const uint8* last = in + (source.fWidth - 1) * 4;
+				if (first[3] >= 128 && last[3] >= 128
+					&& std::max(std::max(abs(first[0] - last[0]), abs(first[1] - last[1])), abs(first[2] - last[2]))
+						< 24) {
+					float ends = std::max(std::max(fabsf((float)in[x * 4 + 0] - first[0]),
+						fabsf((float)in[x * 4 + 1] - first[1])), fabsf((float)in[x * 4 + 2] - first[2]));
+					distance = std::min(distance, ends);
+				}
+				float weight = std::min(1.0f, std::max(0.0f, (distance - 14.0f) / 36.0f));
+				face[(size_t)y * source.fWidth + x] = weight;
+				if (weight > 0.5f) {
+					faceCount++;
+					minX = std::min(minX, x);
+					maxX = std::max(maxX, x);
+					minY = std::min(minY, y);
+					maxY = std::max(maxY, y);
+				}
+			}
+		}
+	}
+	bool shaped = false;
+	if (faceCount > 0) {
+		float area = (float)(maxX - minX + 1) * (maxY - minY + 1);
+		// a shape: dense in its box, and a real part of the picture (a glyph on the bar is neither)
+		shaped = faceCount / area >= 0.45f && faceCount >= 0.3f * opaqueCount && faceCount >= 20;
+	}
+
+	// the typical brightness of what changes: the middle one, so a glyph or an outline doesn't pull it away from the
+	// body of the button
+	std::vector<float> brightnesses;
 	for (int32 y = 0; y < source.fHeight; y++) {
 		const uint8* in = source.fBitmap->Bits() + y * source.fBitmap->BytesPerRow();
 		for (int32 x = 0; x < source.fWidth; x++) {
 			if (in[x * 4 + 3] < 128)
 				continue;
-			total += 0.114f * in[x * 4 + 0] + 0.587f * in[x * 4 + 1] + 0.299f * in[x * 4 + 2];
-			count++;
+			if (shaped && face[(size_t)y * source.fWidth + x] <= 0.5f)
+				continue;
+			brightnesses.push_back(0.114f * in[x * 4 + 0] + 0.587f * in[x * 4 + 1] + 0.299f * in[x * 4 + 2]);
 		}
 	}
-	const float mean = count > 0 ? total / count : 128.0f;
+	float mean = 128.0f;
+	if (!brightnesses.empty()) {
+		std::sort(brightnesses.begin(), brightnesses.end());
+		mean = brightnesses[brightnesses.size() / 2];
+	}
 	const bool darken = mean > 170.0f;
 
 	for (int32 y = 0; y < source.fHeight; y++) {
@@ -815,12 +876,14 @@ XfwmImage::LoadBrightened(const XfwmImage& source, float amount)
 		uint8* out = bitmap->Bits() + y * bitmap->BytesPerRow();
 		for (int32 x = 0; x < source.fWidth; x++) {
 			float brightness = 0.114f * in[x * 4 + 0] + 0.587f * in[x * 4 + 1] + 0.299f * in[x * 4 + 2];
-			// 1 for a pixel as bright as the picture's typical one, falling to 0 for the glyph's black or white
+			// 1 for a pixel as bright as the typical one, falling to 0 for the glyph's black or white
 			float weight = 1.0f - std::min(1.0f, fabsf(brightness - mean) / 70.0f);
+			if (shaped)
+				weight *= face[(size_t)y * source.fWidth + x];
 			float k = amount * weight;
 			for (int channel = 0; channel < 3; channel++) {
 				float value = in[x * 4 + channel];
-				value = darken ? value * (1.0f - k * 0.6f) : value + (255.0f - value) * k;
+				value = darken ? value * (1.0f - k * 0.7f) : value + (255.0f - value) * k;
 				out[x * 4 + channel] = (uint8)value;
 			}
 			out[x * 4 + 3] = in[x * 4 + 3];
@@ -954,9 +1017,9 @@ XfwmTheme::Load(const char* name)
 	// a button the theme has no hover picture for gets a lighter one
 	for (int32 button = 0; button < kButtonCount; button++) {
 		if (!fButton[button][kStatePrelight].IsValid())
-			fButton[button][kStatePrelight].LoadBrightened(fButton[button][kStateActive], 0.4f);
+			fButton[button][kStatePrelight].LoadBrightened(fButton[button][kStateActive], 0.4f, fTitle[2][0]);
 		// a window that isn't the active one has its own, paler buttons
-		fButton[button][kStatePrelightInactive].LoadBrightened(fButton[button][kStateInactive], 0.4f);
+		fButton[button][kStatePrelightInactive].LoadBrightened(fButton[button][kStateInactive], 0.4f, fTitle[2][1]);
 	}
 
 	// everything the decorator draws must exist

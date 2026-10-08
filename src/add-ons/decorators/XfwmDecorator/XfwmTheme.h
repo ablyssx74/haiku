@@ -27,7 +27,7 @@ public:
 			bool				LoadFlipped(const XfwmImage& source);
 			// a lighter (or, on a light button, darker) copy of another picture, background only: the hover look of a
 			// button the theme has no such picture for
-			bool				LoadBrightened(const XfwmImage& source, float amount);
+			bool				LoadBrightened(const XfwmImage& source, float amount, const XfwmImage& bar);
 			bool				IsValid() const { return fBitmap != NULL; }
 
 			ServerBitmap*		Bitmap() const { return fBitmap; }
