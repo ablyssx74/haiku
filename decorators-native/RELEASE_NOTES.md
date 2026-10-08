@@ -1,9 +1,9 @@
-# xfwm_decorators 1.0.5
+# xfwm_decorators 1.0.6
 
 Window decorators for Haiku made from xfwm4 themes. One decorator draws any xfwm4 theme, and the package carries 93 of them. Pick one in **Appearance > Decorator** (entries named "xfwm4: <theme>"), for example `xfwm4: b6`.
 
 ## Install
-Two packages are attached: `xfwm_decorators-1.0.5-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.5-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
+Two packages are attached: `xfwm_decorators-1.0.6-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.6-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
 
 ## Hover effect (on by default)
 The close, zoom and minimize buttons light up under the pointer. app_server tells a decorator nothing while the pointer only moves over it, so the effect is done from outside and is still young: fast pointer movement over the buttons has occasionally been seen to misdraw on real hardware, and in one or two themes the minimize button stopped answering after its window had been minimized and brought back. If you see either, turn it off:
@@ -14,7 +14,7 @@ xfwm-hover on        turn it back on
 xfwm-hover status
 ```
 
-It takes effect within a second, with no restart. Themes that ship hover pictures (`default-4.6`, `default-4.8`) use them; for the others the button's own picture is tinted: its background gets lighter (darker on a light button) while the glyph keeps its colors.
+It takes effect within a second, with no restart. Themes that ship hover pictures (`default-4.6`, `default-4.8`) use them; for the others the button's own picture is tinted, and the tint follows the button's shape: a round button gets a round highlight and a square one a square highlight, while a button that is only a symbol on the title bar gets the whole box. A dark button gets lighter and a light one darker; the symbol keeps its colors. (`galaxy`'s round buttons still get a square highlight: their pictures have a shadow behind them that can't be told from the button.)
 
 ## Changes since 1.0.2
 - **Ghost pieces of the title bar fixed.** After a window was made narrower, a stale copy of the right end of its title bar could stay on the desktop, up to 70 pixels past the window (seen on `retro`, and cleared only by closing the window). The area a decorator claims was larger than the bar it draws. It is now exactly the bar, and what the bar covered is remembered across moves of the window.
