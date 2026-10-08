@@ -349,6 +349,9 @@ XfwmTheme::XfwmTheme()
 	fOffsetActive(0),
 	fOffsetInactive(0),
 	fAlignment(0),
+	fFullWidth(true),
+	fHasActiveText(false),
+	fHasInactiveText(false),
 	fButtonOffset(0),
 	fButtonSpacing(0),
 	fButtonLayout("O|HMC")
@@ -479,8 +482,53 @@ XfwmTheme::Load(const char* name)
 		fFill.alpha = 255;
 	}
 
+	if (!fHasActiveText)
+		fActiveText = _ReadableOn(fTitle[2][0], true);
+	if (!fHasInactiveText)
+		fInactiveText = _ReadableOn(fTitle[2][1], false);
+
 	fValid = true;
 	return true;
+}
+
+
+rgb_color
+XfwmTheme::_ReadableOn(const XfwmImage& bar, bool active) const
+{
+	// the average colour of the opaque pixels of the bar behind the title
+	uint64 red = 0, green = 0, blue = 0, count = 0;
+	ServerBitmap* bitmap = bar.Bitmap();
+	if (bitmap != NULL) {
+		for (int32 y = 0; y < bar.Height(); y++) {
+			const uint8* pixel = bitmap->Bits() + y * bitmap->BytesPerRow();
+			for (int32 x = 0; x < bar.Width(); x++, pixel += 4) {
+				if (pixel[3] < 128)
+					continue;
+				blue += pixel[0];
+				green += pixel[1];
+				red += pixel[2];
+				count++;
+			}
+		}
+	}
+
+	bool dark = true;
+	if (count > 0) {
+		float luminance = (0.2126f * red + 0.7152f * green + 0.0722f * blue) / count;
+		dark = luminance < 140.0f;
+	}
+
+	rgb_color color;
+	if (dark) {
+		// light text; the inactive window's is a little dimmer
+		color.red = active ? 255 : 189;
+		color.green = active ? 255 : 190;
+		color.blue = active ? 255 : 189;
+	} else {
+		color.red = color.green = color.blue = active ? 0 : 64;
+	}
+	color.alpha = 255;
+	return color;
 }
 
 
@@ -526,16 +574,20 @@ XfwmTheme::_ReadThemerc(const char* path)
 			fActiveText.red = r;
 			fActiveText.green = g;
 			fActiveText.blue = b;
+			fHasActiveText = true;
 		} else if (strcmp(key, "inactive_text_color") == 0 && ParseHexColor(value, r, g, b)) {
 			fInactiveText.red = r;
 			fInactiveText.green = g;
 			fInactiveText.blue = b;
+			fHasInactiveText = true;
 		} else if (strcmp(key, "title_vertical_offset_active") == 0)
 			fOffsetActive = atoi(value);
 		else if (strcmp(key, "title_vertical_offset_inactive") == 0)
 			fOffsetInactive = atoi(value);
 		else if (strcmp(key, "title_alignment") == 0)
 			fAlignment = strcmp(value, "center") == 0 ? 1 : (strcmp(value, "right") == 0 ? 2 : 0);
+		else if (strcmp(key, "full_width_title") == 0)
+			fFullWidth = strcmp(value, "false") != 0 && strcmp(value, "0") != 0;
 		else if (strcmp(key, "button_layout") == 0)
 			fButtonLayout = value;
 		else if (strcmp(key, "button_offset") == 0)

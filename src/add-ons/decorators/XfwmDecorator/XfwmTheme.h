@@ -106,6 +106,9 @@ public:
 			rgb_color			TextColor(bool active) const { return active ? fActiveText : fInactiveText; }
 			int32				TitleOffset(bool active) const { return active ? fOffsetActive : fOffsetInactive; }
 			bool				TitleAlignLeft() const { return fAlignment == 0; }
+			int32				TitleAlignment() const { return fAlignment; }
+			// the title bar is one tab across the whole window (xfwm4's default), not a tab and a filler
+			bool				FullWidthTitle() const { return fFullWidth; }
 			bool				ButtonsOnLeft(int32 button) const;
 			int32				ButtonOffset() const { return fButtonOffset; }
 			int32				ButtonSpacing() const { return fButtonSpacing; }
@@ -113,6 +116,8 @@ public:
 
 private:
 			void				_ReadThemerc(const char* path);
+			// the title text colour for a theme that names none: light on a dark bar, dark on a light one
+			rgb_color			_ReadableOn(const XfwmImage& bar, bool active) const;
 			bool				_FindFolder(const char* name, BString& path) const;
 
 			bool				fValid;
@@ -141,6 +146,9 @@ private:
 			int32				fOffsetActive;
 			int32				fOffsetInactive;
 			int32				fAlignment;		// 0 left, 1 center, 2 right
+			bool				fFullWidth;
+			bool				fHasActiveText;
+			bool				fHasInactiveText;
 			int32				fButtonOffset;
 			int32				fButtonSpacing;
 			BString				fButtonLayout;

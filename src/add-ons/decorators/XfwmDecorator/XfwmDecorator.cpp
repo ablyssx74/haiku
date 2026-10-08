@@ -231,9 +231,17 @@ XfwmDecorator::_ComputeBar(BarLayout& bar) const
 		sum += natural[i];
 	}
 
+	// a theme with a full width title has one tab across the whole bar: any room left is shared out
+	std::vector<int32> extra(count, 0);
+	if (fTheme->FullWidthTitle() && sum < available) {
+		int32 spare = available - sum;
+		for (int32 i = 0; i < count; i++)
+			extra[i] = spare / count + (i == count - 1 ? spare % count : 0);
+	}
+
 	int32 x = bar.x0;
 	for (int32 i = 0; i < count; i++) {
-		int32 width = natural[i];
+		int32 width = natural[i] + extra[i];
 		if (sum > available && sum > 0) {
 			// too many or too long: every tab gets a share of the room, but keeps its edges
 			width = std::max(fixed[i], (int32)((int64)available * natural[i] / sum));
@@ -246,10 +254,73 @@ XfwmDecorator::_ComputeBar(BarLayout& bar) const
 		slot.width = width;
 		slot.textLeft = x + (i == 0 ? capWidth : 0) + before;
 		slot.textWidth = std::max((int32)0, width - fixed[i]);
+		slot.fillLeft = slot.textLeft;
+		slot.fillWidth = slot.textWidth;
 		bar.slots.push_back(slot);
 		x += width;
 	}
 	bar.restStart = x;
+
+	// the title text goes between the buttons, left side and right side alike
+	int32 leftEnd, rightStart;
+	_ButtonExtents(leftEnd, rightStart);
+	for (size_t i = 0; i < bar.slots.size(); i++) {
+		TabSlot& slot = bar.slots[i];
+		int32 textLeft = slot.textLeft, textRight = slot.textLeft + slot.textWidth;
+		if (slot.x < leftEnd && textLeft < leftEnd)
+			textLeft = leftEnd;
+		if (slot.x + slot.width > rightStart && textRight > rightStart)
+			textRight = rightStart;
+		slot.textLeft = textLeft;
+		slot.textWidth = std::max((int32)0, textRight - textLeft);
+	}
+}
+
+
+void
+XfwmDecorator::_ButtonExtents(int32& leftEnd, int32& rightStart) const
+{
+	leftEnd = (int32)fFrame.left;
+	rightStart = (int32)fFrame.right + 1;
+	if (fTopTab == NULL)
+		return;
+
+	const BString layout = fTheme->ButtonLayout();
+	int32 divider = layout.FindFirst('|');
+	if (divider < 0)
+		divider = layout.Length();
+
+	int32 leftCount = 0, rightCount = 0;
+	for (int32 i = 0; i < layout.Length(); i++) {
+		bool present = false;
+		switch (layout[i]) {
+			case 'C':
+				present = (fTopTab->flags & B_NOT_CLOSABLE) == 0;
+				break;
+			case 'M':
+				present = (fTopTab->flags & B_NOT_ZOOMABLE) == 0;
+				break;
+			case 'H':
+				present = (fTopTab->flags & B_NOT_MINIMIZABLE) == 0;
+				break;
+			default:
+				break;
+		}
+		if (!present)
+			continue;
+		if (i < divider)
+			leftCount++;
+		else if (i > divider)
+			rightCount++;
+	}
+
+	const int32 width = fTheme->ButtonWidth();
+	const int32 spacing = fTheme->ButtonSpacing();
+	const int32 offset = fTheme->ButtonOffset();
+	if (leftCount > 0)
+		leftEnd = (int32)fFrame.left + offset + leftCount * (width + spacing) - spacing;
+	if (rightCount > 0)
+		rightStart = (int32)fFrame.right - offset - (rightCount - 1) * (width + spacing) - width + 1;
 }
 
 
@@ -448,7 +519,7 @@ XfwmDecorator::_IncludeTab(BRegion& region, Decorator::Tab* tab, const BarLayout
 
 	const XfwmImage& middle = fTheme->Title(2, active);
 	if (middle.IsValid()) {
-		for (int32 tx = slot.textLeft; tx < slot.textLeft + slot.textWidth; tx += middle.Width())
+		for (int32 tx = slot.fillLeft; tx < slot.fillLeft + slot.fillWidth; tx += middle.Width())
 			middle.IncludeIn(region, tx, bar.y);
 	}
 	fTheme->Title(3, active).IncludeIn(region, slot.x + slot.width - fTheme->Title(3, active).Width(), bar.y);
@@ -752,8 +823,8 @@ XfwmDecorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 	_Blit(fTheme->Title(1, active), BPoint(x, bar.y));
 
 	const XfwmImage& middle = fTheme->Title(2, active);
-	if (slot.textWidth > 0) {
-		_BlitTiled(middle, BRect(slot.textLeft, bar.y, slot.textLeft + slot.textWidth - 1,
+	if (slot.fillWidth > 0) {
+		_BlitTiled(middle, BRect(slot.fillLeft, bar.y, slot.fillLeft + slot.fillWidth - 1,
 			bar.y + middle.Height() - 1), true);
 	}
 	_Blit(fTheme->Title(3, active), BPoint(slot.x + slot.width - fTheme->Title(3, active).Width(), bar.y));
@@ -789,7 +860,18 @@ XfwmDecorator::_DrawTitle(Decorator::Tab* tab, BRect)
 	fDrawingEngine->SetFont(fDrawState.Font());
 
 	float textHeight = fontHeight.ascent + fontHeight.descent;
-	BPoint where(bar.slots[index].textLeft,
+	// where the title sits in the room it has, as the theme's title_alignment says
+	float room = bar.slots[index].textWidth;
+	float used = fDrawState.Font().StringWidth(tab->truncatedTitle.String(), tab->truncatedTitleLength);
+	float shift = 0;
+	if (fTheme->TitleAlignment() == 1)
+		shift = (room - used) / 2;
+	else if (fTheme->TitleAlignment() == 2)
+		shift = room - used;
+	if (shift < 0)
+		shift = 0;
+
+	BPoint where(bar.slots[index].textLeft + floorf(shift),
 		floorf(bar.y + (fTheme->TitleHeight() - textHeight) / 2 + fontHeight.ascent
 			+ fTheme->TitleOffset(active) + 0.5f));
 	fDrawingEngine->DrawString(tab->truncatedTitle.String(), tab->truncatedTitleLength, where);

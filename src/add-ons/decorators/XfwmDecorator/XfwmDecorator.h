@@ -72,8 +72,10 @@ private:
 			struct TabSlot {
 				int32	x;				// left end of the tab
 				int32	width;
-				int32	textLeft;
+				int32	textLeft;		// where the title text may go: between the buttons
 				int32	textWidth;
+				int32	fillLeft;		// the stretched middle of the tab, which the buttons sit on
+				int32	fillWidth;
 			};
 
 			struct BarLayout {
@@ -92,6 +94,8 @@ private:
 			void				_ComputeBar(BarLayout& bar) const;
 			void				_LayoutTabs();
 			void				_LayoutButtons(Decorator::Tab* tab, const BarLayout& bar);
+			// where the buttons of the front tab take over the bar: the title text goes between them
+			void				_ButtonExtents(int32& leftEnd, int32& rightStart) const;
 			void				_DrawBarEnd(const BarLayout& bar);
 			void				_IncludeTab(BRegion& region, Decorator::Tab* tab, const BarLayout& bar) const;
 			int32				_IndexOf(Decorator::Tab* tab) const;
