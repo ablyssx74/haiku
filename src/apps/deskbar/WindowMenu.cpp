@@ -34,6 +34,7 @@ All rights reserved.
 */
 
 
+#include "SnakeMenuItem.h"
 #include "WindowMenu.h"
 
 #include <Catalog.h>
@@ -184,7 +185,7 @@ TWindowMenu::AttachedToWindow()
 		// Add a 'Quit application' item if no windows are open
 		// unless the application is Tracker
 		if (fApplicationSignature.ICompare(kTrackerSignature) != 0) {
-			AddSeparatorItem();
+			AddItem(new SnakeSeparatorItem());
 			AddItem(new TShowHideMenuItem(B_TRANSLATE("Quit application"),
 				fTeam, B_QUIT_REQUESTED));
 		}
@@ -207,7 +208,7 @@ TWindowMenu::AttachedToWindow()
 				show->SetEnabled(false);
 
 			if (!parentMenuItems)
-				AddSeparatorItem();
+				AddItem(new SnakeSeparatorItem());
 
 			AddItem(hide);
 			AddItem(show);

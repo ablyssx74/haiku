@@ -4464,7 +4464,7 @@ RunMimeTypeDestinationMenu(const char* actionText, const BStringList* types,
 		menu->AddItem(new SnakeMenuItem(labelText.String(), 0));
 	}
 
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 	menu->AddItem(new SnakeMenuItem(B_TRANSLATE("Cancel"), 0));
 
 	int32 result = -1;

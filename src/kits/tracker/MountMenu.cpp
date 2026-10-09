@@ -223,7 +223,7 @@ MountMenu::AddDynamicItem(add_state)
 	}
 #endif	// SHOW_NETWORK_VOLUMES
 
-	AddSeparatorItem();
+	AddItem(new SnakeSeparatorItem());
 
 	BMenuItem* mountAll = new SnakeMenuItem(B_TRANSLATE("Mount all"),
 		new BMessage(kMountAllNow));

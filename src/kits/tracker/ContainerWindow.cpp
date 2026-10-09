@@ -1723,17 +1723,17 @@ BContainerWindow::AddFileMenu(BMenu* menu)
 	if (TargetModel()->IsTrash()) {
 		// add as first item in menu
 		menu->AddItem(Shortcuts()->EmptyTrashItem());
-		menu->AddItem(new BSeparatorItem());
+		menu->AddItem(new SnakeSeparatorItem());
 	} else if (TargetModel()->IsPrintersDir()) {
 		// add as first item in menu
 		menu->AddItem(Shortcuts()->AddPrinterItem());
-		menu->AddItem(new BSeparatorItem());
+		menu->AddItem(new SnakeSeparatorItem());
 	}
 
 	menu->AddItem(Shortcuts()->FindItem());
 	if (ShouldHaveNewFolderItem())
 		menu->AddItem(Shortcuts()->NewFolderItem());
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(Shortcuts()->OpenItem());
 	// "Edit query" and "Open with..." inserted here,
@@ -1759,7 +1759,7 @@ BContainerWindow::AddFileMenu(BMenu* menu)
 		}
 	}
 
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	// The "Move To", "Copy To", "Create Link" menus are inserted here,
 	// have a look at UpdateMenu() and SetupMoveCopyMenus().
@@ -1768,7 +1768,7 @@ BContainerWindow::AddFileMenu(BMenu* menu)
 		menu->AddItem(Shortcuts()->CutItem());
 		menu->AddItem(Shortcuts()->CopyItem());
 		menu->AddItem(Shortcuts()->PasteItem());
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 	}
 
 	if (!TargetModel()->IsRoot())
@@ -1786,7 +1786,7 @@ BContainerWindow::AddWindowMenu(BMenu* menu)
 	BMenuItem* item = new SnakeMenuItem(B_TRANSLATE("List view"), new BMessage(kListMode), '3');
 	item->SetTarget(PoseView());
 	menu->AddItem(item);
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(Shortcuts()->ResizeToFitItem());
 	// "Arrange by >" menu inserted here,
@@ -1797,7 +1797,7 @@ BContainerWindow::AddWindowMenu(BMenu* menu)
 	menu->AddItem(Shortcuts()->OpenParentItem());
 	menu->AddItem(Shortcuts()->CloseItem());
 	menu->AddItem(Shortcuts()->CloseAllInWorkspaceItem());
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	item = new SnakeMenuItem(B_TRANSLATE("Preferences" B_UTF8_ELLIPSIS),
 		new BMessage(kShowSettingsWindow), ',');
@@ -1834,7 +1834,7 @@ BContainerWindow::AddIconSizeMenu(BMenu* menu)
 		iconSizeMenu->AddItem(item);
 	}
 
-	iconSizeMenu->AddSeparatorItem();
+	iconSizeMenu->AddItem(new SnakeSeparatorItem());
 
 	message = new BMessage(kIconMode);
 	message->AddInt32("scale", 0);
@@ -1995,7 +1995,7 @@ BContainerWindow::SetupNavigationMenu(BMenu* parent, const entry_ref* ref)
 	fNavigationItem->SetEntry(&entry);
 
 	parent->AddItem(fNavigationItem, 0);
-	parent->AddItem(new BSeparatorItem(), 1);
+	parent->AddItem(new SnakeSeparatorItem(), 1);
 
 	BMessage* message = new BMessage(B_REFS_RECEIVED);
 	message->AddRef("refs", ref);
@@ -2182,13 +2182,13 @@ BContainerWindow::SetupMountMenu(BMenu* parent, MenuContext context, const entry
 	if (model.IsDesktop()
 		|| (model.IsRoot() && (context == kWindowPopUpContext || context == kPosePopUpContext))) {
 		// No "Unmount", add separator item only
-		parent->AddItem(new BSeparatorItem(), mountIndex + 1);
+		parent->AddItem(new SnakeSeparatorItem(), mountIndex + 1);
 	} else {
 		// Add "Unmount" and separator
 		BMenuItem* unmountItem = Shortcuts()->UnmountItem();
 		parent->AddItem(unmountItem, mountIndex + 1);
 		Shortcuts()->UpdateUnmountItem(unmountItem);
-		parent->AddItem(new BSeparatorItem(), mountIndex + 2);
+		parent->AddItem(new SnakeSeparatorItem(), mountIndex + 2);
 	}
 }
 
@@ -2290,7 +2290,7 @@ BContainerWindow::PopulateMoveCopyNavMenu(BNavMenu* navMenu, uint32 what, const 
 		navMenu->AddNavDir(&model, what, this, true);
 	}
 
-	navMenu->AddSeparatorItem();
+	navMenu->AddItem(new SnakeSeparatorItem());
 
 	// either add all mounted volumes (for copy), or all the top-level
 	// directories from the same device (for move)
@@ -2367,7 +2367,7 @@ BContainerWindow::SetupMoveCopyMenus(BMenu* parent, const entry_ref* ref)
 	parent->AddItem(fMoveToItem, index++);
 	parent->AddItem(fCopyToItem, index++);
 	parent->AddItem(fCreateLinkItem, index++);
-	parent->AddItem(new BSeparatorItem(), index);
+	parent->AddItem(new SnakeSeparatorItem(), index);
 
 	// Set the "Create Link" item label here so it
 	// appears correctly when menus are disabled, too.
@@ -2564,7 +2564,7 @@ BContainerWindow::AddPoseContextMenu(BMenu* menu)
 		menu->AddItem(Shortcuts()->DuplicateItem());
 		menu->AddItem(Shortcuts()->MoveToTrashItem());
 	}
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	// The "Move To", "Copy To", "Create Link" menus are inserted here,
 	// have a look at UpdateMenu() and SetupMoveCopyMenus().
@@ -2574,7 +2574,7 @@ BContainerWindow::AddPoseContextMenu(BMenu* menu)
 		menu->AddItem(Shortcuts()->CutItem());
 		menu->AddItem(Shortcuts()->CopyItem());
 		menu->AddItem(Shortcuts()->PasteItem());
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 	}
 
 	menu->AddItem(Shortcuts()->IdentifyItem());
@@ -2589,7 +2589,7 @@ BContainerWindow::AddVolumeContextMenu(BMenu* menu)
 	menu->AddItem(Shortcuts()->OpenItem());
 	menu->AddItem(Shortcuts()->GetInfoItem());
 	menu->AddItem(Shortcuts()->EditNameItem());
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	// "Mount >", "Unmount" and a separator are inserted here,
 	// see UpdateMenu() and SetupMountMenu()
@@ -2608,23 +2608,23 @@ BContainerWindow::AddWindowContextMenu(BMenu* menu)
 
 	if (TargetModel()->IsTrash()) {
 		menu->AddItem(Shortcuts()->EmptyTrashItem());
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 	}
 
 	if (ShouldHaveNewFolderItem()) {
 		menu->AddItem(Shortcuts()->NewFolderItem());
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 	}
 
 	if (PoseView()->IsDesktopView()) {
 		AddIconSizeMenu(menu);
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 	}
 
 	if (!(TargetModel()->IsPrintersDir() || TargetModel()->IsRoot()
 			|| TargetModel()->IsTrash() || TargetModel()->InTrash())) {
 		menu->AddItem(Shortcuts()->PasteItem());
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 	}
 
 	if (PoseView()->IsDesktopView()) // "Clean up" on Desktop
@@ -2635,7 +2635,7 @@ BContainerWindow::AddWindowContextMenu(BMenu* menu)
 	menu->AddItem(Shortcuts()->SelectAllItem());
 	if (!PoseView()->IsDesktopView())
 		menu->AddItem(Shortcuts()->OpenParentItem());
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	// "Mount >" menu and "Unmount" are inserted here,
 	// see UpdateMenu() and SetupMountMenu().
@@ -2644,7 +2644,7 @@ BContainerWindow::AddWindowContextMenu(BMenu* menu)
 		menu->AddItem(new SnakeMenuItem(new SnakeMenu(Shortcuts()->AddOnsLabel())));
 
 #if DEBUG
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 	BMenuItem* testing = new SnakeMenuItem("Test icon cache",
 		new BMessage(kTestIconCache));
 	menu->AddItem(testing);
@@ -2659,7 +2659,7 @@ BContainerWindow::AddDropContextMenu(BMenu* menu)
 	menu->AddItem(new SnakeMenuItem(B_TRANSLATE("Move here"), new BMessage(kMoveSelectionTo)));
 	menu->AddItem(new SnakeMenuItem(B_TRANSLATE("Copy here"), new BMessage(kCopySelectionTo)));
 	menu->AddItem(new SnakeMenuItem(B_TRANSLATE("Create link here"), new BMessage(kCreateLink)));
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 	menu->AddItem(new SnakeMenuItem(B_TRANSLATE("Cancel"), new BMessage(kCancelButton)));
 }
 
@@ -2826,7 +2826,7 @@ BContainerWindow::BuildAddOnsMenu(BMenu* parent)
 		addOnsMenu->AddItem(primaryList.ItemAt(index));
 
 	if (count > 0)
-		addOnsMenu->AddSeparatorItem();
+		addOnsMenu->AddItem(new SnakeSeparatorItem());
 
 	count = secondaryList.CountItems();
 	for (int32 index = 0; index < count; index++)
@@ -3264,7 +3264,7 @@ BContainerWindow::NewAttributesMenu(BMenu* menu)
 	menu->AddItem(item = new SnakeMenuItem(B_TRANSLATE("Paste layout"),
 		new BMessage(kPasteAttributes)));
 	item->SetTarget(PoseView());
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(NewAttributeMenuItem(B_TRANSLATE("Name"),
 		kAttrStatName, B_STRING_TYPE, 145, B_ALIGN_LEFT, true, true));
@@ -3488,10 +3488,10 @@ BContainerWindow::NewArrangeByMenu()
 		item->Message()->what = kArrangeBy;
 		menu->AddItem(item);
 	}
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(Shortcuts()->ReverseOrderItem());
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(Shortcuts()->CleanupItem());
 
@@ -3565,7 +3565,7 @@ BContainerWindow::AddMimeTypesToMenu(BMenu* menu)
 	// Add a separator item if there is none yet
 	if (start > 0
 		&& dynamic_cast<BSeparatorItem*>(menu->ItemAt(start - 1)) == NULL)
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 
 	// Add MIME type in case we're a default query type window
 	BPath path;

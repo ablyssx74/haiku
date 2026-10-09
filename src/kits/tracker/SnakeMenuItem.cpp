@@ -6,6 +6,7 @@
 #include <Bitmap.h>
 #include <ControlLook.h>
 #include <InterfaceDefs.h>
+#include <GradientLinear.h>
 #include <Menu.h>
 #include <MenuPrivate.h>
 #include <Shape.h>
@@ -85,7 +86,7 @@ SnakeMenuItem::Draw()
 	MenuPrivate privateAccessor(menu);
 	const menu_layout layout = privateAccessor.Layout();
 	if (layout != B_ITEMS_IN_ROW && IsMarked())
-		_DrawMark(text);
+		_DrawMark(text, active);
 
 	if (layout == B_ITEMS_IN_COLUMN) {
 		uint32 modifiers;
@@ -106,6 +107,59 @@ SnakeMenuItem::Draw()
 }
 
 
+SnakeSeparatorItem::SnakeSeparatorItem()
+	:
+	BSeparatorItem()
+{
+}
+
+
+void
+SnakeSeparatorItem::Draw()
+{
+	BMenu* menu = Menu();
+	if (menu == NULL)
+		return;
+	MenuPrivate privateAccessor(menu);
+	if (privateAccessor.Layout() == B_ITEMS_IN_ROW) {
+		BSeparatorItem::Draw();
+		return;
+	}
+
+	const BRect frame = Frame();
+	// (the menu's own low colour is not the colour it is drawn on in every menu: the Desktop's)
+	const rgb_color low = ui_color(B_MENU_BACKGROUND_COLOR);
+	const bool dark = (low.red * 299 + low.green * 587 + low.blue * 114) / 1000 < 128;
+	const rgb_color accent = SnakeSelector::Accent();
+	// a mid tone for the line, with the accent in it
+	const rgb_color grey = tint_color(low, dark ? 1.9f : 0.6f);
+	rgb_color line = make_color((uint8)(grey.red + (accent.red - grey.red) * 0.4f),
+		(uint8)(grey.green + (accent.green - grey.green) * 0.4f),
+		(uint8)(grey.blue + (accent.blue - grey.blue) * 0.4f));
+
+	const float y = frame.top + floorf(frame.Height() / 2);
+	BRect pill(frame.left + 10, y, frame.right - 10, y + 1.5f);
+	if (pill.Width() < 12)
+		return;
+
+	// fading out at both ends
+	BGradientLinear gradient(pill.LeftTop(), pill.RightTop());
+	rgb_color clear = line;
+	clear.alpha = 0;
+	line.alpha = 200;
+	gradient.AddColor(clear, 0);
+	gradient.AddColor(line, 70);
+	gradient.AddColor(line, 185);
+	gradient.AddColor(clear, 255);
+
+	menu->PushState();
+	menu->SetDrawingMode(B_OP_ALPHA);
+	menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+	menu->FillRoundRect(pill, 0.75f, 0.75f, gradient);
+	menu->PopState();
+}
+
+
 void
 SnakeMenuItem::Highlight(bool highlight)
 {
@@ -121,7 +175,7 @@ SnakeMenuItem::Highlight(bool highlight)
 
 
 void
-SnakeMenuItem::_DrawMark(rgb_color color)
+SnakeMenuItem::_DrawMark(rgb_color color, bool active)
 {
 	BMenu* menu = Menu();
 	menu->PushState();
@@ -133,23 +187,29 @@ SnakeMenuItem::_DrawMark(rgb_color color)
 	r.right = r.left + leftMargin - gap;
 	r.left += gap / 3;
 
-	BPoint center(floorf((r.left + r.right) / 2.0), floorf((r.top + r.bottom) / 2.0));
+	const BPoint center(floorf((r.left + r.right) / 2.0), floorf((r.top + r.bottom) / 2.0));
+	const float size = floorf(std::min(r.Height() - 4, r.Width()) * 0.78f);
 
-	float size = std::min(r.Height() - 2, r.Width());
-
-	BShape arrowShape;
-	center.x += 0.5;
-	center.y += 0.5;
-	size *= 0.3;
-	arrowShape.MoveTo(BPoint(center.x - size, center.y - size * 0.25));
-	arrowShape.LineTo(BPoint(center.x - size * 0.25, center.y + size));
-	arrowShape.LineTo(BPoint(center.x + size, center.y - size));
-
-	menu->SetHighColor(tint_color(color, kMarkTint));
-	menu->SetDrawingMode(B_OP_OVER);
-	menu->SetPenSize(2.0);
-	menu->MovePenTo(B_ORIGIN);
-	menu->StrokeShape(&arrowShape);
+	// the check boxes' mark, smaller: the accent on the menu, the text's colour on the selected row (which is the
+	// accent itself). The tick's middle is a little right of and below its box's.
+	const rgb_color menuColor = ui_color(B_MENU_BACKGROUND_COLOR);
+	const bool dark = (menuColor.red * 299 + menuColor.green * 587 + menuColor.blue * 114) / 1000 < 128;
+	rgb_color mark = color;
+	if (!active) {
+		const rgb_color accent = SnakeSelector::Accent();
+		mark = dark ? make_color((uint8)(accent.red + (255 - accent.red) * 0.2f),
+				(uint8)(accent.green + (255 - accent.green) * 0.2f),
+				(uint8)(accent.blue + (255 - accent.blue) * 0.2f))
+			: SnakeSelector::Dark(accent);
+		if (!IsEnabled()) {
+			mark = make_color((uint8)(menuColor.red + (mark.red - menuColor.red) * 0.4f),
+				(uint8)(menuColor.green + (mark.green - menuColor.green) * 0.4f),
+				(uint8)(menuColor.blue + (mark.blue - menuColor.blue) * 0.4f));
+		}
+	}
+	const BRect box(center.x - 0.69f * size, center.y - 0.32f * size, center.x + 0.31f * size,
+		center.y + 0.68f * size);
+	SnakeSelector::DrawTick(menu, box, mark, !active);
 
 	menu->PopState();
 }

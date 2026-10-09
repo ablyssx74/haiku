@@ -9,6 +9,7 @@
 
 #include <Menu.h>
 #include <MenuItem.h>
+#include <SeparatorItem.h>
 #include <PopUpMenu.h>
 
 
@@ -29,10 +30,19 @@ protected:
 	virtual	void			Highlight(bool highlight);
 
 private:
-			void			_DrawMark(rgb_color color);
+			void			_DrawMark(rgb_color color, bool active);
 			void			_DrawShortcut(rgb_color color, bool menuHasSubmenus);
 
 	typedef BMenuItem _inherited;
+};
+
+// The line between groups of items: a thin pill with a hint of the accent, fading out at its ends.
+class SnakeSeparatorItem : public BSeparatorItem {
+public:
+							SnakeSeparatorItem();
+
+protected:
+	virtual	void			Draw();
 };
 
 // Plain menus that draw the snake trail (see SnakeSelector.h). Only for menus whose items are all

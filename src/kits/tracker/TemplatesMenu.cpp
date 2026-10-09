@@ -173,7 +173,7 @@ TemplatesMenu::BuildMenu(bool addItems)
 		new BMessage(kNewFolder), B_DIR_MIMETYPE, B_MINI_ICON);
 	AddItem(menuItem);
 	menuItem->SetShortcut('N', 0);
-	AddSeparatorItem();
+	AddItem(new SnakeSeparatorItem());
 
 	// the templates folder
 	BPath path;
@@ -314,7 +314,7 @@ TemplatesMenu::IterateTemplateDirectory(bool addItems, BPath* path, BMenu* menu)
 		menu->AddItem(new SnakeMenuItem((BMenu*)subMenus.ItemAt(i)));
 
 	if (itemCount > 0)
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 
 	// Add subdirs to menu
 	itemCount = subDirs.CountItems();
@@ -322,7 +322,7 @@ TemplatesMenu::IterateTemplateDirectory(bool addItems, BPath* path, BMenu* menu)
 		menu->AddItem((BMenuItem*)subDirs.ItemAt(i));
 
 	if (itemCount > 0)
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 
 	// Add files to menu
 	itemCount = files.CountItems();
@@ -330,7 +330,7 @@ TemplatesMenu::IterateTemplateDirectory(bool addItems, BPath* path, BMenu* menu)
 		menu->AddItem((BMenuItem*)files.ItemAt(i));
 
 	if (itemCount > 0)
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(NewSubmenuItem(*path));
 

@@ -880,7 +880,7 @@ void
 TFilePanel::AddFileMenu(BMenu* menu)
 {
 	menu->AddItem(Shortcuts()->NewFolderItem());
-	menu->AddItem(new BSeparatorItem());
+	menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(Shortcuts()->GetInfoItem());
 	menu->AddItem(Shortcuts()->EditNameItem());
@@ -894,7 +894,7 @@ TFilePanel::AddFileMenu(BMenu* menu)
 
 	if (!TargetModel()->IsPrintersDir() || TargetModel()->IsRoot() || TargetModel()->IsTrash()
 		|| TargetModel()->InTrash()) {
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 		menu->AddItem(Shortcuts()->CutItem());
 		menu->AddItem(Shortcuts()->CopyItem());
 		menu->AddItem(Shortcuts()->PasteItem());
@@ -1004,7 +1004,7 @@ TFilePanel::AddPoseContextMenu(BMenu* menu)
 		menu->AddItem(Shortcuts()->DuplicateItem());
 		menu->AddItem(Shortcuts()->MoveToTrashItem());
 	}
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(Shortcuts()->CutItem());
 	menu->AddItem(Shortcuts()->CopyItem());
@@ -1019,7 +1019,7 @@ TFilePanel::AddVolumeContextMenu(BMenu* menu)
 	menu->AddItem(Shortcuts()->GetInfoItem());
 	menu->AddItem(Shortcuts()->EditNameItem());
 
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 	menu->AddItem(Shortcuts()->PasteItem());
 }
 
@@ -1028,10 +1028,10 @@ void
 TFilePanel::AddWindowContextMenu(BMenu* menu)
 {
 	menu->AddItem(Shortcuts()->NewFolderItem());
-	menu->AddItem(new BSeparatorItem());
+	menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(Shortcuts()->PasteItem());
-	menu->AddSeparatorItem();
+	menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(Shortcuts()->SelectItem());
 	menu->AddItem(Shortcuts()->SelectAllItem());

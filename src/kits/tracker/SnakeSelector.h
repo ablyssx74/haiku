@@ -43,6 +43,20 @@ void		DetachLink(BMenu* submenu);
 void		DrawTrail(BMenu* menu);
 
 bool		MenuDrawsTrail(BMenu* menu);
+
+// The check mark of check boxes (SnakeControlLook's), for a menu: a curved stroke with a soft shadow, drawn in
+// \a box (it reaches a little above and to the right of it).
+void		DrawTick(BView* view, const BRect& box, rgb_color color, bool shadow);
+
+// The selection of a Tracker label (file name): a pill in a light tint of the accent, drawn under the text.
+// \a active is false for a window that is not the active one (a more muted pill). Returns the colour for the text.
+// The pill's colour and the colour of the text on it, over a background of colour \a low.
+void		SelectionColors(const rgb_color& low, bool active, rgb_color* pill, rgb_color* text);
+
+// On the Desktop there is no background to erase (it is the wallpaper): \a erase is false, and \a backdrop says
+// whether the wallpaper is dark or light.
+rgb_color	DrawSelectionPill(BView* view, BRect frame, bool active, bool erase = true,
+				const rgb_color* backdrop = NULL);
 bool		MenuPaintsSelector(BMenu* menu);
 
 }	// namespace SnakeSelector

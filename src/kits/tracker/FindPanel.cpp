@@ -33,6 +33,7 @@ All rights reserved.
 */
 
 
+#include "SnakeMenuItem.h"
 #include "FindPanel.h"
 
 #include <utility>
@@ -317,7 +318,7 @@ FindWindow::BuildMenuBar()
 	fQueryMenu->AddItem(fSaveQueryOrTemplateItem);
 	fQueryMenu->AddItem(saveAsQueryItem);
 	fQueryMenu->AddItem(saveAsQueryTemplateItem);
-	fQueryMenu->AddSeparatorItem();
+	fQueryMenu->AddItem(new SnakeSeparatorItem());
 	fQueryMenu->AddItem(historyMenuItem);
 
 	fSearchInTrash = new BMenuItem(
@@ -1055,9 +1056,9 @@ FindPanel::FindPanel(BFile* node, FindWindow* parent, bool fromTemplate, bool ed
 		fVolMenu);
 	fVolumeField->SetDivider(fVolumeField->StringWidth(fVolumeField->Label()) + 8);
 	AddVolumes();
-	fVolMenu->AddSeparatorItem();
+	fVolMenu->AddItem(new SnakeSeparatorItem());
 	if (fDirectoryFilters.CountItems() > 0)
-		fVolMenu->AddSeparatorItem();
+		fVolMenu->AddItem(new SnakeSeparatorItem());
 	fVolMenu->AddItem(new BMenuItem(B_TRANSLATE("Select folders" B_UTF8_ELLIPSIS),
 		new BMessage(kSelectDirectoryFilter)));
 	LoadDirectoryFiltersFromFile(node);
@@ -1278,7 +1279,7 @@ FindPanel::AddDirectoryFilter(const entry_ref* ref, bool addToMenu)
 		if (fAddSeparatorItemState) {
 			BMenuItem* addDirectoriesItem = fVolMenu->RemoveItem(fVolMenu->CountItems() - 1);
 			error = FindPanel::AddDirectoryFilterItemToMenu(fVolMenu, ref, this);
-			fVolMenu->AddSeparatorItem();
+			fVolMenu->AddItem(new SnakeSeparatorItem());
 			fVolMenu->AddItem(addDirectoriesItem);
 			fAddSeparatorItemState = false;
 		} else {
@@ -2476,7 +2477,7 @@ FindPanel::AddMimeTypesToMenu()
 		}
 
 		if (count > 0) {
-			BSeparatorItem* separator = new BSeparatorItem();
+			BSeparatorItem* separator = new SnakeSeparatorItem();
 			fMimeTypeMenu->AddItem(separator, count);
 		}
 
@@ -2490,7 +2491,7 @@ FindPanel::AddMimeTypesToMenu()
 	IconMenuItem* allItem = new IconMenuItem(B_TRANSLATE("All files and folders"),
 		allMessage, static_cast<BBitmap*>(NULL));
 	fMimeTypeMenu->AddItem(allItem, 0);
-	BSeparatorItem* separator = new BSeparatorItem();
+	BSeparatorItem* separator = new SnakeSeparatorItem();
 	fMimeTypeMenu->AddItem(separator, 1);
 }
 
@@ -2503,7 +2504,7 @@ FindPanel::AddVolumes()
 	BMessage* message = new BMessage(kVolumeItem);
 	message->AddInt32("device", -1);
 	fVolMenu->AddItem(new BMenuItem(B_TRANSLATE("All disks"), message));
-	fVolMenu->AddSeparatorItem();
+	fVolMenu->AddItem(new SnakeSeparatorItem());
 	PopUpMenuSetTitle(fVolMenu, B_TRANSLATE("All disks"));
 
 	fFirstVolumeItem = fVolMenu->CountItems();
@@ -2676,7 +2677,7 @@ FindPanel::AddRecentQueries(BMenu* menu, bool addSaveAsItem, const BMessenger* t
 		count = 0;
 
 	if (templates.CountItems() > 0 && count > 0)
-		menu->AddSeparatorItem();
+		menu->AddItem(new SnakeSeparatorItem());
 
 	for (int32 index = 0; index < count; index++)
 		AddOneRecentItem(&recentQueries.ItemAt(index)->first, &params);
@@ -2684,7 +2685,7 @@ FindPanel::AddRecentQueries(BMenu* menu, bool addSaveAsItem, const BMessenger* t
 	if (addSaveAsItem) {
 		// add a Save as template item
 		if (count > 0 || templates.CountItems() > 0)
-			menu->AddSeparatorItem();
+			menu->AddItem(new SnakeSeparatorItem());
 
 		BMessage* message = new BMessage(kRunSaveAsTemplatePanel);
 		BMenuItem* item = new BMenuItem(

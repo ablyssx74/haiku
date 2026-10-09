@@ -35,6 +35,8 @@ All rights reserved.
 
 #include "TextWidget.h"
 
+#include <math.h>
+#include <algorithm>
 #include <string.h>
 #include <stdlib.h>
 
@@ -44,6 +46,7 @@ All rights reserved.
 #include <Debug.h>
 #include <Directory.h>
 #include <MessageFilter.h>
+#include <Region.h>
 #include <ScrollView.h>
 #include <TextView.h>
 #include <Volume.h>
@@ -54,6 +57,7 @@ All rights reserved.
 #include "Commands.h"
 #include "FSUtils.h"
 #include "PoseView.h"
+#include "SnakeSelector.h"
 #include "Utilities.h"
 
 
@@ -62,6 +66,123 @@ All rights reserved.
 
 
 const float kWidthMargin = 20;
+const float kPillPadding = 4;
+
+
+// The box a file name is edited in: the label's pill is drawn behind it by the widget, so the box has no border of its
+// own, and it asks for the pose view to redraw that pill whenever it changes size or place.
+class EditBorderView : public BScrollView {
+public:
+	EditBorderView(BView* target)
+		:
+		BScrollView("BorderView", target, 0, 0, false, false, B_NO_BORDER)
+	{
+		SetFlags(Flags() | B_FRAME_EVENTS);
+	}
+
+	virtual void AttachedToWindow()
+	{
+		BScrollView::AttachedToWindow();
+		fLastFrame = Frame();
+	}
+
+	virtual void FrameResized(float width, float height)
+	{
+		BScrollView::FrameResized(width, height);
+		_Redraw();
+	}
+
+	virtual void FrameMoved(BPoint where)
+	{
+		BScrollView::FrameMoved(where);
+		_Redraw();
+	}
+
+private:
+	// both where the box was and where it is now: the pill behind it moves with it (it shrinks when text is
+	// deleted), and what it leaves behind has to be drawn again
+	void _Redraw()
+	{
+		if (Parent() == NULL)
+			return;
+		const BRect now = Frame();
+		BRect area = fLastFrame.IsValid() ? (fLastFrame | now) : now;
+		fLastFrame = now;
+		Parent()->Invalidate(area.InsetByCopy(-(kPillPadding + 4), -3));
+	}
+
+	BRect	fLastFrame;
+};
+
+
+// The text view of the edit box. Haiku shows the selection by inverting it, which turns the pill's light colour into a
+// dark block: the inversion is undone and the selection is drawn as a tint of the accent instead.
+class PillTextView : public BTextView {
+public:
+	PillTextView(BRect frame, const char* name, BRect textRect, const BFont* font, const rgb_color* color)
+		:
+		BTextView(frame, name, textRect, font, color, B_FOLLOW_ALL, B_WILL_DRAW)
+	{
+	}
+
+	virtual void Draw(BRect updateRect)
+	{
+		// the pill behind the box moves and changes size with it (the frame hooks are not always called): when the
+		// box is somewhere else than it was drawn last, what was there is drawn again
+		BView* box = Parent();
+		BView* poseView = box != NULL ? box->Parent() : NULL;
+		if (box != NULL && poseView != NULL) {
+			const BRect now = box->Frame();
+			if (now != fLastBox) {
+				const BRect area = fLastBox.IsValid() ? (fLastBox | now) : now;
+				fLastBox = now;
+				poseView->Invalidate(area.InsetByCopy(-(kPillPadding + 4), -3));
+			}
+		}
+
+		BTextView::Draw(updateRect);
+
+		int32 start, end;
+		GetSelection(&start, &end);
+		if (start == end || !IsFocus() || Window() == NULL || !Window()->IsActive())
+			return;
+
+		BRegion region;
+		GetTextRegion(start, end, &region);
+		PushState();
+		SetDrawingMode(B_OP_INVERT);
+		FillRegion(&region, B_SOLID_HIGH);
+		SetDrawingMode(B_OP_ALPHA);
+		SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+		rgb_color tint = SnakeSelector::Accent();
+		tint.alpha = 110;
+		SetHighColor(tint);
+		FillRegion(&region);
+		PopState();
+	}
+
+	// the selection is drawn in place by the base class when it changes: draw the whole thing again
+	virtual void Select(int32 startOffset, int32 endOffset)
+	{
+		BTextView::Select(startOffset, endOffset);
+		Invalidate();
+	}
+
+	virtual void MakeFocus(bool focus = true)
+	{
+		BTextView::MakeFocus(focus);
+		Invalidate();
+	}
+
+	virtual void MouseUp(BPoint where)
+	{
+		BTextView::MouseUp(where);
+		Invalidate();
+	}
+
+private:
+	BRect	fLastBox;
+};
 
 
 //	#pragma mark - BTextWidget
@@ -463,30 +584,24 @@ BTextWidget::StartEdit(BPoseView* view, BPose* pose, BColumn* column)
 	BRect rect(CalcRect(poseLoc, column, view));
 	rect.OffsetTo(roundf(rect.left), roundf(rect.top));
 
-	BTextView* textView = new BTextView(rect.InsetByCopy(-2, -2), "WidgetTextView",
-		rect.OffsetToCopy(2, 2), be_plain_font, &initialTextColor, B_FOLLOW_ALL, B_WILL_DRAW);
+	// the colours of the selection pill the box sits in, and of the text on it
+	const rgb_color backdrop = view->IsDesktopView() ? InvertColor(view->HighColor()) : view->LowColor();
+	rgb_color pillColor, pillTextColor;
+	SnakeSelector::SelectionColors(backdrop, true, &pillColor, &pillTextColor);
+	initialTextColor = pillTextColor;
+		// (the text is drawn in the colour it was created with, not the view's high colour)
+
+	BTextView* textView = new PillTextView(rect.InsetByCopy(-2, -1), "WidgetTextView",
+		rect.OffsetToCopy(2, 1), be_plain_font, &initialTextColor);
 
 	textView->SetWordWrap(false);
-	textView->SetInsets(2, 2, 2, 2);
+	textView->SetInsets(2, 1, 2, 1);
 	DisallowMetaKeys(textView);
 	fText->SetupEditing(textView);
 
-	if (view->IsDesktopView()) {
-		// force text view colors to be inverse of Desktop text color, white or black
-		rgb_color backColor = view->HighColor();
-		rgb_color textColor = InvertColor(backColor);
-		backColor = tint_color(backColor,
-			view->SelectedVolumeIsReadOnly() ? ReadOnlyTint(backColor) : B_NO_TINT);
-
-		textView->SetViewColor(backColor);
-		textView->SetLowColor(backColor);
-		textView->SetHighColor(textColor);
-	} else {
-		// document colors or tooltip colors on Open with... window
-		textView->SetViewUIColor(view->ViewUIColor());
-		textView->SetLowUIColor(view->LowUIColor());
-		textView->SetHighUIColor(view->HighUIColor());
-	}
+	textView->SetViewColor(pillColor);
+	textView->SetLowColor(pillColor);
+	textView->SetHighColor(pillTextColor);
 
 	if (view->SelectedVolumeIsReadOnly()) {
 		textView->MakeEditable(false);
@@ -517,13 +632,13 @@ BTextWidget::StartEdit(BPoseView* view, BPose* pose, BColumn* column)
 		if (view->ViewMode() == kIconMode && rect.Width() > bounds.Width()) {
 			float newWidth = std::min(fMaxWidth, rect.Width());
 			rect.OffsetBy(roundf((bounds.Width() - newWidth) / 2), 0);
-			textView->MoveTo(rect.left - 2, rect.top - 2);
+			textView->MoveTo(rect.left - 2, rect.top - 1);
 		}
 	}
 
 	// resize textView
-	textView->ResizeTo(std::min(fMaxWidth, rect.Width()) + 4, rect.Height() + 4);
-	textView->SetTextRect(rect.OffsetToCopy(2, 2));
+	textView->ResizeTo(std::min(fMaxWidth, rect.Width()) + 4, rect.Height() + 2);
+	textView->SetTextRect(rect.OffsetToCopy(2, 1));
 
 	// set alignment before adding textView so it doesn't redraw
 	switch (view->ViewMode()) {
@@ -540,8 +655,7 @@ BTextWidget::StartEdit(BPoseView* view, BPose* pose, BColumn* column)
 			break;
 	}
 
-	BScrollView* scrollView
-		= new BScrollView("BorderView", textView, 0, 0, false, false, B_PLAIN_BORDER);
+	BScrollView* scrollView = new EditBorderView(textView);
 	view->AddChild(scrollView);
 
 	bool tooWide = textView->TextRect().Width() > fMaxWidth;
@@ -557,8 +671,8 @@ BTextWidget::StartEdit(BPoseView* view, BPose* pose, BColumn* column)
 		// scroll to beginning so that text is visible
 	textView->MakeFocus();
 
-	// make this text widget invisible while we edit it
-	SetVisible(false);
+	// the widget draws the pill under the edit box while it is edited (see Draw())
+	view->Invalidate(rect.InsetByCopy(-(kPillPadding + 4), -3));
 
 	// force immediate redraw so TextView appears instantly
 	view->Window()->UpdateIfNeeded();
@@ -595,6 +709,7 @@ BTextWidget::StopEdit(bool saveChanges, BPoint poseLoc, BPoseView* view,
 	// make text widget visible again
 	SetVisible(true);
 	view->Invalidate(ColumnRect(poseLoc, column, view));
+	view->Invalidate(scrollView->Frame().InsetByCopy(-(kPillPadding + 4), -3));
 
 	// force immediate redraw so TEView disappears
 	scrollView->RemoveSelf();
@@ -644,7 +759,30 @@ BTextWidget::Draw(BRect eraseRect, BRect textRect, BPoseView* view, BView* drawV
 
 	textRect.OffsetBy(offset);
 
-	BRegion textRegion(textRect);
+	if (fActive) {
+		// being edited: only the pill under the edit box is drawn, the box has the text
+		BView* box = view->FindView("BorderView");
+		if (box != NULL) {
+			BRect pillRect = box->Frame().InsetByCopy(-kPillPadding, 0);
+			if (view->IsDesktopView()) {
+				const rgb_color backdrop = InvertColor(view->HighColor());
+				SnakeSelector::DrawSelectionPill(drawView, pillRect, true, false, &backdrop);
+			} else
+				SnakeSelector::DrawSelectionPill(drawView, pillRect, true);
+		}
+		return;
+	}
+
+	// a selected label is a pill, which reaches a little past the text (the pose's rect leaves room for it)
+	const bool pill = selected
+		&& (view->Window()->IsActive() || view->IsDrawingSelectionRect() || view->ShowSelectionWhenInactive());
+	// (the label's text colour is not to carry over to the other columns of its row)
+	const rgb_color savedHigh = drawView->HighColor();
+	BRect pillRect(textRect);
+	if (pill)
+		pillRect.InsetBy(-kPillPadding, -1);
+
+	BRegion textRegion(pill ? pillRect : textRect);
 	drawView->ConstrainClippingRegion(&textRegion);
 
 	// We are only concerned with setting the correct text color.
@@ -662,7 +800,16 @@ BTextWidget::Draw(BRect eraseRect, BRect textRect, BPoseView* view, BView* drawV
 	bool drawOutlines = view->WidgetTextOutline() && !selected && (direct || dragging);
 	bool drawCut = clipboardMode == kMoveSelectionTo;
 
-	if (selected) {
+	if (pill) {
+		const bool active = view->Window()->IsActive() || view->IsDrawingSelectionRect();
+		if (view->IsDesktopView()) {
+			// the Desktop's labels are drawn straight onto the wallpaper, in the text colour; the wallpaper is
+			// taken to be as dark as the text is light
+			const rgb_color backdrop = InvertColor(view->HighColor());
+			drawView->SetHighColor(SnakeSelector::DrawSelectionPill(drawView, pillRect, active, false, &backdrop));
+		} else
+			drawView->SetHighColor(SnakeSelector::DrawSelectionPill(drawView, pillRect, active));
+	} else if (selected) {
 		if (dragging) {
 			drawView->SetDrawingMode(B_OP_ALPHA);
 			drawView->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_COMPOSITE);
@@ -764,4 +911,6 @@ BTextWidget::Draw(BRect eraseRect, BRect textRect, BPoseView* view, BView* drawV
 	}
 
 	drawView->ConstrainClippingRegion(NULL);
+	if (pill)
+		drawView->SetHighColor(savedHigh);
 }

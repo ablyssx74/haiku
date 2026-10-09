@@ -1304,7 +1304,7 @@ OpenWithMenu::DoneBuildingItemList()
 		// divide different relations of opening with a separator
 		int32 relation = proxy->Relation(fIterator, &fEntriesToOpen);
 		if (lastRelation != -1 && relation != lastRelation)
-			AddSeparatorItem();
+			AddItem(new SnakeSeparatorItem());
 
 		lastRelation = relation;
 

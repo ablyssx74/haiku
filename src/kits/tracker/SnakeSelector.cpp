@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <Bitmap.h>
+#include <Shape.h>
 #include <InterfaceDefs.h>
 #include <Entry.h>
 #include <File.h>
@@ -192,6 +193,75 @@ TextOn(rgb_color c)
 {
 	float lum = (0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue) / 255.0f;
 	return lum > 0.62f ? make_color(20, 22, 28) : make_color(255, 255, 255);
+}
+
+
+void
+DrawTick(BView* view, const BRect& box, rgb_color color, bool shadow)
+{
+	const float w = box.Width(), h = box.Height();
+	static const float kOffset[3][3] = {{2.0f, 2.4f, 36}, {1.2f, 1.6f, 90}, {0.0f, 0.0f, 255}};
+	for (int pass = shadow ? 0 : 2; pass < 3; pass++) {
+		const float dx = kOffset[pass][0] * (w / 14), dy = kOffset[pass][1] * (h / 14);
+#define TICK_POINT(x, y) BPoint(box.left + (x) * w + dx, box.top + (y) * h + dy)
+		BShape line;
+		line.MoveTo(TICK_POINT(0.16f, 0.56f));
+		line.BezierTo(TICK_POINT(0.24f, 0.64f), TICK_POINT(0.32f, 0.78f), TICK_POINT(0.40f, 0.86f));
+		line.BezierTo(TICK_POINT(0.58f, 0.50f), TICK_POINT(0.90f, 0.06f), TICK_POINT(1.22f, -0.22f));
+#undef TICK_POINT
+		view->PushState();
+		view->SetDrawingMode(B_OP_ALPHA);
+		view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+		if (pass < 2)
+			view->SetHighColor(0, 0, 0, (uint8)kOffset[pass][2]);
+		else
+			view->SetHighColor(color);
+		view->SetLineMode(B_ROUND_CAP, B_ROUND_JOIN);
+		view->SetPenSize(std::max(1.6f, w * 0.22f));
+		view->MovePenTo(BPoint(0, 0));
+		view->StrokeShape(&line);
+		view->PopState();
+	}
+}
+
+
+void
+SelectionColors(const rgb_color& low, bool active, rgb_color* pill, rgb_color* text)
+{
+	const bool darkBackground = (low.red * 299 + low.green * 587 + low.blue * 114) / 1000 < 128;
+	const rgb_color accent = Accent();
+	// very light on a dark background, a little deeper on a light one, so that it still shows
+	rgb_color color = Mix(accent, 255, darkBackground ? 0.62f : 0.42f);
+	if (!active) {
+		color = make_color((uint8)(low.red + (color.red - low.red) * 0.45f),
+			(uint8)(low.green + (color.green - low.green) * 0.45f),
+			(uint8)(low.blue + (color.blue - low.blue) * 0.45f));
+	}
+	*pill = color;
+	*text = TextOn(color);
+}
+
+
+rgb_color
+DrawSelectionPill(BView* view, BRect frame, bool active, bool erase, const rgb_color* backdrop)
+{
+	const rgb_color low = backdrop != NULL ? *backdrop : view->LowColor();
+	rgb_color pill, text;
+	SelectionColors(low, active, &pill, &text);
+
+	view->PushState();
+	if (erase) {
+		view->SetDrawingMode(B_OP_COPY);
+		view->SetHighColor(low);
+		view->FillRect(frame);
+	}
+	view->SetDrawingMode(B_OP_ALPHA);
+	view->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+	view->SetHighColor(pill);
+	view->FillRoundRect(frame, frame.Height() / 2, frame.Height() / 2);
+	view->PopState();
+
+	return text;
 }
 
 

@@ -316,7 +316,7 @@ TGroupedMenu::AddGroupItem(TMenuItemGroup* group, BMenuItem* item,
 		}
 
 		if (addSeparator) {
-			AddItem(new BSeparatorItem(), group->fFirstItemIndex);
+			AddItem(new SnakeSeparatorItem(), group->fFirstItemIndex);
 			group->Separated(true);
 		}
 	}

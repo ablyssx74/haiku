@@ -620,49 +620,9 @@ void
 BPose::DrawTextWidget(BRect rect, BRect textRect, BTextWidget* widget,
 	BPoseView* poseView, BView* drawView, bool selected, uint32 clipboardMode, BPoint offset)
 {
-	bool direct = drawView == poseView;
-	bool windowActive = poseView->Window()->IsActive();
-	bool showSelectionWhenInactive = poseView->ShowSelectionWhenInactive();
-	bool isDrawingSelectionRect = poseView->IsDrawingSelectionRect();
-
 	widget->Draw(rect, textRect, poseView, drawView, selected, fClipboardMode, offset);
 
-	if (selected) {
-		// the selection rect is alpha-blended on top
-		BRect invertRect(textRect.OffsetByCopy(offset));
-		invertRect.left = ceilf(invertRect.left);
-		invertRect.top = ceilf(invertRect.top);
-		invertRect.right = floorf(invertRect.right);
-		invertRect.bottom = floorf(invertRect.bottom);
-
-		if (windowActive || isDrawingSelectionRect) {
-			// invert colors to select label using "reverse video"
-			drawView->InvertRect(invertRect);
-		} else if (!windowActive && showSelectionWhenInactive) {
-			if (direct)
-				drawView->PushState();
-
-			// invert colors to select label using "reverse video"
-			drawView->InvertRect(invertRect);
-
-			drawView->SetDrawingMode(B_OP_BLEND);
-			if (clipboardMode == kMoveSelectionTo) {
-				// blend inactive cut item background with less contrast
-				if (drawView->LowColor().IsLight())
-					drawView->SetHighColor(192, 192, 192, 255);
-				else
-					drawView->SetHighColor(64, 64, 64, 255);
-			} else {
-				// blend inactive background with gray
-				drawView->SetHighColor(128, 128, 128, 255);
-			}
-			drawView->FillRect(invertRect);
-			drawView->SetDrawingMode(B_OP_OVER);
-
-			if (direct)
-				drawView->PopState();
-		}
-	}
+	// (a selected label is a pill, drawn by the widget itself: nothing is inverted or blended on top)
 }
 
 
@@ -902,7 +862,8 @@ BPose::CalcRect(BPoint loc, const BPoseView* poseView, bool minimalRect) const
 	if (minimalRect) {
 		BTextWidget* widget = WidgetFor(poseView->FirstColumn()->AttrHash());
 		if (widget != NULL)
-			rect.right = widget->CalcRect(loc, poseView->FirstColumn(), poseView).right;
+			rect.right = widget->CalcRect(loc, poseView->FirstColumn(), poseView).right + 4;
+				// (room for the selection pill)
 	}
 
 	return rect;
@@ -918,7 +879,8 @@ BPose::CalcRect(const BPoseView* poseView) const
 	BTextWidget* widget = WidgetFor(poseView->FirstColumn()->AttrHash());
 	BPoint location = Location(poseView);
 	BRect rect(_IconRect(poseView, location));
-	float textWidth = (widget != NULL ? widget->TextWidth(poseView) + 4 : 0);
+	float textWidth = (widget != NULL ? widget->TextWidth(poseView) + 8 : 0);
+		// (room for the selection pill)
 
 	if (poseView->ViewMode() == kIconMode) {
 		// icon mode

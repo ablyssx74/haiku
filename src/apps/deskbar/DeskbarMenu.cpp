@@ -182,7 +182,7 @@ TDeskbarMenu::AddNextItem()
 				enabled |= recentItem[i]->RecentsEnabled();
 		}
 		if (enabled) {
-			AddSeparatorItem();
+			AddItem(new SnakeSeparatorItem());
 
 			for (int i = 0; i < recentTypes; i++) {
 				if (!recentItem[i])
@@ -204,7 +204,7 @@ TDeskbarMenu::AddNextItem()
 				delete recentItem[i];
 		}
 
-		AddSeparatorItem();
+		AddItem(new SnakeSeparatorItem());
 		fAddState = kAddingDeskbarMenu;
 		return true;
 	}
@@ -294,7 +294,7 @@ B_TRANSLATE_MARK_VOID("About this system")
 	item->SetTarget(be_app);
 	AddItem(item);
 
-	AddSeparatorItem();
+	AddItem(new SnakeSeparatorItem());
 
 	BMenu* shutdownMenu = new SnakeMenu(B_TRANSLATE("Shutdown" B_UTF8_ELLIPSIS));
 
