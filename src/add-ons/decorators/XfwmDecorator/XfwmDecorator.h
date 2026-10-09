@@ -50,6 +50,7 @@ public:
 
 
 protected:
+	virtual	bool				GetSettings(BMessage* settings) const;
 	virtual	void				UpdateColors(DesktopSettings& settings);
 	virtual	void				_DoLayout();
 	virtual	void				_DoTabLayout();

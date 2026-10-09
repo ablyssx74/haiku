@@ -67,19 +67,22 @@ deactivate: $(OUT)/setdecor
 # A package with the add-on for every theme:
 #   make package    -> out/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg
 # /boot/system/add-ons/decorators/Xfwm-<theme> and /boot/system/data/xfwm4-themes/<theme>/
-PKG_VERSION := 1.0.7
+PKG_VERSION := 1.0.8
 PKG := $(OUT)/package
+# The add-ons are put in the package last, from Z to A: packagefs lists a directory in the reverse of the
+# order the package has its entries in, so this makes Appearance's decorator menu come out alphabetical.
+DECS := $(OUT)/package-decorators
 package: all
-	rm -rf $(PKG)
-	mkdir -p $(PKG)/add-ons/decorators $(PKG)/data/xfwm4-themes $(PKG)/documentation/packages/xfwm_decorators $(PKG)/bin
+	rm -rf $(PKG) $(DECS)
+	mkdir -p $(DECS)/add-ons/decorators $(PKG)/data/xfwm4-themes $(PKG)/documentation/packages/xfwm_decorators $(PKG)/bin
 	for t in $$(ls $(THEMES)); do [ -f $(THEMES)/$$t/themerc ] || continue; \
 		mkdir -p $(PKG)/data/xfwm4-themes/$$t; \
 		cp $(THEMES)/$$t/themerc $(THEMES)/$$t/*.xpm $(PKG)/data/xfwm4-themes/$$t/; \
 		cp $(THEMES)/$$t/*.png $(PKG)/data/xfwm4-themes/$$t/ 2>/dev/null; \
 		sed 's/"name"\t\t\t\t= "xfwm4 theme"/"name"\t\t\t\t= "xfwm4: '$$t'"/' $(SRC)/resources.rdef > $(OUT)/res-$$t.rdef; \
 		rc -o $(OUT)/res-$$t.rsrc $(OUT)/res-$$t.rdef; \
-		cp $(OUT)/Xfwm-base $(PKG)/add-ons/decorators/Xfwm-$$t; \
-		xres -o $(PKG)/add-ons/decorators/Xfwm-$$t $(OUT)/res-$$t.rsrc; \
+		cp $(OUT)/Xfwm-base $(DECS)/add-ons/decorators/Xfwm-$$t; \
+		xres -o $(DECS)/add-ons/decorators/Xfwm-$$t $(OUT)/res-$$t.rsrc; \
 	done
 	cp package/xfwm-hover $(PKG)/bin/xfwm-hover
 	chmod +x $(PKG)/bin/xfwm-hover
@@ -88,6 +91,8 @@ package: all
 	sed 's/@VERSION@/$(PKG_VERSION)/; s/@ARCH@/$(ARCH)/' package/PackageInfo.in > $(PKG)/.PackageInfo
 	rm -f $(OUT)/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg
 	package create -C $(PKG) $(OUT)/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg
+	package add -C $(DECS) $(OUT)/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg \
+		$$(cd $(DECS) && ls add-ons/decorators | LC_ALL=C sort -r | sed 's|^|add-ons/decorators/|')
 
 clean:
 	rm -rf $(OUT)

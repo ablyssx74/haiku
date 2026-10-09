@@ -121,6 +121,12 @@ public:
 			int32				TitleOffset(bool active) const { return active ? fOffsetActive : fOffsetInactive; }
 			// title_horizontal_offset: how far in from the edge the title starts (left aligned) or ends (right)
 			int32				TitleHorizontalOffset() const { return fTitleOffsetX; }
+			// the title's shadow (title_shadow_active / title_shadow_inactive): none, one pixel down and to the
+			// right ("true" or "under"), or all around the letters ("frame")
+			enum { kShadowNone, kShadowUnder, kShadowFrame };
+			int32				ShadowMode(bool active) const { return active ? fShadowActive : fShadowInactive; }
+			// the theme's shadow colour, or a dark one for light text and a light one for dark text
+			rgb_color			ShadowColor(bool active) const;
 			bool				TitleAlignLeft() const { return fAlignment == 0; }
 			int32				TitleAlignment() const { return fAlignment; }
 			// the title bar is one tab across the whole window (xfwm4's default), not a tab and a filler
@@ -161,6 +167,12 @@ private:
 			rgb_color			fInactiveText;
 			int32				fOffsetActive;
 			int32				fTitleOffsetX;
+			int32				fShadowActive;
+			int32				fShadowInactive;
+			rgb_color			fShadowColorActive;
+			rgb_color			fShadowColorInactive;
+			bool				fHasShadowColorActive;
+			bool				fHasShadowColorInactive;
 			int32				fOffsetInactive;
 			int32				fAlignment;		// 0 left, 1 center, 2 right
 			bool				fFullWidth;

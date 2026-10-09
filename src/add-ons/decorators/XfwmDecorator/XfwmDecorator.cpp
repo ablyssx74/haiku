@@ -236,6 +236,29 @@ XfwmDecorAddOn::_AllocateDecorator(DesktopSettings& settings, BRect rect, Deskto
 // #pragma mark - XfwmDecorator
 
 
+// The Deskbar makes its Be menu as high as a window's tab, which it asks the decorator for. A theme's title bar
+// artwork can be much taller than a title (35 pixels in b6, 42 in kde), and the Deskbar's menu bar then grows
+// with it: the tab height reported is the one the default decorator would have for the same font.
+bool
+XfwmDecorator::GetSettings(BMessage* settings) const
+{
+	if (!Decorator::GetSettings(settings))
+		return false;
+
+	BRect tab;
+	if (settings->FindRect("tab frame", &tab) == B_OK) {
+		font_height fontHeight;
+		fDrawState.Font().GetHeight(fontHeight);
+		float limit = ceilf(fontHeight.ascent + fontHeight.descent + 7);
+		if (tab.Height() > limit) {
+			tab.bottom = tab.top + limit;
+			settings->ReplaceRect("tab frame", tab);
+		}
+	}
+	return true;
+}
+
+
 // a dark desktop gets dark borders: the theme's symbolic colours come from the desktop's, and the pictures are
 // loaded again when those changed
 static void
@@ -1145,6 +1168,20 @@ XfwmDecorator::_DrawTitle(Decorator::Tab* tab, BRect)
 	BPoint where(bar.slots[index].textLeft + floorf(shift),
 		floorf(bar.y + (fTheme->TitleHeight() - textHeight) / 2 + fontHeight.ascent
 			+ fTheme->TitleOffset(active) + 0.5f));
+	const int32 shadow = fTheme->ShadowMode(active);
+	if (shadow != XfwmTheme::kShadowNone) {
+		// the theme's shadow: a copy of the title behind it, one pixel down and to the right, or on every side
+		fDrawingEngine->SetHighColor(fTheme->ShadowColor(active));
+		for (int32 dy = -1; dy <= 1; dy++) {
+			for (int32 dx = -1; dx <= 1; dx++) {
+				if ((dx == 0 && dy == 0) || (shadow == XfwmTheme::kShadowUnder && (dx != 1 || dy != 1)))
+					continue;
+				fDrawingEngine->DrawString(tab->truncatedTitle.String(), tab->truncatedTitleLength,
+					BPoint(where.x + dx, where.y + dy));
+			}
+		}
+		fDrawingEngine->SetHighColor(fTheme->TextColor(active));
+	}
 	fDrawingEngine->DrawString(tab->truncatedTitle.String(), tab->truncatedTitleLength, where);
 
 	fDrawingEngine->SetDrawingMode(B_OP_COPY);

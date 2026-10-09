@@ -1,9 +1,9 @@
-# xfwm_decorators 1.0.7
+# xfwm_decorators 1.0.8
 
 Window decorators for Haiku made from xfwm4 themes. One decorator draws any xfwm4 theme, and the package carries 93 of them. Pick one in **Appearance > Decorator** (entries named "xfwm4: <theme>"), for example `xfwm4: b6`.
 
 ## Install
-Two packages are attached: `xfwm_decorators-1.0.7-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.7-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
+Two packages are attached: `xfwm_decorators-1.0.8-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.8-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
 
 ## Hover effect (on by default)
 The close, zoom and minimize buttons light up under the pointer. app_server tells a decorator nothing while the pointer only moves over it, so the effect is done from outside and is still young: fast pointer movement over the buttons has occasionally been seen to misdraw on real hardware, and in one or two themes the minimize button stopped answering after its window had been minimized and brought back. If you see either, turn it off:
@@ -16,7 +16,13 @@ xfwm-hover status
 
 It takes effect within a second, with no restart. Themes that ship hover pictures (`default-4.6`, `default-4.8`) use them; for the others the button's own picture is tinted, and the tint follows the button's shape: a round button gets a round highlight and a square one a square highlight, while a button that is only a symbol on the title bar gets the whole box. A dark button gets lighter and a light one darker; the symbol keeps its colors. (`galaxy`'s round buttons still get a square highlight: their pictures have a shadow behind them that can't be told from the button.)
 
-## Changes since 1.0.6
+## Changes since 1.0.7
+- **Title text shadows.** The 41 themes that ask for a shadow behind the title text now get one. `true` and `under` draw a copy of the title one pixel down and to the right, and `frame` draws one on every side of the letters, which reads as an outline. A theme can name its own shadow colour (six do); otherwise the shadow is black behind light text and white behind dark text. Themes that ask for no shadow are unchanged.
+- **The decorator list in Appearance is in alphabetical order.** It used to come out Z to A, because a package's directory is listed in the reverse of the order its files were added. The package now adds the decorators from Z to A, which turns the list around. This relies on how packagefs lists a directory.
+- **The Deskbar's top bar no longer grows with the theme.** The Deskbar makes its Be menu bar as high as a window's title tab and asks the decorator for that height when it starts, and a theme's title artwork can be much taller than a title (35 pixels in `b6`, 42 in `kde`). The decorator now reports the height the default decorator would have for the same font. The Deskbar only reads it when it starts, so restart it, or log out and in, after you change theme.
+- **Softer frames on a light desktop.** The border colours that xfwm4 takes from the GTK theme now blend halfway toward your panel colour on a light desktop too, so frames that were stark white or cream are a little softer. Dark desktops keep the full change from 1.0.7.
+
+Changes in 1.0.7 (if you skipped it):
 - **Dark desktops get dark borders.** In 65 of the themes the border colours are xfwm4's "symbolic" colours (the ones xfwm4 takes from the GTK theme), which this decorator used to draw in the theme's own light colour. When your Appearance panel colour is dark, the border colours now come from the panel colour instead, with the theme's light and dark bevel shades kept. The window frame and the grab corner at the bottom right follow, so they no longer show up stark white. Title bars keep each theme's own colours, and nothing changes on a light desktop. The decorator reloads when you switch between light and dark. Themes that draw their borders in fixed colours (about 30) keep them. Whether the desktop counts as dark is a plain brightness test on the panel colour.
 - **Title position follows the theme.** `title_horizontal_offset` (set by 42 themes) is now honoured: a left aligned title starts that many pixels in from the edge, and a right aligned one ends that many in. Centred titles are unchanged.
 - **Button glyph colours follow the theme's text colour.** Pictures that say "use the title text colour" (16 themes, such as `defcon-IV`, whose glyphs were black although the theme asks for white text) now use the colour the theme's themerc names. When the themerc names none, the picture's own colour stays.

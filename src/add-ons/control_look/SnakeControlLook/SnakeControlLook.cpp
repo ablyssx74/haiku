@@ -43,6 +43,7 @@
 #include <MessageRunner.h>
 #include <Messenger.h>
 #include <Menu.h>
+#include <Shape.h>
 #include <MenuBar.h>
 #include <MenuItem.h>
 #include <Message.h>
@@ -1220,6 +1221,44 @@ DrawLoneSelector(BView* view, BRect frame)
 // #pragma mark - the control look
 
 
+// A check mark drawn as a filled, curved stroke: round at the left end, widest at the bottom and fading to a
+// point at the top right, which runs out of the box (box: the check box's square). It has a soft shadow behind it.
+static void
+DrawTick(BView* view, const BRect& box, rgb_color color)
+{
+	const float w = box.Width(), h = box.Height();
+	// two soft shadows, wider and fainter the further they are, then the tick itself
+	static const float kOffset[3][3] = {{2.0f, 2.4f, 36}, {1.2f, 1.6f, 90}, {0.0f, 0.0f, 255}};
+	for (int pass = 0; pass < 3; pass++) {
+		const float dx = kOffset[pass][0], dy = kOffset[pass][1];
+#define TICK_POINT(x, y) BPoint(box.left + (x) * w + dx, box.top + (y) * h + dy)
+		BShape tick;
+		tick.MoveTo(TICK_POINT(0.08f, 0.54f));
+		// the left end, rounded, and down to the bottom of the check
+		tick.BezierTo(TICK_POINT(0.10f, 0.45f), TICK_POINT(0.22f, 0.42f), TICK_POINT(0.29f, 0.51f));
+		tick.BezierTo(TICK_POINT(0.33f, 0.57f), TICK_POINT(0.37f, 0.63f), TICK_POINT(0.40f, 0.67f));
+		// up the long stroke to its tip, outside the box
+		tick.BezierTo(TICK_POINT(0.56f, 0.32f), TICK_POINT(0.90f, -0.04f), TICK_POINT(1.28f, -0.30f));
+		// and back down its other side, wider, to the bottom
+		tick.BezierTo(TICK_POINT(1.04f, 0.26f), TICK_POINT(0.80f, 0.66f), TICK_POINT(0.54f, 0.98f));
+		tick.BezierTo(TICK_POINT(0.46f, 1.06f), TICK_POINT(0.34f, 1.04f), TICK_POINT(0.26f, 0.94f));
+		tick.BezierTo(TICK_POINT(0.16f, 0.82f), TICK_POINT(0.04f, 0.66f), TICK_POINT(0.08f, 0.54f));
+		tick.Close();
+#undef TICK_POINT
+		view->PushState();
+		view->SetDrawingMode(B_OP_ALPHA);
+		view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+		if (pass < 2)
+			view->SetHighColor(0, 0, 0, (uint8)kOffset[pass][2]);
+		else
+			view->SetHighColor(color);
+		view->MovePenTo(BPoint(0, 0));
+		view->FillShape(&tick);
+		view->PopState();
+	}
+}
+
+
 class SnakeControlLook : public HaikuControlLook {
 public:
 	SnakeControlLook() {}
@@ -1367,6 +1406,350 @@ public:
 	{
 		DrawScrollBarBackground(view, rect1, updateRect, base, flags, orientation);
 		DrawScrollBarBackground(view, rect2, updateRect, base, flags, orientation);
+	}
+
+	// #pragma mark - the accent in other controls: the focus ring, tabs, check marks and slider fills
+
+	// the mark of a check box or radio button: the accent, dark, faded the way the stock mark is when disabled
+	rgb_color AccentMark(rgb_color stockMark)
+	{
+		return MixColors(stockMark, Dark(Accent()), 0.85f);
+	}
+
+	virtual	void DrawTextControlBorder(BView* view, BRect& rect, const BRect& updateRect,
+		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
+	{
+		if ((flags & B_FOCUSED) == 0 || (flags & B_DISABLED) != 0 || (flags & B_INVALID) != 0
+			|| (flags & B_BLEND_FRAME) != 0) {
+			HaikuControlLook::DrawTextControlBorder(view, rect, updateRect, base, flags, borders);
+			return;
+		}
+		if (!ShouldDraw(view, rect, updateRect))
+			return;
+
+		// the stock frame, with the accent as the colour of the focus ring
+		rgb_color ring = Accent();
+		if ((flags & B_CLICKED) != 0) {
+			rgb_color border = tint_color(base, 1.50);
+			_DrawFrame(view, rect, border, border, tint_color(base, 1.49), tint_color(base, 1.49));
+		} else
+			_DrawOuterResessedFrame(view, rect, base, flags, borders);
+		_DrawFrame(view, rect, ring, ring, ring, ring, borders);
+	}
+
+	virtual	void DrawCheckBox(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
+		uint32 flags = 0)
+	{
+		if (!ShouldDraw(view, rect, updateRect))
+			return;
+
+		const BRect box = rect;
+
+		// The tick runs out of the box, but a check box only invalidates its box when it changes: so that what
+		// is left of the tick outside is cleared (or drawn), the area around the box is invalidated too, once.
+		BRect around(box.left - 3, box.top - 6, box.right + 7, box.bottom + 4);
+		around = around & view->Bounds();
+		if (around.IsValid() && !updateRect.Contains(around))
+			view->Invalidate(around);
+
+		rgb_color dark1BorderColor;
+		rgb_color dark2BorderColor;
+		rgb_color navigationColor = Accent();
+
+		if ((flags & B_DISABLED) != 0) {
+			_DrawOuterResessedFrame(view, rect, base, flags);
+			dark1BorderColor = tint_color(base, 1.15);
+			dark2BorderColor = tint_color(base, 1.15);
+		} else if ((flags & B_CLICKED) != 0) {
+			dark1BorderColor = tint_color(base, 1.50);
+			dark2BorderColor = tint_color(base, 1.48);
+			_DrawFrame(view, rect, dark1BorderColor, dark1BorderColor, dark2BorderColor, dark2BorderColor);
+			dark2BorderColor = dark1BorderColor;
+		} else {
+			_DrawOuterResessedFrame(view, rect, base, flags);
+			dark1BorderColor = tint_color(base, 1.40);
+			dark2BorderColor = tint_color(base, 1.38);
+		}
+
+		if ((flags & B_FOCUSED) != 0) {
+			dark1BorderColor = navigationColor;
+			dark2BorderColor = navigationColor;
+		}
+
+		_DrawFrame(view, rect, dark1BorderColor, dark1BorderColor, dark2BorderColor, dark2BorderColor);
+
+		if ((flags & B_DISABLED) != 0)
+			_FillGradient(view, rect, base, 0.4, 0.2);
+		else
+			_FillGradient(view, rect, base, 0.15, 0.0);
+
+		rgb_color markColor;
+		if (_RadioButtonAndCheckBoxMarkColor(base, markColor, flags)) {
+			markColor = AccentMark(markColor);
+			view->PushState();
+			view->SetHighColor(markColor);
+
+			BFont font;
+			view->GetFont(&font);
+			float inset = std::max(2.0f, roundf(font.Size() / 6));
+			rect.InsetBy(inset, inset);
+
+			float penSize = std::max(1.0f, ceilf(rect.Width() / 3.5f));
+			if (penSize > 1.0f && fmodf(penSize, 2.0f) == 0.0f) {
+				rect.right++;
+				rect.bottom++;
+			}
+
+			view->SetDrawingMode(B_OP_OVER);
+			view->SetPenSize(penSize);
+			if (flags & B_PARTIALLY_ACTIVATED) {
+				float y = (rect.top + rect.bottom) / 2;
+				view->StrokeLine(BPoint(rect.left, y), BPoint(rect.right, y));
+			} else {
+				// a curved tick, drawn from the whole box and not the inset one: it runs out of the top right
+				// corner (as far as the control's own area allows)
+				DrawTick(view, box, markColor);
+			}
+			view->PopState();
+		}
+	}
+
+	virtual	void DrawRadioButton(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
+		uint32 flags = 0)
+	{
+		if (!ShouldDraw(view, rect, updateRect))
+			return;
+
+		rgb_color borderColor;
+		rgb_color bevelLight;
+		rgb_color bevelShadow;
+
+		if ((flags & B_DISABLED) != 0) {
+			borderColor = tint_color(base, 1.15);
+			bevelLight = base;
+			bevelShadow = base;
+		} else if ((flags & B_CLICKED) != 0) {
+			borderColor = tint_color(base, 1.50);
+			bevelLight = borderColor;
+			bevelShadow = borderColor;
+		} else {
+			borderColor = tint_color(base, 1.45);
+			bevelLight = tint_color(base, 0.55);
+			bevelShadow = tint_color(base, 1.11);
+		}
+
+		if ((flags & B_FOCUSED) != 0)
+			borderColor = Accent();
+
+		BGradientLinear bevelGradient;
+		bevelGradient.AddColor(bevelShadow, 0);
+		bevelGradient.AddColor(bevelLight, 255);
+		bevelGradient.SetStart(rect.LeftTop());
+		bevelGradient.SetEnd(rect.RightBottom());
+
+		view->FillEllipse(rect, bevelGradient);
+		rect.InsetBy(1, 1);
+
+		bevelGradient.MakeEmpty();
+		bevelGradient.AddColor(borderColor, 0);
+		bevelGradient.AddColor(tint_color(borderColor, 0.8), 255);
+		view->FillEllipse(rect, bevelGradient);
+		rect.InsetBy(1, 1);
+
+		float topTint;
+		float bottomTint;
+		if ((flags & B_DISABLED) != 0) {
+			topTint = 0.4;
+			bottomTint = 0.2;
+		} else {
+			topTint = 0.15;
+			bottomTint = 0.0;
+		}
+
+		BGradientLinear gradient;
+		_MakeGradient(gradient, rect, base, topTint, bottomTint);
+		view->FillEllipse(rect, gradient);
+
+		rgb_color markColor;
+		if (_RadioButtonAndCheckBoxMarkColor(base, markColor, flags)) {
+			view->SetHighColor(AccentMark(markColor));
+			BFont font;
+			view->GetFont(&font);
+			float inset = roundf(font.Size() / 4);
+			rect.InsetBy(inset, inset);
+			view->FillEllipse(rect);
+		}
+	}
+
+	// the filled part of a slider's bar is the accent
+	virtual	void DrawSliderBar(BView* view, BRect rect, const BRect& updateRect, const rgb_color& base,
+		rgb_color leftFillColor, rgb_color rightFillColor, float sliderScale, uint32 flags,
+		orientation orientation)
+	{
+		const rgb_color highlight = ui_color(B_CONTROL_HIGHLIGHT_COLOR);
+		// a slider that names no fill colour of its own has the same on both sides of the thumb: the part before
+		// the thumb becomes the accent
+		if ((flags & B_DISABLED) == 0 && leftFillColor == rightFillColor)
+			leftFillColor = Accent();
+		else if (leftFillColor == highlight)
+			leftFillColor = Accent();
+		if (rightFillColor == highlight)
+			rightFillColor = Accent();
+		HaikuControlLook::DrawSliderBar(view, rect, updateRect, base, leftFillColor, rightFillColor,
+			sliderScale, flags, orientation);
+	}
+
+	virtual	void DrawSliderBar(BView* view, BRect rect, const BRect& updateRect, const rgb_color& base,
+		rgb_color fillColor, uint32 flags, orientation orientation)
+	{
+		if (fillColor == ui_color(B_CONTROL_HIGHLIGHT_COLOR))
+			fillColor = Accent();
+		HaikuControlLook::DrawSliderBar(view, rect, updateRect, base, fillColor, flags, orientation);
+	}
+
+	// progress bars are filled in the accent where the caller asked for the stock colour
+	virtual	void DrawStatusBar(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
+		const rgb_color& barColor, float progressPosition)
+	{
+		rgb_color color = barColor;
+		if (color == ui_color(B_STATUS_BAR_COLOR))
+			color = Accent();
+		HaikuControlLook::DrawStatusBar(view, rect, updateRect, base, color, progressPosition);
+	}
+
+	// buttons are rounder: a larger corner radius for real buttons, where the stock one is 4; the small square
+	// buttons of a scroll bar keep the stock look
+	// a faint wash of the accent in the button's colour (and so in its edges, which the stock look derives from
+	// it): a little more when pressed, and for the default button
+	static rgb_color ButtonColor(const rgb_color& base, uint32 flags)
+	{
+		if ((flags & (B_FLAT | B_DISABLED)) != 0)
+			return base;
+		float amount = 0.09f;
+		if ((flags & B_DEFAULT_BUTTON) != 0)
+			amount = 0.14f;
+		if ((flags & (B_ACTIVATED | B_CLICKED)) != 0)
+			amount = 0.22f;
+		return MixColors(base, Accent(), amount);
+	}
+
+	// the highlights of a real button: a light line along the top inside the edge and a faint gloss over its
+	// upper half; the default button also gets a dark accent cap on each side
+	void ButtonHighlights(BView* view, const BRect& frame, float radius, uint32 flags)
+	{
+		if ((flags & B_DISABLED) != 0)
+			return;
+		view->PushState();
+		view->ClipToRect(frame);
+		view->SetDrawingMode(B_OP_ALPHA);
+		view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+		const bool pressed = (flags & (B_ACTIVATED | B_CLICKED)) != 0;
+		if (!pressed) {
+			BRect gloss(frame.left + 2, frame.top + 2, frame.right - 2, frame.top + frame.Height() * 0.45f);
+			view->SetHighColor(255, 255, 255, 34);
+			view->FillRect(gloss.InsetByCopy(radius * 0.5f, 0));
+			view->SetHighColor(255, 255, 255, 120);
+			view->StrokeLine(BPoint(frame.left + radius, frame.top + 1), BPoint(frame.right - radius, frame.top + 1));
+		}
+		if ((flags & B_DEFAULT_BUTTON) != 0) {
+			rgb_color cap = Dark(Accent());
+			view->SetHighColor(cap.red, cap.green, cap.blue, 255);
+			float inset = std::max(3.0f, radius - 1);
+			view->FillRoundRect(BRect(frame.left, frame.top + inset, frame.left + 2, frame.bottom - inset), 1, 1);
+			view->FillRoundRect(BRect(frame.right - 2, frame.top + inset, frame.right, frame.bottom - inset), 1, 1);
+		}
+		view->PopState();
+	}
+
+	virtual	void DrawButtonBackground(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
+		uint32 flags = 0, uint32 borders = B_ALL_BORDERS, orientation orientation = B_HORIZONTAL)
+	{
+		const rgb_color color = ButtonColor(base, flags);
+		if (borders == B_ALL_BORDERS && (flags & B_FLAT) == 0 && rect.Height() >= 22 && rect.Width() >= 30) {
+			float radius = std::min(8.0f, std::max(5.0f, floorf(rect.Height() / 3.5f)));
+			const BRect frame = rect;
+			HaikuControlLook::DrawButtonBackground(view, rect, updateRect, radius, color, flags, borders,
+				orientation);
+			ButtonHighlights(view, frame, radius, flags);
+			return;
+		}
+		HaikuControlLook::DrawButtonBackground(view, rect, updateRect, color, flags, borders, orientation);
+	}
+
+	virtual	void DrawButtonBackground(BView* view, BRect& rect, const BRect& updateRect, float radius,
+		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS,
+		orientation orientation = B_HORIZONTAL)
+	{
+		HaikuControlLook::DrawButtonBackground(view, rect, updateRect, radius, ButtonColor(base, flags), flags,
+			borders, orientation);
+	}
+
+	virtual	void DrawButtonBackground(BView* view, BRect& rect, const BRect& updateRect, float leftTopRadius,
+		float rightTopRadius, float leftBottomRadius, float rightBottomRadius, const rgb_color& base,
+		uint32 flags = 0, uint32 borders = B_ALL_BORDERS, orientation orientation = B_HORIZONTAL)
+	{
+		HaikuControlLook::DrawButtonBackground(view, rect, updateRect, leftTopRadius, rightTopRadius,
+			leftBottomRadius, rightBottomRadius, ButtonColor(base, flags), flags, borders, orientation);
+	}
+
+	// drop-down fields get the same wash as buttons
+	virtual	void DrawMenuFieldBackground(BView* view, BRect& rect, const BRect& updateRect,
+		const rgb_color& base, bool popupIndicator, uint32 flags = 0)
+	{
+		HaikuControlLook::DrawMenuFieldBackground(view, rect, updateRect, ButtonColor(base, flags & ~B_FLAT),
+			popupIndicator, flags);
+	}
+
+	virtual	void DrawMenuFieldBackground(BView* view, BRect& rect, const BRect& updateRect, float radius,
+		const rgb_color& base, bool popupIndicator, uint32 flags = 0)
+	{
+		HaikuControlLook::DrawMenuFieldBackground(view, rect, updateRect, radius,
+			ButtonColor(base, flags & ~B_FLAT), popupIndicator, flags);
+	}
+
+	virtual	void DrawMenuFieldBackground(BView* view, BRect& rect, const BRect& updateRect, float leftTopRadius,
+		float rightTopRadius, float leftBottomRadius, float rightBottomRadius, const rgb_color& base,
+		bool popupIndicator, uint32 flags = 0)
+	{
+		HaikuControlLook::DrawMenuFieldBackground(view, rect, updateRect, leftTopRadius, rightTopRadius,
+			leftBottomRadius, rightBottomRadius, ButtonColor(base, flags & ~B_FLAT), popupIndicator, flags);
+	}
+
+	// the selected tab gets a two pixel line of the accent along its outer edge
+	virtual	void DrawActiveTab(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
+		uint32 flags = 0, uint32 borders = B_ALL_BORDERS, uint32 side = B_TOP_BORDER, int32 index = 0,
+		int32 selected = -1, int32 first = 0, int32 last = 0)
+	{
+		BRect outer(floorf(rect.left), floorf(rect.top), floorf(rect.right), floorf(rect.bottom));
+		HaikuControlLook::DrawActiveTab(view, rect, updateRect, base, flags, borders, side, index, selected,
+			first, last);
+		if ((flags & B_DISABLED) != 0 || !ShouldDraw(view, outer, updateRect))
+			return;
+
+		BRect line;
+		const float corner = 4;
+		switch (side) {
+			case B_BOTTOM_BORDER:
+				line.Set(outer.left + corner, outer.bottom - 2, outer.right - corner, outer.bottom - 1);
+				break;
+			case B_LEFT_BORDER:
+				line.Set(outer.left + 1, outer.top + corner, outer.left + 2, outer.bottom - corner);
+				break;
+			case B_RIGHT_BORDER:
+				line.Set(outer.right - 2, outer.top + corner, outer.right - 1, outer.bottom - corner);
+				break;
+			default:
+				line.Set(outer.left + corner, outer.top + 1, outer.right - corner, outer.top + 2);
+				break;
+		}
+		if (!line.IsValid())
+			return;
+		view->PushState();
+		view->ClipToRect(outer);
+		view->SetDrawingMode(B_OP_COPY);
+		view->SetHighColor(Accent());
+		view->FillRect(line);
+		view->PopState();
 	}
 
 	virtual	void DrawMenuItemBackground(BView* view, BRect& rect, const BRect& updateRect,

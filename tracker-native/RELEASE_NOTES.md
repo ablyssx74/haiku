@@ -1,8 +1,16 @@
-# snaketracker 1.0.23
+# snaketracker 1.0.24
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+SnakeControlLook now carries the selector colour into the rest of the controls, so every program picks it up.
+- **A curved check mark.** The tick in check boxes is a curved, tapered stroke, round at the left end and thinning to a point at the top right, which runs out past the corner of the box. It has a soft shadow behind it. It can only reach as far as the control's own area allows, so a check box that sits right against another control may clip it. Unchecking a box clears the part that stuck out. Radio buttons keep their dot, now in the accent colour.
+- **Buttons.** Real buttons have rounder corners, a faint wash of the selector colour in the fill and the edges (a little more when pressed), and highlights: a light line along the top and a faint gloss over the upper half. The default button, the one Enter presses, also gets a dark accent cap on each side. Drop-down fields get the same wash. The small buttons on scroll bars keep their stock shape.
+- **Focus rings.** A focused text field or check box gets an outline in the selector colour, in place of Haiku's blue.
+- **Tabs.** The selected tab has a two pixel line of the selector colour along its outer edge.
+- **Sliders and progress bars.** A slider is filled in the selector colour up to its thumb, and progress bars are filled in it as well. Programs that choose their own fill colour keep it.
+
+Since 1.0.23 (if you skipped it):
 - **The scroll bar thumb sits on the track without a box around it.** The thumb was drawn on a patch of a slightly different grey from the track beside it, which showed as a lighter rectangle around the pill. The patch now uses the same colour as the track.
 
 Since 1.0.22 (if you skipped it):
@@ -21,4 +29,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.23-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.23-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.24-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.24-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.

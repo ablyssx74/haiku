@@ -23,7 +23,8 @@ namespace {
 
 // The desktop's colours, when they are dark (see XfwmTheme::SetDarkPalette).
 struct Palette {
-	Palette() : dark(false) {}
+	Palette() : set(false), dark(false) {}
+	bool		set;
 	bool		dark;
 	rgb_color	tab;
 	rgb_color	inactiveTab;
@@ -88,6 +89,10 @@ SymbolicColor(const std::string& name, uint8& red, uint8& green, uint8& blue)
 		base = MixToward(base, 0, 0.2f);
 	else
 		return false;
+	if (!sPalette.dark) {
+		// a light desktop only softens the theme's own colour towards the panel's
+		base = make_color((red + base.red) / 2, (green + base.green) / 2, (blue + base.blue) / 2);
+	}
 	red = base.red;
 	green = base.green;
 	blue = base.blue;
@@ -755,7 +760,7 @@ XfwmImage::Load(const char* path)
 					color.red = text->red;
 					color.green = text->green;
 					color.blue = text->blue;
-				} else if (sPalette.dark)
+				} else if (sPalette.set)
 					SymbolicColor(symbol, color.red, color.green, color.blue);
 				break;
 			}
@@ -1022,6 +1027,10 @@ XfwmTheme::XfwmTheme()
 	fButtonWidth(12),
 	fOffsetActive(0),
 	fTitleOffsetX(0),
+	fShadowActive(kShadowNone),
+	fShadowInactive(kShadowNone),
+	fHasShadowColorActive(false),
+	fHasShadowColorInactive(false),
 	fOffsetInactive(0),
 	fAlignment(0),
 	fFullWidth(true),
@@ -1060,12 +1069,13 @@ XfwmTheme::_FindFolder(const char* name, BString& path) const
 bool
 XfwmTheme::SetDarkPalette(bool dark, rgb_color tab, rgb_color inactiveTab, rgb_color panel)
 {
-	bool changed = dark != sPalette.dark;
-	if (dark && !changed) {
+	bool changed = !sPalette.set || dark != sPalette.dark;
+	if (!changed) {
 		changed = memcmp(&tab, &sPalette.tab, sizeof(rgb_color)) != 0
 			|| memcmp(&inactiveTab, &sPalette.inactiveTab, sizeof(rgb_color)) != 0
 			|| memcmp(&panel, &sPalette.panel, sizeof(rgb_color)) != 0;
 	}
+	sPalette.set = true;
 	sPalette.dark = dark;
 	sPalette.tab = tab;
 	sPalette.inactiveTab = inactiveTab;
@@ -1248,6 +1258,17 @@ XfwmTheme::ButtonsOnLeft(int32 button) const
 }
 
 
+rgb_color
+XfwmTheme::ShadowColor(bool active) const
+{
+	if (active ? fHasShadowColorActive : fHasShadowColorInactive)
+		return active ? fShadowColorActive : fShadowColorInactive;
+	rgb_color text = TextColor(active);
+	bool lightText = (text.red * 299 + text.green * 587 + text.blue * 114) / 1000 >= 128;
+	return lightText ? make_color(0, 0, 0) : make_color(255, 255, 255);
+}
+
+
 void
 XfwmTheme::_ReadThemerc(const char* path)
 {
@@ -1290,7 +1311,20 @@ XfwmTheme::_ReadThemerc(const char* path)
 			fOffsetActive = atoi(value);
 		else if (strcmp(key, "title_vertical_offset_inactive") == 0)
 			fOffsetInactive = atoi(value);
-		else if (strcmp(key, "title_horizontal_offset") == 0)
+		else if (strcmp(key, "title_shadow_active") == 0 || strcmp(key, "title_shadow_inactive") == 0) {
+			int32 mode = strcmp(value, "frame") == 0 ? kShadowFrame
+				: (strcmp(value, "true") == 0 || strcmp(value, "under") == 0 ? kShadowUnder : kShadowNone);
+			if (strcmp(key, "title_shadow_active") == 0)
+				fShadowActive = mode;
+			else
+				fShadowInactive = mode;
+		} else if (strcmp(key, "active_text_shadow_color") == 0 && ParseHexColor(value, r, g, b)) {
+			fShadowColorActive = make_color(r, g, b);
+			fHasShadowColorActive = true;
+		} else if (strcmp(key, "inactive_text_shadow_color") == 0 && ParseHexColor(value, r, g, b)) {
+			fShadowColorInactive = make_color(r, g, b);
+			fHasShadowColorInactive = true;
+		} else if (strcmp(key, "title_horizontal_offset") == 0)
 			fTitleOffsetX = atoi(value);
 		else if (strcmp(key, "title_alignment") == 0)
 			fAlignment = strcmp(value, "center") == 0 ? 1 : (strcmp(value, "right") == 0 ? 2 : 0);
