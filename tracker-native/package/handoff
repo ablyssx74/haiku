@@ -31,16 +31,28 @@ wait_gone() {
 	return 0
 }
 
+# The launch daemon stops this job (SIGTERM) when the system shuts down. It is the job's one program: the supervisors
+# below are its children, and are told to give up as soon as it is gone, so that nothing of ours is left to start a
+# program again, or to be waited for, while the system is going down.
+parent=$$
+trap 'exit 0' TERM HUP INT
+
+alive() {
+	kill -0 $parent 2>/dev/null
+}
+
 # Runs a program, again if it dies abnormally or right away (the system's copy may still be shutting down,
-# and Tracker and Deskbar refuse to run twice). A normal quit after it ran for a while ends it.
+# and Tracker and Deskbar refuse to run twice). A normal quit after it ran for a while ends it, and so does
+# this job being stopped.
 supervise() {
 	tries=0
-	while true; do
+	while alive; do
 		start=$(date +%s)
 		"$1"
 		status=$?
 		ran=$(( $(date +%s) - start ))
 		[ $status -eq 0 ] && [ $ran -ge 10 ] && break
+		alive || break
 		tries=$((tries + 1))
 		[ $tries -gt 20 ] && break
 		sleep 2

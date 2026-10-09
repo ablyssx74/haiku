@@ -2301,14 +2301,10 @@ public:
 		}
 
 		if (PillMenuBar(view) && rect.Height() >= 10 && ShouldDraw(view, rect, updateRect)) {
-			// the bar's rounded ends need the whole bar drawn: when only a part of it is asked for (the window was
-			// resized), the whole bar is asked for, once
+			// the bar's rounded ends need the whole bar drawn: it is drawn whole whatever part is asked for (the
+			// window system clips it), and asks for a full update when it is resized
 			if ((view->Flags() & B_FULL_UPDATE_ON_RESIZE) == 0)
 				view->SetFlags(view->Flags() | B_FULL_UPDATE_ON_RESIZE);
-			if (!updateRect.Contains(view->Bounds())) {
-				view->Invalidate();
-				return;
-			}
 			const rgb_color tone = ToneForText(ui_color(B_MENU_ITEM_TEXT_COLOR));
 			view->PushState();
 			view->SetDrawingMode(B_OP_COPY);
