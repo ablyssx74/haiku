@@ -1,8 +1,14 @@
-# snaketracker 1.0.25
+# snaketracker 1.0.26
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Buttons follow the theme.** Every regular button has an accent cap on each side, now a five pixel block lit from the top with a darker line on its outer edge: a darker purple on a light theme and a lighter one on a dark theme. The disabled buttons have the same caps.
+- **The default button.** On a light theme it has a dark accent body with white text. On a dark theme it is drawn like the other buttons, without Haiku's bright two pixel ring (it is still the button Enter presses), in the room the ring used to take, so it stays the same size.
+- **The Deskbar's top bar is left alone.** The leaf bar and its title keep the stock look, without caps. The snake trail in the Deskbar's menus is as before.
+- **File panels in other programs.** The column titles and the item count of a Save or Open dialog, which the Tracker kit draws inside each program, are the same accent bars as in Tracker. Outside Tracker the text colour is the system's, so the bar takes a deeper shade of the accent behind light text and a lighter one behind dark text. The thin lines between the column titles stay there. The bars are drawn whole again when the dialog is resized.
+
+Since 1.0.25 (if you skipped it):
 - **Scroll bar arrows are hidden by default.** The arrow buttons at the ends of scroll bars are now drawn as plain track, so scroll bars are just the thumb pill on a flat track. This is a new setting, **Tracker preferences > Windows > Scroll bar arrows**, and it is off by default: tick it to bring the arrows back. The bar keeps the room the arrows had, so the thumb stops a little short of each end, and the hidden arrows still scroll when you click them. **If you are updating, your scroll bar arrows disappear until you tick the box.**
 - **The column titles and the item count are an accent bar.** In a Tracker list view the Name, Size and Modified header is one full width bar in the selector colour, with rounded ends and the same lit look as the scroll bar thumb. The "27 items" bar at the bottom matches it. The text is dark or light to suit the colour, the lines between the titles are gone, and the sort arrow takes the text colour. A title being pressed darkens its part of the bar. Both bars are drawn whole again when the window is resized, so they leave nothing behind. When you type to jump to a file, the bottom bar shows what you typed in the stock look.
 - **Sliders.** The thumb is a rounded block in the selector colour, lit like the scroll bar thumb, and disabled sliders get a washed out one. It keeps the size Haiku gives it. The bar to the left of the thumb is filled in the selector colour, a washed out one when disabled.
@@ -36,4 +42,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.25-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.25-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.26-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.26-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
