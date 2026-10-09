@@ -49,10 +49,12 @@ All rights reserved.
 
 #include <stdio.h>
 #include <string.h>
+#include <typeinfo>
 
 #include "Commands.h"
 #include "ContainerWindow.h"
 #include "PoseView.h"
+#include "SnakeSelector.h"
 #include "Utilities.h"
 
 
@@ -99,12 +101,25 @@ _DrawOutline(BView* view, BRect where)
 }
 
 
+// With SnakeControlLook as the control look the column titles sit on one accent coloured bar, like a scroll bar's
+// thumb: it draws that bar (it is asked by the B_FLAT flag), the title text is then dark or light to suit the
+// accent, and the lines between the titles are left out.
+static bool
+SnakeHeader()
+{
+	return be_control_look != NULL
+		&& strstr(typeid(*be_control_look).name(), "SnakeControlLook") != NULL;
+}
+
+
 //	#pragma mark - BTitleView
 
 
 BTitleView::BTitleView(BPoseView* view)
 	:
-	BView("TitleView", B_WILL_DRAW),
+	// the accent bar has rounded ends: when the window is resized it has to be drawn whole again, or the old
+	// ends are left behind
+	BView("TitleView", B_WILL_DRAW | (SnakeHeader() ? B_FULL_UPDATE_ON_RESIZE : 0)),
 	fPoseView(view),
 	fTitleList(10),
 	fHorizontalResizeCursor(B_CURSOR_ID_RESIZE_EAST_WEST),
@@ -243,7 +258,8 @@ BTitleView::Draw(BRect /*updateRect*/, bool useOffscreen, bool updateOnly,
 	bounds.bottom--;
 
 	rgb_color baseColor = ui_color(B_CONTROL_BACKGROUND_COLOR);
-	be_control_look->DrawButtonBackground(view, bounds, bounds, baseColor, 0,
+	be_control_look->DrawButtonBackground(view, bounds, bounds, baseColor,
+		SnakeHeader() ? BControlLook::B_FLAT : 0,
 		BControlLook::B_TOP_BORDER | BControlLook::B_BOTTOM_BORDER);
 
 	int32 count = fTitleList.CountItems();
@@ -261,9 +277,11 @@ BTitleView::Draw(BRect /*updateRect*/, bool useOffscreen, bool updateOnly,
 
 	bounds = Bounds();
 	minx--;
-	view->SetHighUIColor(B_PANEL_BACKGROUND_COLOR, B_DARKEN_1_TINT);
-	view->StrokeLine(BPoint(minx, bounds.top),
-		BPoint(minx, bounds.bottom - 1));
+	if (!SnakeHeader()) {
+		view->SetHighUIColor(B_PANEL_BACKGROUND_COLOR, B_DARKEN_1_TINT);
+		view->StrokeLine(BPoint(minx, bounds.top),
+			BPoint(minx, bounds.bottom - 1));
+	}
 
 #if !(APP_SERVER_CLEARS_BACKGROUND)
 	FillRect(BRect(bounds.left, bounds.top + 1, minx - 1, bounds.bottom - 1),
@@ -492,7 +510,8 @@ BColumnTitle::Draw(BView* view, bool pressed)
 		rect.right--;
 		baseColor = tint_color(baseColor, B_DARKEN_1_TINT);
 
-		be_control_look->DrawButtonBackground(view, rect, rect, baseColor, 0,
+		be_control_look->DrawButtonBackground(view, rect, rect, baseColor,
+			SnakeHeader() ? (BControlLook::B_FLAT | BControlLook::B_ACTIVATED) : 0,
 			BControlLook::B_TOP_BORDER | BControlLook::B_BOTTOM_BORDER);
 	}
 
@@ -518,7 +537,11 @@ BColumnTitle::Draw(BView* view, bool pressed)
 			break;
 	}
 
-	view->SetHighUIColor(B_PANEL_TEXT_COLOR, pressed ? B_DARKEN_1_TINT : 1.0f);
+	const bool snake = SnakeHeader();
+	if (snake)
+		view->SetHighColor(SnakeSelector::TextOn(SnakeSelector::Accent()));
+	else
+		view->SetHighUIColor(B_PANEL_TEXT_COLOR, pressed ? B_DARKEN_1_TINT : 1.0f);
 	view->SetLowColor(baseColor);
 	view->DrawString(titleString.String(), titleLocation);
 
@@ -544,7 +567,15 @@ BColumnTitle::Draw(BView* view, bool pressed)
 		uint32 flags = view->Flags();
 		view->SetFlags(flags | B_SUBPIXEL_PRECISE);
 
-		if (secondary) {
+		if (snake) {
+			// the sort marker in the text colour, fainter for the secondary sort
+			rgb_color text = SnakeSelector::TextOn(SnakeSelector::Accent());
+			view->SetDrawingMode(B_OP_ALPHA);
+			view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+			view->SetHighColor(text.red, text.green, text.blue, secondary ? 120 : 220);
+			view->FillTriangle(triangle[0], triangle[1], triangle[2]);
+			view->SetDrawingMode(B_OP_COPY);
+		} else if (secondary) {
 			view->SetHighUIColor(B_PANEL_BACKGROUND_COLOR, 1.3);
 			view->FillTriangle(triangle[0], triangle[1], triangle[2]);
 		} else {
@@ -555,8 +586,10 @@ BColumnTitle::Draw(BView* view, bool pressed)
 		view->SetFlags(flags);
 	}
 
-	view->SetHighUIColor(B_PANEL_BACKGROUND_COLOR, B_DARKEN_1_TINT);
-	view->StrokeLine(bounds.RightTop(), bounds.RightBottom());
+	if (!snake) {
+		view->SetHighUIColor(B_PANEL_BACKGROUND_COLOR, B_DARKEN_1_TINT);
+		view->StrokeLine(bounds.RightTop(), bounds.RightBottom());
+	}
 }
 
 

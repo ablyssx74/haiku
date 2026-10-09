@@ -86,12 +86,13 @@ SettingsLock()
 static rgb_color sAccent = {70, 110, 200, 255};
 static bool sTrail = true;
 static bool sFlat = true;
+static bool sArrows = false;
 static bigtime_t sLastCheck = -kCheckInterval;
 
 
 // Tracker's settings file is plain text, one "Name value" per line.
 static void
-ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat)
+ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat, bool& arrows)
 {
 	BPath path;
 	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) != B_OK
@@ -109,6 +110,9 @@ ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat)
 		} else if (strncmp(line, "SnakeFlat ", 10) == 0) {
 			flat = strncmp(line + 10, "off", 3) != 0 && strncmp(line + 10, "0", 1) != 0
 				&& strncmp(line + 10, "false", 5) != 0;
+		} else if (strncmp(line, "SnakeArrows ", 12) == 0) {
+			arrows = strncmp(line + 12, "off", 3) != 0 && strncmp(line + 12, "0", 1) != 0
+				&& strncmp(line + 12, "false", 5) != 0;
 		} else if (strncmp(line, "SnakeTrail ", 11) == 0) {
 			trail = strncmp(line + 11, "off", 3) != 0 && strncmp(line + 11, "0", 1) != 0
 				&& strncmp(line + 11, "false", 5) != 0;
@@ -130,7 +134,8 @@ RefreshSettings()
 	rgb_color accent = make_color(70, 110, 200);
 	bool trail = true;
 	bool flat = true;
-	ReadTrackerSettings(accent, trail, flat);
+	bool arrows = false;
+	ReadTrackerSettings(accent, trail, flat, arrows);
 
 	BPath path;
 	if (be_roster != NULL && be_roster->IsRunning(kHDesktopSignature)
@@ -154,6 +159,7 @@ RefreshSettings()
 	sAccent = accent;
 	sTrail = trail;
 	sFlat = flat;
+	sArrows = arrows;
 }
 
 
@@ -163,6 +169,15 @@ Accent()
 	RefreshSettings();
 	BAutolock lock(SettingsLock());
 	return sAccent;
+}
+
+
+static bool
+ShowArrows()
+{
+	RefreshSettings();
+	BAutolock lock(SettingsLock());
+	return sArrows;
 }
 
 
@@ -1221,6 +1236,93 @@ DrawLoneSelector(BView* view, BRect frame)
 // #pragma mark - the control look
 
 
+// A rounded block in the accent, lit like a cylinder across its short side, rasterised with its own alpha so the
+// corners show whatever is behind it (the bar of a slider). `rect` is the area it has; `radius` its corner radius.
+static void
+DrawAccentBlock(BView* view, const BRect& rect, float radius, bool vertical, bool muted = false)
+{
+	const int32 width = (int32)rect.Width() + 1, height = (int32)rect.Height() + 1;
+	if (width < 4 || height < 4)
+		return;
+	BBitmap bitmap(BRect(0, 0, width - 1, height - 1), B_RGBA32);
+	if (bitmap.InitCheck() != B_OK)
+		return;
+
+	rgb_color accent = Accent();
+	if (muted) {
+		// disabled: the same block, washed out towards grey
+		uint8 grey = (uint8)((accent.red + accent.green + accent.blue) / 3);
+		accent = MixColors(accent, make_color(grey, grey, grey), 0.72f);
+	}
+	const rgb_color edge = Mix(accent, 0, 0.2f);
+	const rgb_color middle = Mix(accent, 255, 0.45f);
+	const rgb_color outline = Outline(accent);
+	const float w = width, h = height;
+	radius = std::min(radius, std::min(w, h) / 2);
+
+	struct Shape {
+		static bool Contains(float x, float y, float w, float h, float r, float inset)
+		{
+			x -= inset;
+			y -= inset;
+			float sw = w - 2 * inset, sh = h - 2 * inset, sr = std::max(0.0f, r - inset);
+			if (x < 0 || y < 0 || x > sw || y > sh)
+				return false;
+			float cx = x < sr ? sr : (x > sw - sr ? sw - sr : x);
+			float cy = y < sr ? sr : (y > sh - sr ? sh - sr : y);
+			return (x - cx) * (x - cx) + (y - cy) * (y - cy) <= sr * sr;
+		}
+	};
+
+	uint8* bits = (uint8*)bitmap.Bits();
+	for (int32 y = 0; y < height; y++) {
+		for (int32 x = 0; x < width; x++) {
+			float cr = 0, cg = 0, cb = 0;
+			int inside = 0;
+			for (int sy = 0; sy < 4; sy++) {
+				for (int sx = 0; sx < 4; sx++) {
+					float fx = x + (sx + 0.5f) / 4, fy = y + (sy + 0.5f) / 4;
+					if (!Shape::Contains(fx, fy, w, h, radius, 0))
+						continue;
+					rgb_color c;
+					if (!Shape::Contains(fx, fy, w, h, radius, 1)) {
+						c = outline;
+					} else {
+						float t = vertical ? fx / w : fy / h;
+						if (t < 0.40f)
+							c = MixColors(edge, middle, t / 0.40f);
+						else if (t < 0.70f)
+							c = MixColors(middle, accent, (t - 0.40f) / 0.30f);
+						else
+							c = MixColors(accent, edge, (t - 0.70f) / 0.30f);
+					}
+					cr += c.red;
+					cg += c.green;
+					cb += c.blue;
+					inside++;
+				}
+			}
+			uint8* p = bits + y * bitmap.BytesPerRow() + x * 4;
+			if (inside == 0) {
+				p[0] = p[1] = p[2] = p[3] = 0;
+			} else {
+				p[0] = (uint8)(cb / inside);
+				p[1] = (uint8)(cg / inside);
+				p[2] = (uint8)(cr / inside);
+				p[3] = (uint8)(inside * 255 / 16);
+			}
+		}
+	}
+
+	view->PushState();
+	view->ClipToRect(rect);
+	view->SetDrawingMode(B_OP_ALPHA);
+	view->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+	view->DrawBitmap(&bitmap, rect.LeftTop());
+	view->PopState();
+}
+
+
 // A check mark drawn as a filled, curved stroke: round at the left end, widest at the bottom and fading to a
 // point at the top right, which runs out of the box (box: the check box's square). It has a soft shadow behind it.
 static void
@@ -1386,6 +1488,26 @@ public:
 		view->PopState();
 	}
 
+	// With "Scroll bar arrows" off in Tracker's preferences the arrow buttons are drawn as plain track. The scroll
+	// bar still keeps their room and they still scroll when clicked; they just can't be seen.
+	virtual	void DrawScrollBarButton(BView* view, BRect rect, const BRect& updateRect, const rgb_color& base,
+		const rgb_color& text, uint32 flags, int32 direction, orientation orientation, bool down = false)
+	{
+		if (ShowArrows()) {
+			HaikuControlLook::DrawScrollBarButton(view, rect, updateRect, base, text, flags, direction,
+				orientation, down);
+			return;
+		}
+		if (!ShouldDraw(view, rect, updateRect))
+			return;
+		view->PushState();
+		view->ClipToRect(rect);
+		view->SetDrawingMode(B_OP_COPY);
+		view->SetHighColor(tint_color(base, 1.075f));
+		view->FillRect(rect);
+		view->PopState();
+	}
+
 	// A flat track, with none of the stock look's edge lines at the ends of each piece: the thumb
 	// sits in it as one pill.
 	virtual	void DrawScrollBarBackground(BView* view, BRect& rect, const BRect& updateRect,
@@ -1410,10 +1532,17 @@ public:
 
 	// #pragma mark - the accent in other controls: the focus ring, tabs, check marks and slider fills
 
-	// the mark of a check box or radio button: the accent, dark, faded the way the stock mark is when disabled
-	rgb_color AccentMark(rgb_color stockMark)
+	// the mark of a check box or radio button: the accent, dark on a light panel and bright on a dark one,
+	// faded towards the panel when disabled or being toggled, the way the stock mark is
+	rgb_color AccentMark(const rgb_color& base, rgb_color stockMark, uint32 flags)
 	{
-		return MixColors(stockMark, Dark(Accent()), 0.85f);
+		const bool darkPanel = (base.red * 299 + base.green * 587 + base.blue * 114) / 1000 < 128;
+		rgb_color mark = darkPanel ? Mix(Accent(), 255, 0.2f) : Dark(Accent());
+		if ((flags & B_DISABLED) != 0)
+			mark = MixColors(base, mark, 0.4f);
+		else if ((flags & B_CLICKED) != 0)
+			mark = MixColors(base, mark, 0.7f);
+		return mark;
 	}
 
 	virtual	void DrawTextControlBorder(BView* view, BRect& rect, const BRect& updateRect,
@@ -1480,12 +1609,16 @@ public:
 
 		if ((flags & B_DISABLED) != 0)
 			_FillGradient(view, rect, base, 0.4, 0.2);
-		else
-			_FillGradient(view, rect, base, 0.15, 0.0);
+		else {
+			// a recessed fill, a shade darker than the panel (lighter on a dark one) with a touch of the accent
+			const bool darkPanel = (base.red * 299 + base.green * 587 + base.blue * 114) / 1000 < 128;
+			rgb_color fill = MixColors(tint_color(base, darkPanel ? 0.88f : 1.07f), Accent(), 0.07f);
+			_FillGradient(view, rect, fill, 1.05, 0.97);
+		}
 
 		rgb_color markColor;
 		if (_RadioButtonAndCheckBoxMarkColor(base, markColor, flags)) {
-			markColor = AccentMark(markColor);
+			markColor = AccentMark(base, markColor, flags);
 			view->PushState();
 			view->SetHighColor(markColor);
 
@@ -1572,7 +1705,7 @@ public:
 
 		rgb_color markColor;
 		if (_RadioButtonAndCheckBoxMarkColor(base, markColor, flags)) {
-			view->SetHighColor(AccentMark(markColor));
+			view->SetHighColor(AccentMark(base, markColor, flags));
 			BFont font;
 			view->GetFont(&font);
 			float inset = roundf(font.Size() / 4);
@@ -1589,10 +1722,13 @@ public:
 		const rgb_color highlight = ui_color(B_CONTROL_HIGHLIGHT_COLOR);
 		// a slider that names no fill colour of its own has the same on both sides of the thumb: the part before
 		// the thumb becomes the accent
-		if ((flags & B_DISABLED) == 0 && leftFillColor == rightFillColor)
-			leftFillColor = Accent();
-		else if (leftFillColor == highlight)
-			leftFillColor = Accent();
+		rgb_color fill = Accent();
+		if ((flags & B_DISABLED) != 0) {
+			uint8 grey = (uint8)((fill.red + fill.green + fill.blue) / 3);
+			fill = MixColors(fill, make_color(grey, grey, grey), 0.72f);
+		}
+		if (leftFillColor == rightFillColor || leftFillColor == highlight)
+			leftFillColor = fill;
 		if (rightFillColor == highlight)
 			rightFillColor = Accent();
 		HaikuControlLook::DrawSliderBar(view, rect, updateRect, base, leftFillColor, rightFillColor,
@@ -1637,26 +1773,39 @@ public:
 	// upper half; the default button also gets a dark accent cap on each side
 	void ButtonHighlights(BView* view, const BRect& frame, float radius, uint32 flags)
 	{
-		if ((flags & B_DISABLED) != 0)
-			return;
+		const bool disabled = (flags & B_DISABLED) != 0;
 		view->PushState();
 		view->ClipToRect(frame);
 		view->SetDrawingMode(B_OP_ALPHA);
 		view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
 		const bool pressed = (flags & (B_ACTIVATED | B_CLICKED)) != 0;
-		if (!pressed) {
+		if (!pressed && !disabled) {
 			BRect gloss(frame.left + 2, frame.top + 2, frame.right - 2, frame.top + frame.Height() * 0.45f);
 			view->SetHighColor(255, 255, 255, 34);
 			view->FillRect(gloss.InsetByCopy(radius * 0.5f, 0));
 			view->SetHighColor(255, 255, 255, 120);
 			view->StrokeLine(BPoint(frame.left + radius, frame.top + 1), BPoint(frame.right - radius, frame.top + 1));
 		}
-		if ((flags & B_DEFAULT_BUTTON) != 0) {
-			rgb_color cap = Dark(Accent());
-			view->SetHighColor(cap.red, cap.green, cap.blue, 255);
-			float inset = std::max(3.0f, radius - 1);
-			view->FillRoundRect(BRect(frame.left, frame.top + inset, frame.left + 2, frame.bottom - inset), 1, 1);
-			view->FillRoundRect(BRect(frame.right - 2, frame.top + inset, frame.right, frame.bottom - inset), 1, 1);
+
+		// an accent cap on each side of every button, the same on all of them (disabled ones too): three pixels of
+		// the dark accent on the outside, then a lighter band of the accent that fades into the button
+		const rgb_color dark = Dark(Accent());
+		const rgb_color light = Mix(Accent(), 255, 0.22f);
+		const float top = frame.top + 3, bottom = frame.bottom - 3;
+		if (bottom > top + 4) {
+			static const uint8 kFade[4] = {215, 170, 115, 60};
+			for (int side = 0; side < 2; side++) {
+				const float sign = side == 0 ? 1.0f : -1.0f;
+				const float edge = side == 0 ? frame.left : frame.right;
+				view->SetHighColor(dark.red, dark.green, dark.blue, 255);
+				BRect bar = side == 0 ? BRect(edge, top, edge + 2, bottom) : BRect(edge - 2, top, edge, bottom);
+				view->FillRoundRect(bar, 1, 1);
+				for (int i = 0; i < 4; i++) {
+					const float x = edge + sign * (3 + i) - (side == 0 ? 0 : 0);
+					view->SetHighColor(light.red, light.green, light.blue, kFade[i]);
+					view->FillRect(BRect(x, top + 1, x, bottom - 1));
+				}
+			}
 		}
 		view->PopState();
 	}
@@ -1664,6 +1813,34 @@ public:
 	virtual	void DrawButtonBackground(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
 		uint32 flags = 0, uint32 borders = B_ALL_BORDERS, orientation orientation = B_HORIZONTAL)
 	{
+		// Tracker's column titles ask for B_FLAT with a top and a bottom border only: one accent bar, a pill like
+		// a scroll bar's thumb (a title being pressed only darkens its part of it)
+		if (borders == (B_TOP_BORDER | B_BOTTOM_BORDER) && (flags & B_FLAT) != 0 && rect.Height() >= 10
+			&& rect.Height() <= 36 && ShouldDraw(view, rect, updateRect)) {
+			if ((flags & B_ACTIVATED) == 0) {
+				// the header isn't cleared before it is drawn, and the bar's rounded ends are partly see-through:
+				// without the panel colour under it, every redraw while the window is resized left more of them
+				view->PushState();
+				view->ClipToRect(rect);
+				view->SetDrawingMode(B_OP_COPY);
+				view->SetHighColor(ui_color(B_PANEL_BACKGROUND_COLOR));
+				view->FillRect(rect);
+				view->PopState();
+				BRect bar = rect;
+				bar.InsetBy(0, 1);
+				DrawAccentBlock(view, bar, bar.Height() / 2 + 1, false);
+			} else {
+				view->PushState();
+				view->ClipToRect(rect);
+				view->SetDrawingMode(B_OP_ALPHA);
+				view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+				view->SetHighColor(0, 0, 0, 38);
+				view->FillRect(rect.InsetByCopy(0, 1));
+				view->PopState();
+			}
+			return;
+		}
+
 		const rgb_color color = ButtonColor(base, flags);
 		if (borders == B_ALL_BORDERS && (flags & B_FLAT) == 0 && rect.Height() >= 22 && rect.Width() >= 30) {
 			float radius = std::min(8.0f, std::max(5.0f, floorf(rect.Height() / 3.5f)));
@@ -1713,6 +1890,42 @@ public:
 	{
 		HaikuControlLook::DrawMenuFieldBackground(view, rect, updateRect, leftTopRadius, rightTopRadius,
 			leftBottomRadius, rightBottomRadius, ButtonColor(base, flags & ~B_FLAT), popupIndicator, flags);
+	}
+
+	// Tracker's item count asks for B_FLAT: the same accent bar as the column titles, drawn over the panel colour
+	// so that its see-through ends leave nothing behind when the window is resized
+	virtual	void DrawMenuBarBackground(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
+		uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
+	{
+		if ((flags & B_FLAT) == 0 || rect.Height() < 10 || !ShouldDraw(view, rect, updateRect)) {
+			HaikuControlLook::DrawMenuBarBackground(view, rect, updateRect, base, flags, borders);
+			return;
+		}
+		view->PushState();
+		view->ClipToRect(rect);
+		view->SetDrawingMode(B_OP_COPY);
+		view->SetHighColor(ui_color(B_PANEL_BACKGROUND_COLOR));
+		view->FillRect(rect);
+		view->PopState();
+		BRect bar = rect;
+		bar.InsetBy(0, 1);
+		DrawAccentBlock(view, bar, bar.Height() / 2 + 1, false);
+	}
+
+	// the slider's thumb is a rounded block in the accent; it keeps the area Haiku gives it
+	virtual	void DrawSliderThumb(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
+		uint32 flags, orientation orientation)
+	{
+		if (!ShouldDraw(view, rect, updateRect)) {
+			HaikuControlLook::DrawSliderThumb(view, rect, updateRect, base, flags, orientation);
+			return;
+		}
+		BRect block = rect;
+		if (orientation == B_HORIZONTAL)
+			block.InsetBy(0, 1);
+		else
+			block.InsetBy(1, 0);
+		DrawAccentBlock(view, block, 4.0f, orientation == B_VERTICAL, (flags & B_DISABLED) != 0);
 	}
 
 	// the selected tab gets a two pixel line of the accent along its outer edge

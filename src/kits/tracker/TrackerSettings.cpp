@@ -79,6 +79,7 @@ private:
 	BooleanValueSetting* fGenerateImageThumbnails;
 	BooleanValueSetting* fSnakeTrail;
 	BooleanValueSetting* fSnakeFlat;
+	BooleanValueSetting* fSnakeArrows;
 	HexScalarValueSetting* fSnakeAccent;
 
 	ScalarValueSetting* fRecentApplicationsCount;
@@ -144,6 +145,7 @@ TTrackerState::TTrackerState()
 	fGenerateImageThumbnails(NULL),
 	fSnakeTrail(NULL),
 	fSnakeFlat(NULL),
+	fSnakeArrows(NULL),
 	fSnakeAccent(NULL),
 	fRecentApplicationsCount(NULL),
 	fRecentDocumentsCount(NULL),
@@ -177,6 +179,7 @@ TTrackerState::TTrackerState(const TTrackerState&)
 	fGenerateImageThumbnails(NULL),
 	fSnakeTrail(NULL),
 	fSnakeFlat(NULL),
+	fSnakeArrows(NULL),
 	fSnakeAccent(NULL),
 	fRecentApplicationsCount(NULL),
 	fRecentDocumentsCount(NULL),
@@ -246,6 +249,7 @@ TTrackerState::LoadSettingsIfNeeded()
 
 	Add(fSnakeTrail = new BooleanValueSetting("SnakeTrail", kDefaultSnakeTrail));
 	Add(fSnakeFlat = new BooleanValueSetting("SnakeFlat", kDefaultSnakeFlat));
+	Add(fSnakeArrows = new BooleanValueSetting("SnakeArrows", kDefaultSnakeArrows));
 	Add(fSnakeAccent
 		= new HexScalarValueSetting("SnakeAccent", RGBTOHEX(kDefaultSnakeAccent), "", ""));
 
@@ -518,6 +522,20 @@ void
 TrackerSettings::SetSnakeFlat(bool flat)
 {
 	gTrackerState.fSnakeFlat->SetValue(flat);
+}
+
+
+bool
+TrackerSettings::SnakeArrows()
+{
+	return gTrackerState.fSnakeArrows->Value();
+}
+
+
+void
+TrackerSettings::SetSnakeArrows(bool arrows)
+{
+	gTrackerState.fSnakeArrows->SetValue(arrows);
 }
 
 

@@ -43,11 +43,15 @@ All rights reserved.
 #include <Locale.h>
 #include <StringFormat.h>
 
+#include <string.h>
+#include <typeinfo>
+
 #include "AutoLock.h"
 #include "Bitmaps.h"
 #include "ContainerWindow.h"
 #include "DirMenu.h"
 #include "PoseView.h"
+#include "SnakeSelector.h"
 #include "Utilities.h"
 
 
@@ -62,9 +66,19 @@ static const float kMinFontSize = 8.0f;
 //	#pragma mark - BCountView
 
 
+static bool
+SnakeBar()
+{
+	return be_control_look != NULL
+		&& strstr(typeid(*be_control_look).name(), "SnakeControlLook") != NULL;
+}
+
+
 BCountView::BCountView(BPoseView* view)
 	:
-	BView("CountVw", B_PULSE_NEEDED | B_WILL_DRAW),
+	// with SnakeControlLook the item count sits on an accent bar with rounded ends, which has to be drawn whole
+	// again when the window is resized
+	BView("CountVw", B_PULSE_NEEDED | B_WILL_DRAW | (SnakeBar() ? B_FULL_UPDATE_ON_RESIZE : 0)),
 	fLastCount(-1),
 	fLastCountSelected(-1),
 	fPoseView(view),
@@ -206,10 +220,12 @@ BCountView::Draw(BRect updateRect)
 		color = ui_color(B_DOCUMENT_BACKGROUND_COLOR);
 
 	SetLowColor(color);
+	const bool snake = SnakeBar() && !IsTypingAhead();
 	be_control_look->DrawBorder(this, bounds, updateRect,
 		color, B_PLAIN_BORDER, 0,
 		BControlLook::B_BOTTOM_BORDER | BControlLook::B_LEFT_BORDER);
-	be_control_look->DrawMenuBarBackground(this, bounds, updateRect, color);
+	// B_FLAT asks SnakeControlLook for the accent bar
+	be_control_look->DrawMenuBarBackground(this, bounds, updateRect, color, snake ? BControlLook::B_FLAT : 0);
 
 	BString itemString;
 	if (IsTypingAhead())
@@ -270,6 +286,8 @@ BCountView::Draw(BRect updateRect)
 	// use a muted gray for typeahead filtering
 	if (IsTypingAhead())
 		SetHighUIColor(B_DOCUMENT_TEXT_COLOR);
+	else if (snake)
+		SetHighColor(SnakeSelector::TextOn(SnakeSelector::Accent()));
 	else
 		SetHighUIColor(B_PANEL_TEXT_COLOR);
 
@@ -280,8 +298,9 @@ BCountView::Draw(BRect updateRect)
 	if (popsUp) {
 		BRect arrowRect(bounds);
 		arrowRect.left = bounds.right - popUpWidth;
-		float fgTint = (color.IsLight() ? B_DARKEN_4_TINT : 2.f - B_DARKEN_4_TINT);
-		be_control_look->DrawArrowShape(this, arrowRect, updateRect, color,
+		const rgb_color arrowBase = snake ? SnakeSelector::Accent() : color;
+		float fgTint = (arrowBase.IsLight() ? B_DARKEN_4_TINT : 2.f - B_DARKEN_4_TINT);
+		be_control_look->DrawArrowShape(this, arrowRect, updateRect, arrowBase,
 			BControlLook::B_DOWN_ARROW, 0, fgTint);
 	}
 

@@ -100,6 +100,8 @@ public:
 	void SetSnakeTrail(bool enabled);
 	bool SnakeFlat();
 	void SetSnakeFlat(bool flat);
+	bool SnakeArrows();
+	void SetSnakeArrows(bool arrows);
 	rgb_color SnakeAccent();
 	void SetSnakeAccent(rgb_color color);
 

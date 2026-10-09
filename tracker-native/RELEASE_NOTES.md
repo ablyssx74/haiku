@@ -1,8 +1,15 @@
-# snaketracker 1.0.24
+# snaketracker 1.0.25
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Scroll bar arrows are hidden by default.** The arrow buttons at the ends of scroll bars are now drawn as plain track, so scroll bars are just the thumb pill on a flat track. This is a new setting, **Tracker preferences > Windows > Scroll bar arrows**, and it is off by default: tick it to bring the arrows back. The bar keeps the room the arrows had, so the thumb stops a little short of each end, and the hidden arrows still scroll when you click them. **If you are updating, your scroll bar arrows disappear until you tick the box.**
+- **The column titles and the item count are an accent bar.** In a Tracker list view the Name, Size and Modified header is one full width bar in the selector colour, with rounded ends and the same lit look as the scroll bar thumb. The "27 items" bar at the bottom matches it. The text is dark or light to suit the colour, the lines between the titles are gone, and the sort arrow takes the text colour. A title being pressed darkens its part of the bar. Both bars are drawn whole again when the window is resized, so they leave nothing behind. When you type to jump to a file, the bottom bar shows what you typed in the stock look.
+- **Sliders.** The thumb is a rounded block in the selector colour, lit like the scroll bar thumb, and disabled sliders get a washed out one. It keeps the size Haiku gives it. The bar to the left of the thumb is filled in the selector colour, a washed out one when disabled.
+- **Check boxes.** Both checked and unchecked boxes have a recessed fill, a shade darker than the panel (lighter on a dark one) with a touch of the selector colour. The tick is the selector colour: dark on a light panel and brighter on a dark one. In 1.0.24 it came out pale on dark desktops.
+- **Buttons.** Every regular button has an accent cap on each side: a dark outer bar and a lighter band that fades into the button. The disabled buttons have them too. The small buttons (scroll bar arrows, the + and - next to a size) are left as they were.
+
+Since 1.0.24 (if you skipped it):
 SnakeControlLook now carries the selector colour into the rest of the controls, so every program picks it up.
 - **A curved check mark.** The tick in check boxes is a curved, tapered stroke, round at the left end and thinning to a point at the top right, which runs out past the corner of the box. It has a soft shadow behind it. It can only reach as far as the control's own area allows, so a check box that sits right against another control may clip it. Unchecking a box clears the part that stuck out. Radio buttons keep their dot, now in the accent colour.
 - **Buttons.** Real buttons have rounder corners, a faint wash of the selector colour in the fill and the edges (a little more when pressed), and highlights: a light line along the top and a faint gloss over the upper half. The default button, the one Enter presses, also gets a dark accent cap on each side. Drop-down fields get the same wash. The small buttons on scroll bars keep their stock shape.
@@ -29,4 +36,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.24-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.24-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.25-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.25-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
