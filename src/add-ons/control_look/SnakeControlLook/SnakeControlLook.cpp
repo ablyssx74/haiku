@@ -1236,8 +1236,8 @@ public:
 	}
 
 	// BScrollBar draws itself disabled both when there is nothing to scroll and when its window is not
-	// active; only the first keeps the stock look (it is told apart by B_PARTIALLY_ACTIVATED).
-	static bool StockScrollBar(uint32 flags)
+	// active; the two are told apart by B_PARTIALLY_ACTIVATED.
+	static bool NothingToScroll(uint32 flags)
 	{
 		return (flags & B_DISABLED) != 0 && (flags & B_PARTIALLY_ACTIVATED) == 0;
 	}
@@ -1248,13 +1248,23 @@ public:
 	virtual	void DrawScrollBarThumb(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags, orientation orientation, uint32 knobStyle = B_KNOB_NONE)
 	{
-		if (StockScrollBar(flags) || !rect.IsValid()) {
+		if (!rect.IsValid()) {
 			HaikuControlLook::DrawScrollBarThumb(view, rect, updateRect, base, flags, orientation,
 				knobStyle);
 			return;
 		}
 		if (!ShouldDraw(view, rect, updateRect))
 			return;
+		if (NothingToScroll(flags)) {
+			// the thumb would fill the whole bar: an empty track instead, to match the rest
+			view->PushState();
+			view->ClipToRect(rect);
+			view->SetDrawingMode(B_OP_COPY);
+			view->SetHighColor(tint_color(base, 1.075f));
+			view->FillRect(rect);
+			view->PopState();
+			return;
+		}
 
 		rgb_color accent = Accent();
 		if ((flags & B_DISABLED) != 0) {
@@ -1342,11 +1352,6 @@ public:
 	virtual	void DrawScrollBarBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags, orientation orientation)
 	{
-		if (StockScrollBar(flags)) {
-			HaikuControlLook::DrawScrollBarBackground(view, rect, updateRect, base, flags,
-				orientation);
-			return;
-		}
 		if (!ShouldDraw(view, rect, updateRect))
 			return;
 		view->PushState();
