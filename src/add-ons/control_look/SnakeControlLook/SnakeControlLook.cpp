@@ -1260,7 +1260,7 @@ public:
 			view->PushState();
 			view->ClipToRect(rect);
 			view->SetDrawingMode(B_OP_COPY);
-			view->SetHighColor(tint_color(base, 1.075f));
+			view->SetHighColor(tint_color(ui_color(B_PANEL_BACKGROUND_COLOR), 1.075f));
 			view->FillRect(rect);
 			view->PopState();
 			return;
@@ -1272,7 +1272,7 @@ public:
 			uint8 grey = (uint8)((accent.red + accent.green + accent.blue) / 3);
 			accent = MixColors(accent, make_color(grey, grey, grey), 0.7f);
 		}
-		rgb_color track = tint_color(base, 1.075f);
+		rgb_color track = tint_color(ui_color(B_PANEL_BACKGROUND_COLOR), 1.075f);
 		BRect pill = rect;
 		if (orientation == B_VERTICAL)
 			pill.InsetBy(2, 1);

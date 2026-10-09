@@ -82,7 +82,14 @@ public:
 
 			// name: the folder name of the theme, looked up in the xfwm4-themes data folders
 			bool				Load(const char* name);
+			// loads the same theme again (after the palette changed)
+			bool				Reload() { BString name(fName); return Load(name.String()); }
 			bool				IsValid() const { return fValid; }
+
+			// On a dark desktop the pictures' symbolic colours (xfwm4's "s active_color_2" and the like, which xfwm4
+			// takes from the GTK theme) are drawn from the desktop's colours instead of the pictures' own, so the
+			// borders are dark too. Returns true when this changed what the pictures should look like.
+	static	bool				SetDarkPalette(bool dark, rgb_color tab, rgb_color inactiveTab, rgb_color panel);
 
 			const XfwmImage&	TopLeft(bool active) const { return fTopLeft[active ? 0 : 1]; }
 			const XfwmImage&	TopRight(bool active) const { return fTopRight[active ? 0 : 1]; }
@@ -112,6 +119,8 @@ public:
 
 			rgb_color			TextColor(bool active) const { return active ? fActiveText : fInactiveText; }
 			int32				TitleOffset(bool active) const { return active ? fOffsetActive : fOffsetInactive; }
+			// title_horizontal_offset: how far in from the edge the title starts (left aligned) or ends (right)
+			int32				TitleHorizontalOffset() const { return fTitleOffsetX; }
 			bool				TitleAlignLeft() const { return fAlignment == 0; }
 			int32				TitleAlignment() const { return fAlignment; }
 			// the title bar is one tab across the whole window (xfwm4's default), not a tab and a filler
@@ -151,6 +160,7 @@ private:
 			rgb_color			fActiveText;
 			rgb_color			fInactiveText;
 			int32				fOffsetActive;
+			int32				fTitleOffsetX;
 			int32				fOffsetInactive;
 			int32				fAlignment;		// 0 left, 1 center, 2 right
 			bool				fFullWidth;
@@ -159,6 +169,7 @@ private:
 			int32				fButtonOffset;
 			int32				fButtonSpacing;
 			BString				fButtonLayout;
+			BString				fName;
 };
 
 

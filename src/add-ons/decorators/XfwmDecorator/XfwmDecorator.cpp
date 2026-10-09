@@ -236,6 +236,28 @@ XfwmDecorAddOn::_AllocateDecorator(DesktopSettings& settings, BRect rect, Deskto
 // #pragma mark - XfwmDecorator
 
 
+// a dark desktop gets dark borders: the theme's symbolic colours come from the desktop's, and the pictures are
+// loaded again when those changed
+static void
+UpdatePalette(XfwmTheme* theme, DesktopSettings& settings)
+{
+	rgb_color panel = settings.UIColor(B_PANEL_BACKGROUND_COLOR);
+	bool dark = (panel.red * 299 + panel.green * 587 + panel.blue * 114) / 1000 < 128;
+	if (XfwmTheme::SetDarkPalette(dark, settings.UIColor(B_WINDOW_TAB_COLOR),
+			settings.UIColor(B_WINDOW_INACTIVE_TAB_COLOR), panel)) {
+		theme->Reload();
+	}
+}
+
+
+void
+XfwmDecorator::UpdateColors(DesktopSettings& settings)
+{
+	SATDecorator::UpdateColors(settings);
+	UpdatePalette(const_cast<XfwmTheme*>(fTheme), settings);
+}
+
+
 XfwmDecorator::XfwmDecorator(DesktopSettings& settings, BRect frame, Desktop* desktop, const XfwmTheme* theme)
 	:
 	SATDecorator(settings, frame, desktop),
@@ -243,6 +265,7 @@ XfwmDecorator::XfwmDecorator(DesktopSettings& settings, BRect frame, Desktop* de
 	fHoverTab(-1),
 	fHoverButton(-1)
 {
+	UpdatePalette(const_cast<XfwmTheme*>(fTheme), settings);
 }
 
 
@@ -1111,6 +1134,10 @@ XfwmDecorator::_DrawTitle(Decorator::Tab* tab, BRect)
 	if (fTheme->TitleAlignment() == 1)
 		shift = (room - used) / 2;
 	else if (fTheme->TitleAlignment() == 2)
+		shift = room - used - fTheme->TitleHorizontalOffset();
+	else
+		shift = fTheme->TitleHorizontalOffset();
+	if (shift > room - used)
 		shift = room - used;
 	if (shift < 0)
 		shift = 0;

@@ -50,6 +50,7 @@ public:
 
 
 protected:
+	virtual	void				UpdateColors(DesktopSettings& settings);
 	virtual	void				_DoLayout();
 	virtual	void				_DoTabLayout();
 	virtual	void				_MoveBy(BPoint offset);

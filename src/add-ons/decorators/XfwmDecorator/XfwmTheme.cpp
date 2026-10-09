@@ -21,6 +21,80 @@
 
 namespace {
 
+// The desktop's colours, when they are dark (see XfwmTheme::SetDarkPalette).
+struct Palette {
+	Palette() : dark(false) {}
+	bool		dark;
+	rgb_color	tab;
+	rgb_color	inactiveTab;
+	rgb_color	panel;
+};
+
+static Palette sPalette;
+
+
+// The title text colours the theme's themerc names: the pictures' "s active_text_color" colours (the glyphs
+// on the buttons, mostly) are meant to be those.
+struct ThemeText {
+	ThemeText() : hasActive(false), hasInactive(false) {}
+	bool		hasActive;
+	bool		hasInactive;
+	rgb_color	active;
+	rgb_color	inactive;
+};
+
+static ThemeText sThemeText;
+
+
+static rgb_color
+MixToward(rgb_color c, uint8 target, float amount)
+{
+	return make_color((uint8)(c.red + (target - c.red) * amount), (uint8)(c.green + (target - c.green) * amount),
+		(uint8)(c.blue + (target - c.blue) * amount));
+}
+
+
+// "active_color_2", "inactive_shadow_1" ...: a colour out of the palette, when the name is one of those
+static bool
+SymbolicColor(const std::string& name, uint8& red, uint8& green, uint8& blue)
+{
+	bool active;
+	std::string rest;
+	if (name.compare(0, 7, "active_") == 0) {
+		active = true;
+		rest = name.substr(7);
+	} else if (name.compare(0, 9, "inactive_") == 0) {
+		active = false;
+		rest = name.substr(9);
+	} else
+		return false;
+	size_t under = rest.find('_');
+	if (under == std::string::npos || under + 2 != rest.size() || (rest[under + 1] != '1' && rest[under + 1] != '2'))
+		return false;
+	std::string kind = rest.substr(0, under);
+	bool first = rest[under + 1] == '1';
+
+	// only the border family (_2) follows the desktop; the title bar family (_1) keeps the theme's own colours
+	if (first)
+		return false;
+	rgb_color base = active ? sPalette.panel : MixToward(sPalette.panel, 0, 0.1f);
+	if (kind == "color")
+		;
+	else if (kind == "hilight")
+		base = MixToward(base, 255, 0.25f);
+	else if (kind == "shadow")
+		base = MixToward(base, 0, 0.4f);
+	else if (kind == "mid")
+		base = MixToward(base, 0, 0.2f);
+	else
+		return false;
+	red = base.red;
+	green = base.green;
+	blue = base.blue;
+	return true;
+}
+
+
 struct XpmColor {
 	std::string	key;
 	uint8		red, green, blue, alpha;
@@ -665,8 +739,27 @@ XfwmImage::Load(const char* path)
 			lower += (char)tolower((unsigned char)value[k]);
 		if (lower == "none" || lower.empty())
 			color.alpha = 0;
-		else if (!ParseHexColor(value, color.red, color.green, color.blue))
-			NamedColor(value, color.red, color.green, color.blue);
+		else {
+			if (!ParseHexColor(value, color.red, color.green, color.blue))
+				NamedColor(value, color.red, color.green, color.blue);
+			for (size_t t = 0; t + 1 < tokens.size(); t++) {
+				if (tokens[t] != "s")
+					continue;
+				const std::string& symbol = tokens[t + 1];
+				const rgb_color* text = NULL;
+				if (symbol == "active_text_color" && sThemeText.hasActive)
+					text = &sThemeText.active;
+				else if (symbol == "inactive_text_color" && sThemeText.hasInactive)
+					text = &sThemeText.inactive;
+				if (text != NULL) {
+					color.red = text->red;
+					color.green = text->green;
+					color.blue = text->blue;
+				} else if (sPalette.dark)
+					SymbolicColor(symbol, color.red, color.green, color.blue);
+				break;
+			}
+		}
 		colors.push_back(color);
 	}
 
@@ -928,6 +1021,7 @@ XfwmTheme::XfwmTheme()
 	fTitleHeight(24),
 	fButtonWidth(12),
 	fOffsetActive(0),
+	fTitleOffsetX(0),
 	fOffsetInactive(0),
 	fAlignment(0),
 	fFullWidth(true),
@@ -964,14 +1058,36 @@ XfwmTheme::_FindFolder(const char* name, BString& path) const
 
 
 bool
+XfwmTheme::SetDarkPalette(bool dark, rgb_color tab, rgb_color inactiveTab, rgb_color panel)
+{
+	bool changed = dark != sPalette.dark;
+	if (dark && !changed) {
+		changed = memcmp(&tab, &sPalette.tab, sizeof(rgb_color)) != 0
+			|| memcmp(&inactiveTab, &sPalette.inactiveTab, sizeof(rgb_color)) != 0
+			|| memcmp(&panel, &sPalette.panel, sizeof(rgb_color)) != 0;
+	}
+	sPalette.dark = dark;
+	sPalette.tab = tab;
+	sPalette.inactiveTab = inactiveTab;
+	sPalette.panel = panel;
+	return changed;
+}
+
+
+bool
 XfwmTheme::Load(const char* name)
 {
 	fValid = false;
+	fName = name;
 	BString folder;
 	if (!_FindFolder(name, folder))
 		return false;
 
 	_ReadThemerc(BString(folder).Append("/themerc").String());
+	sThemeText.hasActive = fHasActiveText;
+	sThemeText.hasInactive = fHasInactiveText;
+	sThemeText.active = fActiveText;
+	sThemeText.inactive = fInactiveText;
 
 	struct Piece {
 		XfwmImage*	image;
@@ -1174,6 +1290,8 @@ XfwmTheme::_ReadThemerc(const char* path)
 			fOffsetActive = atoi(value);
 		else if (strcmp(key, "title_vertical_offset_inactive") == 0)
 			fOffsetInactive = atoi(value);
+		else if (strcmp(key, "title_horizontal_offset") == 0)
+			fTitleOffsetX = atoi(value);
 		else if (strcmp(key, "title_alignment") == 0)
 			fAlignment = strcmp(value, "center") == 0 ? 1 : (strcmp(value, "right") == 0 ? 2 : 0);
 		else if (strcmp(key, "full_width_title") == 0)
