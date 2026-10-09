@@ -43,6 +43,7 @@ void		DetachLink(BMenu* submenu);
 void		DrawTrail(BMenu* menu);
 
 bool		MenuDrawsTrail(BMenu* menu);
+bool		MenuPaintsSelector(BMenu* menu);
 
 }	// namespace SnakeSelector
 

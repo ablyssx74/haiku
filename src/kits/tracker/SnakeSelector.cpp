@@ -850,6 +850,15 @@ ControlLookDraws()
 }
 
 
+// Whether a menu's rows leave the selector (and the row's background) to the menu: its own trail does that, and
+// so does SnakeControlLook, whose trail runs under the rows of every menu.
+bool
+MenuPaintsSelector(BMenu* menu)
+{
+	return menu != NULL && (ControlLookDraws() || MenuDrawsTrail(menu));
+}
+
+
 void
 DrawTrail(BMenu* menu)
 {

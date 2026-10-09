@@ -383,30 +383,59 @@ FindParentLink(BMenu* menu)
 // beside the Deskbar when that is a vertical, expanded one, and below or above the leaf (a menu bar title) in
 // the other layouts; the strip of the trail runs down the edge that faces the Deskbar, or the side the leaf is
 // on, and starts at the menu's top (or ends at its bottom, when the menu opens upwards).
+static bool IsPillMenuBar(BView* view);
+
 enum DeskbarPlace { kNotDeskbar, kBesideDeskbar, kBelowLeaf, kAboveLeaf };
+
+struct LeafInfo {
+	BRect	leaf;
+	bool	pill;
+};
 
 static DeskbarPlace
 FindDeskbarPlace(BMenu* menu, bool* stripOnLeft)
 {
-	if (menu->Window() == NULL || strstr(typeid(*menu).name(), "TDeskbarMenu") == NULL)
+	if (menu->Window() == NULL)
 		return kNotDeskbar;
+	// the Deskbar's own menu, or a menu that hangs below a title of a pill menu bar
+	const bool deskbarMenu = strstr(typeid(*menu).name(), "TDeskbarMenu") != NULL;
 	BMenu* bar = menu->Supermenu();
 	BMenuItem* title = menu->Superitem();
+	if (!deskbarMenu && (bar == NULL || dynamic_cast<BMenuBar*>(bar) == NULL))
+		return kNotDeskbar;
 	if (bar == NULL || title == NULL || bar->Window() == NULL || bar->Window() == menu->Window())
 		return kNotDeskbar;
 	BRect desk = bar->Window()->Frame();
 	BRect frame = menu->Window()->Frame();
 	// the leaf's place on the screen: the Deskbar's window has to be locked to ask the menu bar
+	// (the bar's window is busy while the mouse is tracked, so the last answer is remembered per menu)
+	static std::map<BMenu*, LeafInfo>* sLeaves = new std::map<BMenu*, LeafInfo>();
 	BRect leaf;
 	if (bar->Window()->LockWithTimeout(0) == B_OK) {
-		leaf = bar->ConvertToScreen(title->Frame());
+		// (asking the bar anything needs its window locked)
+		LeafInfo info;
+		info.pill = deskbarMenu || IsPillMenuBar(bar);
+		info.leaf = bar->ConvertToScreen(title->Frame());
 		bar->Window()->Unlock();
-	} else
-		leaf = desk;
+		BAutolock lock(LinkLock());
+		(*sLeaves)[menu] = info;
+	}
+	{
+		BAutolock lock(LinkLock());
+		std::map<BMenu*, LeafInfo>::iterator it = sLeaves->find(menu);
+		if (it != sLeaves->end()) {
+			if (!it->second.pill)
+				return kNotDeskbar;
+			leaf = it->second.leaf;
+		} else if (deskbarMenu)
+			leaf = desk;
+		else
+			return kNotDeskbar;
+	}
 	const float slack = 8;
 
 	// beside the Deskbar
-	if (frame.bottom >= desk.top && frame.top <= desk.bottom) {
+	if (deskbarMenu && frame.bottom >= desk.top && frame.top <= desk.bottom) {
 		if (fabsf(frame.right + 1 - desk.left) <= slack) {
 			*stripOnLeft = false;
 			return kBesideDeskbar;
@@ -420,9 +449,10 @@ FindDeskbarPlace(BMenu* menu, bool* stripOnLeft)
 	// below or above the leaf, on the side of the menu the leaf is on
 	if (frame.right >= leaf.left && frame.left <= leaf.right) {
 		*stripOnLeft = fabsf(frame.left - leaf.left) <= fabsf(frame.right - leaf.right);
-		if (fabsf(frame.top - (leaf.bottom + 1)) <= slack || fabsf(frame.top - (desk.bottom + 1)) <= slack)
+		if (fabsf(frame.top - (leaf.bottom + 1)) <= slack
+			|| (deskbarMenu && fabsf(frame.top - (desk.bottom + 1)) <= slack))
 			return kBelowLeaf;
-		if (fabsf(frame.bottom + 1 - leaf.top) <= slack || fabsf(frame.bottom + 1 - desk.top) <= slack)
+		if (deskbarMenu && (fabsf(frame.bottom + 1 - leaf.top) <= slack || fabsf(frame.bottom + 1 - desk.top) <= slack))
 			return kAboveLeaf;
 	}
 	return kNotDeskbar;
@@ -1237,11 +1267,38 @@ DrawLoneSelector(BView* view, BRect frame)
 // #pragma mark - the control look
 
 
+// Whether the windows are light or dark, from the panel colour they are painted in (a control's own base colour is
+// lighter than its panel, so the two can fall on either side of the line)
+static bool
+LightPanel()
+{
+	const rgb_color panel = ui_color(B_PANEL_BACKGROUND_COLOR);
+	return (panel.red * 299 + panel.green * 587 + panel.blue * 114) / 1000 >= 128;
+}
+
+
+// The recessed fill of check boxes and radio buttons: well below the panel on a light theme (less so on a very
+// light one, so it doesn't turn heavy), a little above it on a dark one, with a touch of the accent.
+static rgb_color
+RecessedFill(const rgb_color& base)
+{
+	const float lum = (base.red * 299 + base.green * 587 + base.blue * 114) / 1000.0f;
+	rgb_color fill;
+	if (lum >= 128) {
+		const float t = std::min(1.0f, (lum - 128) / 127.0f);
+		const float factor = 0.62f + 0.18f * t;
+		fill = make_color((uint8)(base.red * factor), (uint8)(base.green * factor), (uint8)(base.blue * factor));
+	} else
+		fill = MixColors(base, make_color(255, 255, 255), 0.14f);
+	return MixColors(fill, Accent(), 0.07f);
+}
+
+
 // A rounded block in the accent, lit like a cylinder across its short side, rasterised with its own alpha so the
 // corners show whatever is behind it (the bar of a slider). `rect` is the area it has; `radius` its corner radius.
 static void
 DrawAccentBlock(BView* view, const BRect& rect, float radius, bool vertical, bool muted = false,
-	const rgb_color* tone = NULL)
+	const rgb_color* tone = NULL, const BRect* clip = NULL)
 {
 	const int32 width = (int32)rect.Width() + 1, height = (int32)rect.Height() + 1;
 	if (width < 4 || height < 4)
@@ -1317,7 +1374,7 @@ DrawAccentBlock(BView* view, const BRect& rect, float radius, bool vertical, boo
 	}
 
 	view->PushState();
-	view->ClipToRect(rect);
+	view->ClipToRect(clip != NULL ? *clip : rect);
 	view->SetDrawingMode(B_OP_ALPHA);
 	view->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
 	view->DrawBitmap(&bitmap, rect.LeftTop());
@@ -1325,29 +1382,21 @@ DrawAccentBlock(BView* view, const BRect& rect, float radius, bool vertical, boo
 }
 
 
-// A check mark drawn as a filled, curved stroke: round at the left end, widest at the bottom and fading to a
-// point at the top right, which runs out of the box (box: the check box's square). It has a soft shadow behind it.
+// A check mark drawn as one curved stroke of the same width all the way, round at both ends: the short arm and
+// the long arm alike, the long one running out of the top right corner of the box (box: the check box's square).
+// It has a soft shadow behind it: two copies of the stroke, offset, fainter the further they are.
 static void
 DrawTick(BView* view, const BRect& box, rgb_color color)
 {
 	const float w = box.Width(), h = box.Height();
-	// two soft shadows, wider and fainter the further they are, then the tick itself
 	static const float kOffset[3][3] = {{2.0f, 2.4f, 36}, {1.2f, 1.6f, 90}, {0.0f, 0.0f, 255}};
 	for (int pass = 0; pass < 3; pass++) {
 		const float dx = kOffset[pass][0], dy = kOffset[pass][1];
 #define TICK_POINT(x, y) BPoint(box.left + (x) * w + dx, box.top + (y) * h + dy)
-		BShape tick;
-		tick.MoveTo(TICK_POINT(0.08f, 0.54f));
-		// the left end, rounded, and down to the bottom of the check
-		tick.BezierTo(TICK_POINT(0.10f, 0.45f), TICK_POINT(0.22f, 0.42f), TICK_POINT(0.29f, 0.51f));
-		tick.BezierTo(TICK_POINT(0.33f, 0.57f), TICK_POINT(0.37f, 0.63f), TICK_POINT(0.40f, 0.67f));
-		// up the long stroke to its tip, outside the box
-		tick.BezierTo(TICK_POINT(0.56f, 0.32f), TICK_POINT(0.90f, -0.04f), TICK_POINT(1.28f, -0.30f));
-		// and back down its other side, wider, to the bottom
-		tick.BezierTo(TICK_POINT(1.04f, 0.26f), TICK_POINT(0.80f, 0.66f), TICK_POINT(0.54f, 0.98f));
-		tick.BezierTo(TICK_POINT(0.46f, 1.06f), TICK_POINT(0.34f, 1.04f), TICK_POINT(0.26f, 0.94f));
-		tick.BezierTo(TICK_POINT(0.16f, 0.82f), TICK_POINT(0.04f, 0.66f), TICK_POINT(0.08f, 0.54f));
-		tick.Close();
+		BShape line;
+		line.MoveTo(TICK_POINT(0.16f, 0.56f));
+		line.BezierTo(TICK_POINT(0.24f, 0.64f), TICK_POINT(0.32f, 0.78f), TICK_POINT(0.40f, 0.86f));
+		line.BezierTo(TICK_POINT(0.58f, 0.50f), TICK_POINT(0.90f, 0.06f), TICK_POINT(1.22f, -0.22f));
 #undef TICK_POINT
 		view->PushState();
 		view->SetDrawingMode(B_OP_ALPHA);
@@ -1356,8 +1405,10 @@ DrawTick(BView* view, const BRect& box, rgb_color color)
 			view->SetHighColor(0, 0, 0, (uint8)kOffset[pass][2]);
 		else
 			view->SetHighColor(color);
+		view->SetLineMode(B_ROUND_CAP, B_ROUND_JOIN);
+		view->SetPenSize(std::max(2.0f, w * 0.22f));
 		view->MovePenTo(BPoint(0, 0));
-		view->FillShape(&tick);
+		view->StrokeShape(&line);
 		view->PopState();
 	}
 }
@@ -1375,6 +1426,16 @@ IsTrackerHeader(BView* view)
 }
 
 
+// The header of a column list (BColumnListView), which Haiku's applications use (Repositories, Sounds, HaikuDepot):
+// it draws its columns one cell at a time.
+static bool
+IsColumnListHeader(BView* view)
+{
+	const char* name = view->Name();
+	return name != NULL && strcmp(name, "title_view") == 0;
+}
+
+
 static bool
 IsTrackerCount(BView* view)
 {
@@ -1384,12 +1445,84 @@ IsTrackerCount(BView* view)
 
 
 static rgb_color
-BarToneForText()
+ToneForText(const rgb_color& text)
 {
-	const rgb_color text = ui_color(B_PANEL_TEXT_COLOR);
 	const bool lightText = (text.red * 299 + text.green * 587 + text.blue * 114) / 1000 >= 128;
 	const rgb_color accent = Accent();
 	return lightText ? MixColors(Dark(accent), accent, 0.35f) : Mix(accent, 255, 0.4f);
+}
+
+
+static rgb_color
+BarToneForText()
+{
+	return ToneForText(ui_color(B_PANEL_TEXT_COLOR));
+}
+
+
+// A drop-down field: the accent pill with a divider and a chevron on the right, in the shade that suits the
+// menu text the application draws on it.
+// The colour a view sits on: that of the nearest view up the tree that has one of its own (a control's own colour is
+// its control background, which is lighter than the window it is in)
+static rgb_color
+SurroundColor(BView* view, const rgb_color& fallback)
+{
+	for (BView* parent = view->Parent(); parent != NULL; parent = parent->Parent()) {
+		const rgb_color color = parent->ViewColor();
+		if (color != B_TRANSPARENT_COLOR)
+			return color;
+	}
+	return fallback;
+}
+
+
+static void
+DrawFieldPill(BView* view, const BRect& rect, const rgb_color& base, uint32 flags, bool popupIndicator)
+{
+	const bool disabled = (flags & BControlLook::B_DISABLED) != 0;
+	const rgb_color text = ui_color(B_MENU_ITEM_TEXT_COLOR);
+	rgb_color tone = ToneForText(text);
+	if ((flags & BControlLook::B_HOVER) != 0 && !disabled)
+		tone = Mix(tone, 255, 0.1f);
+
+	// the panel colour under it, as the pill's rounded ends are partly see-through
+	view->PushState();
+	view->ClipToRect(rect);
+	view->SetDrawingMode(B_OP_COPY);
+	view->SetHighColor(SurroundColor(view, base));
+	view->FillRect(rect);
+	view->PopState();
+
+	BRect pill = rect;
+	pill.InsetBy(0, 0);
+	DrawAccentBlock(view, pill, pill.Height() / 2 + 1, false, disabled, &tone);
+
+	if (!popupIndicator)
+		return;
+
+	// the divider and the chevron, in the menu text colour
+	const float indicator = std::max(14.0f, pill.Height() * 0.9f);
+	const float dividerX = pill.right - indicator;
+	const float midY = (pill.top + pill.bottom) / 2;
+	rgb_color mark = text;
+	if (disabled)
+		mark = MixColors(tone, text, 0.4f);
+	view->PushState();
+	view->SetDrawingMode(B_OP_ALPHA);
+	view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+	view->SetHighColor(mark.red, mark.green, mark.blue, 70);
+	view->StrokeLine(BPoint(dividerX, pill.top + 3), BPoint(dividerX, pill.bottom - 3));
+	view->SetHighColor(mark.red, mark.green, mark.blue, 255);
+	view->SetLineMode(B_ROUND_CAP, B_ROUND_JOIN);
+	view->SetPenSize(1.6f);
+	const float cx = dividerX + (pill.right - dividerX) / 2 - 1;
+	view->MovePenTo(BPoint(0, 0));
+	BShape chevron;
+	chevron.MoveTo(BPoint(cx - 3.5f, midY - 1.5f));
+	chevron.LineTo(BPoint(cx, midY + 2.0f));
+	chevron.LineTo(BPoint(cx + 3.5f, midY - 1.5f));
+	view->StrokeShape(&chevron);
+	view->PopState();
 }
 
 
@@ -1642,10 +1775,8 @@ public:
 		if ((flags & B_DISABLED) != 0)
 			_FillGradient(view, rect, base, 0.4, 0.2);
 		else {
-			// a recessed fill, a shade darker than the panel (lighter on a dark one) with a touch of the accent
-			const bool darkPanel = (base.red * 299 + base.green * 587 + base.blue * 114) / 1000 < 128;
-			rgb_color fill = MixColors(tint_color(base, darkPanel ? 0.88f : 1.07f), Accent(), 0.07f);
-			_FillGradient(view, rect, fill, 1.05, 0.97);
+			// the recessed fill, the same as the radio buttons have
+			_FillGradient(view, rect, RecessedFill(base), 1.05, 0.97);
 		}
 
 		rgb_color markColor;
@@ -1685,65 +1816,46 @@ public:
 		if (!ShouldDraw(view, rect, updateRect))
 			return;
 
-		rgb_color borderColor;
-		rgb_color bevelLight;
-		rgb_color bevelShadow;
+		const bool disabled = (flags & B_DISABLED) != 0;
+		const bool darkTheme = !LightPanel();
+		const BRect disc = rect;
 
-		if ((flags & B_DISABLED) != 0) {
-			borderColor = tint_color(base, 1.15);
-			bevelLight = base;
-			bevelShadow = base;
-		} else if ((flags & B_CLICKED) != 0) {
-			borderColor = tint_color(base, 1.50);
-			bevelLight = borderColor;
-			bevelShadow = borderColor;
-		} else {
-			borderColor = tint_color(base, 1.45);
-			bevelLight = tint_color(base, 0.55);
-			bevelShadow = tint_color(base, 1.11);
-		}
+		// the edge: a dark ring that is heaviest along the bottom, as if the disc were cut into the panel; the
+		// accent when the button has the keyboard focus
+		rgb_color edge = darkTheme ? make_color(0, 0, 0) : MixColors(base, make_color(0, 0, 0), 0.72f);
+		if ((flags & B_FOCUSED) != 0 && !disabled)
+			edge = MixColors(Dark(Accent()), edge, 0.2f);
+		if (disabled)
+			edge = MixColors(base, edge, 0.35f);
 
-		if ((flags & B_FOCUSED) != 0)
-			borderColor = Accent();
+		view->PushState();
+		view->SetDrawingMode(B_OP_COPY);
+		view->SetHighColor(edge);
+		view->FillEllipse(disc);
 
-		BGradientLinear bevelGradient;
-		bevelGradient.AddColor(bevelShadow, 0);
-		bevelGradient.AddColor(bevelLight, 255);
-		bevelGradient.SetStart(rect.LeftTop());
-		bevelGradient.SetEnd(rect.RightBottom());
-
-		view->FillEllipse(rect, bevelGradient);
-		rect.InsetBy(1, 1);
-
-		bevelGradient.MakeEmpty();
-		bevelGradient.AddColor(borderColor, 0);
-		bevelGradient.AddColor(tint_color(borderColor, 0.8), 255);
-		view->FillEllipse(rect, bevelGradient);
-		rect.InsetBy(1, 1);
-
-		float topTint;
-		float bottomTint;
-		if ((flags & B_DISABLED) != 0) {
-			topTint = 0.4;
-			bottomTint = 0.2;
-		} else {
-			topTint = 0.15;
-			bottomTint = 0.0;
-		}
-
+		rgb_color fill = RecessedFill(base);
+		if (disabled)
+			fill = MixColors(base, fill, 0.55f);
+		else if ((flags & B_CLICKED) != 0)
+			fill = MixColors(fill, make_color(0, 0, 0), 0.12f);
+		BRect inner = disc.InsetByCopy(1, 1);
+		inner.OffsetBy(0, -0.5f);
 		BGradientLinear gradient;
-		_MakeGradient(gradient, rect, base, topTint, bottomTint);
-		view->FillEllipse(rect, gradient);
+		gradient.AddColor(MixColors(fill, make_color(0, 0, 0), 0.08f), 0);
+		gradient.AddColor(MixColors(fill, make_color(255, 255, 255), 0.05f), 255);
+		gradient.SetStart(inner.LeftTop());
+		gradient.SetEnd(inner.LeftBottom());
+		view->FillEllipse(inner, gradient);
 
 		rgb_color markColor;
 		if (_RadioButtonAndCheckBoxMarkColor(base, markColor, flags)) {
+			// the dot: a third of the disc, in the accent
+			const float size = disc.Width() * 0.38f;
+			const BPoint center((disc.left + disc.right) / 2, (disc.top + disc.bottom) / 2 - 0.25f);
 			view->SetHighColor(AccentMark(base, markColor, flags));
-			BFont font;
-			view->GetFont(&font);
-			float inset = roundf(font.Size() / 4);
-			rect.InsetBy(inset, inset);
-			view->FillEllipse(rect);
+			view->FillEllipse(center, size / 2, size / 2);
 		}
+		view->PopState();
 	}
 
 	// the filled part of a slider's bar is the accent
@@ -1793,7 +1905,7 @@ public:
 	{
 		if ((flags & (B_FLAT | B_DISABLED)) != 0)
 			return base;
-		const bool lightPanel = (base.red * 299 + base.green * 587 + base.blue * 114) / 1000 >= 128;
+		const bool lightPanel = LightPanel();
 		float amount = 0.09f;
 		if ((flags & B_DEFAULT_BUTTON) != 0)
 			amount = lightPanel ? 0.0f : 0.14f;
@@ -1807,6 +1919,48 @@ public:
 
 	// the highlights of a real button: a light line along the top inside the edge and a faint gloss over its
 	// upper half; the default button also gets a dark accent cap on each side
+	// a small, square button (the Tracker window's back, forward and up): a round, solid piece of the accent
+	static bool SmallRoundButton(BView* view, const BRect& rect, uint32 flags, uint32 borders)
+	{
+		return borders == B_ALL_BORDERS && (flags & B_FLAT) == 0 && !PlainButton(view) && rect.Height() >= 16
+			&& rect.Width() >= 24 && rect.Width() < 34;
+	}
+
+	// One colour, the accent; darker while pressed, washed out when disabled
+	void DrawSolidButton(BView* view, const BRect& frame, uint32 flags)
+	{
+		const bool disabled = (flags & B_DISABLED) != 0;
+		const bool pressed = (flags & (B_ACTIVATED | B_CLICKED)) != 0;
+		const rgb_color accent = Accent();
+		const rgb_color panel = ui_color(B_PANEL_BACKGROUND_COLOR);
+		const bool lightTheme = (panel.red * 299 + panel.green * 587 + panel.blue * 114) / 1000 >= 128;
+		rgb_color body = lightTheme ? MixColors(Dark(accent), accent, 0.55f) : Mix(accent, 255, 0.16f);
+		if (pressed)
+			body = Mix(body, 0, 0.2f);
+		if (disabled)
+			body = MixColors(panel, body, 0.45f);
+
+		view->PushState();
+		view->ClipToRect(frame);
+		view->SetDrawingMode(B_OP_COPY);
+		// (the toolbar's own colour, not the button's)
+		view->SetHighColor(SurroundColor(view, ui_color(B_PANEL_BACKGROUND_COLOR)));
+		view->FillRect(frame);
+		// a circle
+		BRect disc = frame.InsetByCopy(1, 1);
+		const float d = std::min(disc.Width(), disc.Height());
+		disc = BRect(floorf((disc.left + disc.right - d) / 2 + 0.5f), floorf((disc.top + disc.bottom - d) / 2 + 0.5f),
+			0, 0).OffsetByCopy(0, 0);
+		disc.right = disc.left + d;
+		disc.bottom = disc.top + d;
+		view->SetHighColor(body);
+		view->SetDrawingMode(B_OP_ALPHA);
+		view->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+		view->SetPenSize(1);
+		view->FillEllipse(disc);
+		view->PopState();
+	}
+
 	void ButtonHighlights(BView* view, const BRect& frame, float radius, uint32 flags)
 	{
 		const bool disabled = (flags & B_DISABLED) != 0;
@@ -1827,11 +1981,13 @@ public:
 		// block of the accent, lit from the top, with a darker line on its outer edge and a light one inside
 		const rgb_color accent = Accent();
 		// darker on a light theme, lighter on a dark one
-		const rgb_color panel = ui_color(B_CONTROL_BACKGROUND_COLOR);
+		const rgb_color panel = ui_color(B_PANEL_BACKGROUND_COLOR);
 		const bool lightTheme = (panel.red * 299 + panel.green * 587 + panel.blue * 114) / 1000 >= 128;
 		const rgb_color body = lightTheme ? MixColors(Dark(accent), accent, 0.55f) : Mix(accent, 255, 0.16f);
 		const rgb_color rim = lightTheme ? MixColors(Outline(accent), accent, 0.35f)
 			: MixColors(Dark(accent), accent, 0.5f);
+		// (three pixels on the small, square buttons, so that their picture has room)
+		const int capWidth = frame.Width() < 34 ? 3 : 5;
 		const float top = frame.top + 2, bottom = frame.bottom - 2;
 		if (bottom > top + 4) {
 			const uint8 alpha = disabled ? 175 : 255;
@@ -1851,14 +2007,23 @@ public:
 					if (!corner)
 						view->FillRect(BRect(edge, y, edge, y));
 					view->SetHighColor(row.red, row.green, row.blue, alpha);
-					const float x0 = edge + sign * 1, x1 = edge + sign * 4;
+					const float x0 = edge + sign * 1, x1 = edge + sign * (capWidth - 1);
 					view->FillRect(BRect(std::min(x0, x1), y, std::max(x0, x1), y));
 					view->SetHighColor(255, 255, 255, 70);
-					view->FillRect(BRect(edge + sign * 5, y, edge + sign * 5, y));
+					view->FillRect(BRect(edge + sign * capWidth, y, edge + sign * capWidth, y));
 				}
 			}
 		}
 		view->PopState();
+	}
+
+	// Menu bars are the accent pill (a menu bar laid out in a column is not, and neither is the Deskbar's)
+	static bool PillMenuBar(BView* view)
+	{
+		if (dynamic_cast<BMenuBar*>(view) == NULL || PlainButton(view))
+			return false;
+		const BRect bounds = view->Bounds();
+		return bounds.Height() <= 40 && bounds.Width() > bounds.Height();
 	}
 
 	// the Deskbar's own bars and buttons keep the stock look
@@ -1892,6 +2057,21 @@ public:
 
 		// Tracker's column titles ask for B_FLAT with a top and a bottom border only: one accent bar, a pill like
 		// a scroll bar's thumb (a title being pressed only darkens its part of it)
+		// a column list's header: the whole strip is one pill, and each cell draws its part of it
+		if (borders == (B_TOP_BORDER | B_BOTTOM_BORDER) && (flags & B_FLAT) == 0 && IsColumnListHeader(view)
+			&& rect.Height() >= 10 && rect.Height() <= 36 && ShouldDraw(view, rect, updateRect)) {
+			const rgb_color tone = BarToneForText();
+			view->PushState();
+			view->ClipToRect(rect);
+			view->SetDrawingMode(B_OP_COPY);
+			view->SetHighColor(ui_color(B_PANEL_BACKGROUND_COLOR));
+			view->FillRect(rect);
+			view->PopState();
+			BRect strip(view->Bounds().left, rect.top + 1, view->Bounds().right, rect.bottom - 1);
+			DrawAccentBlock(view, strip, strip.Height() / 2 + 1, false, false, &tone, &rect);
+			return;
+		}
+
 		const bool foreignHeader = (flags & B_FLAT) == 0 && IsTrackerHeader(view);
 		if (borders == (B_TOP_BORDER | B_BOTTOM_BORDER) && ((flags & B_FLAT) != 0 || foreignHeader)
 			&& rect.Height() >= 10 && rect.Height() <= 36 && ShouldDraw(view, rect, updateRect)) {
@@ -1927,9 +2107,16 @@ public:
 		}
 
 		const rgb_color color = ButtonColor(base, flags);
-		if (borders == B_ALL_BORDERS && (flags & B_FLAT) == 0 && rect.Height() >= 22 && rect.Width() >= 30) {
+		if (borders == B_ALL_BORDERS && (flags & B_FLAT) == 0 && rect.Height() >= 16 && rect.Width() >= 24) {
 			float radius = std::min(8.0f, std::max(5.0f, floorf(rect.Height() / 3.5f)));
 			const BRect frame = rect;
+			// a small, square button (the Tracker window's back, forward and up) is one solid piece of the accent
+			if (SmallRoundButton(view, rect, flags, borders)) {
+				if (ShouldDraw(view, rect, updateRect))
+					DrawSolidButton(view, frame, flags);
+				rect.InsetBy(2, 2);
+				return;
+			}
 			HaikuControlLook::DrawButtonBackground(view, rect, updateRect, radius, color, flags, borders,
 				orientation);
 			ButtonHighlights(view, frame, radius, flags);
@@ -1960,7 +2147,7 @@ public:
 	// inside the ring, so it keeps the size it has. It is still the one Enter presses.
 	static uint32 WithoutDefaultRing(const rgb_color& base, uint32 flags, BRect& rect)
 	{
-		const bool darkTheme = (base.red * 299 + base.green * 587 + base.blue * 114) / 1000 < 128;
+		const bool darkTheme = !LightPanel();
 		if (!darkTheme || (flags & B_DEFAULT_BUTTON) == 0 || (flags & B_FLAT) != 0)
 			return flags;
 		rect.InsetBy(3, 3);
@@ -1970,24 +2157,60 @@ public:
 	virtual	void DrawButtonFrame(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
 		const rgb_color& background, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
+		if (SmallRoundButton(view, rect, flags, borders))
+			return;
 		flags = WithoutDefaultRing(base, flags, rect);
-		HaikuControlLook::DrawButtonFrame(view, rect, updateRect, base, background, flags, borders);
+		const BRect outer = rect;
+		HaikuControlLook::DrawButtonFrame(view, rect, updateRect, base, FrameSurround(view, background), flags,
+			borders);
+		EraseFrameEdge(view, outer, background, flags);
 	}
 
 	virtual	void DrawButtonFrame(BView* view, BRect& rect, const BRect& updateRect, float radius,
 		const rgb_color& base, const rgb_color& background, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
+		if (SmallRoundButton(view, rect, flags, borders))
+			return;
 		flags = WithoutDefaultRing(base, flags, rect);
-		HaikuControlLook::DrawButtonFrame(view, rect, updateRect, radius, base, background, flags, borders);
+		const BRect outer = rect;
+		HaikuControlLook::DrawButtonFrame(view, rect, updateRect, radius, base, FrameSurround(view, background), flags,
+			borders);
+		EraseFrameEdge(view, outer, background, flags);
 	}
 
 	virtual	void DrawButtonFrame(BView* view, BRect& rect, const BRect& updateRect, float leftTopRadius,
 		float rightTopRadius, float leftBottomRadius, float rightBottomRadius, const rgb_color& base,
 		const rgb_color& background, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
+		if (leftTopRadius == rightTopRadius && SmallRoundButton(view, rect, flags, borders))
+			return;
 		flags = WithoutDefaultRing(base, flags, rect);
+		const BRect outer = rect;
 		HaikuControlLook::DrawButtonFrame(view, rect, updateRect, leftTopRadius, rightTopRadius,
-			leftBottomRadius, rightBottomRadius, base, background, flags, borders);
+			leftBottomRadius, rightBottomRadius, base, FrameSurround(view, background), flags, borders);
+		EraseFrameEdge(view, outer, background, flags);
+	}
+
+	// the frame's outermost line is a tint of the colour around the button: a faint light line round it. It is drawn
+	// in that colour instead
+	void EraseFrameEdge(BView* view, const BRect& outer, const rgb_color& background, uint32 flags)
+	{
+		if (PlainButton(view) || (flags & (B_FLAT | B_DEFAULT_BUTTON)) != 0 || !outer.IsValid())
+			return;
+		view->PushState();
+		view->SetDrawingMode(B_OP_COPY);
+		view->SetHighColor(SurroundColor(view, background));
+		view->StrokeRect(outer);
+		// and the line just inside it, all the way round (the button's own body starts inside both)
+		if (outer.Width() > 8 && outer.Height() > 8)
+			view->StrokeRect(outer.InsetByCopy(1, 1));
+		view->PopState();
+	}
+
+	// the frame's outer edge is blended with the colour around the button: that of the window, not of the control
+	static rgb_color FrameSurround(BView* view, const rgb_color& background)
+	{
+		return PlainButton(view) ? background : SurroundColor(view, background);
 	}
 
 	// the label of a default button on a light panel sits on a dark body: white
@@ -1996,7 +2219,7 @@ public:
 		const rgb_color* textColor)
 	{
 		rgb_color white = make_color(255, 255, 255);
-		const bool lightPanel = (base.red * 299 + base.green * 587 + base.blue * 114) / 1000 >= 128;
+		const bool lightPanel = LightPanel();
 		if ((flags & B_DEFAULT_BUTTON) != 0 && (flags & (B_DISABLED | B_FLAT)) == 0 && lightPanel
 			&& !PlainButton(view)) {
 			textColor = &white;
@@ -2004,27 +2227,65 @@ public:
 		HaikuControlLook::DrawLabel(view, label, icon, rect, updateRect, base, flags, alignment, textColor);
 	}
 
-	// drop-down fields get the same wash as buttons
+	// Drop-down fields are the accent pill (DrawFieldPill). The frame the field draws around its menu bar is left
+	// out: the pill is its own outline, and the field's margin stays the panel colour.
+	virtual	void DrawMenuFieldFrame(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
+		const rgb_color& background, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
+	{
+		if (PlainButton(view))
+			HaikuControlLook::DrawMenuFieldFrame(view, rect, updateRect, base, background, flags, borders);
+	}
+
+	virtual	void DrawMenuFieldFrame(BView* view, BRect& rect, const BRect& updateRect, float radius,
+		const rgb_color& base, const rgb_color& background, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
+	{
+		if (PlainButton(view)) {
+			HaikuControlLook::DrawMenuFieldFrame(view, rect, updateRect, radius, base, background, flags,
+				borders);
+		}
+	}
+
+	virtual	void DrawMenuFieldFrame(BView* view, BRect& rect, const BRect& updateRect, float leftTopRadius,
+		float rightTopRadius, float leftBottomRadius, float rightBottomRadius, const rgb_color& base,
+		const rgb_color& background, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
+	{
+		if (PlainButton(view)) {
+			HaikuControlLook::DrawMenuFieldFrame(view, rect, updateRect, leftTopRadius, rightTopRadius,
+				leftBottomRadius, rightBottomRadius, base, background, flags, borders);
+		}
+	}
+
 	virtual	void DrawMenuFieldBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, bool popupIndicator, uint32 flags = 0)
 	{
-		HaikuControlLook::DrawMenuFieldBackground(view, rect, updateRect, ButtonColor(base, flags & ~B_FLAT),
-			popupIndicator, flags);
+		if (PlainButton(view) || !ShouldDraw(view, rect, updateRect)) {
+			HaikuControlLook::DrawMenuFieldBackground(view, rect, updateRect, base, popupIndicator, flags);
+			return;
+		}
+		DrawFieldPill(view, rect, base, flags, popupIndicator);
 	}
 
 	virtual	void DrawMenuFieldBackground(BView* view, BRect& rect, const BRect& updateRect, float radius,
 		const rgb_color& base, bool popupIndicator, uint32 flags = 0)
 	{
-		HaikuControlLook::DrawMenuFieldBackground(view, rect, updateRect, radius,
-			ButtonColor(base, flags & ~B_FLAT), popupIndicator, flags);
+		if (PlainButton(view) || !ShouldDraw(view, rect, updateRect)) {
+			HaikuControlLook::DrawMenuFieldBackground(view, rect, updateRect, radius, base, popupIndicator,
+				flags);
+			return;
+		}
+		DrawFieldPill(view, rect, base, flags, popupIndicator);
 	}
 
 	virtual	void DrawMenuFieldBackground(BView* view, BRect& rect, const BRect& updateRect, float leftTopRadius,
 		float rightTopRadius, float leftBottomRadius, float rightBottomRadius, const rgb_color& base,
 		bool popupIndicator, uint32 flags = 0)
 	{
-		HaikuControlLook::DrawMenuFieldBackground(view, rect, updateRect, leftTopRadius, rightTopRadius,
-			leftBottomRadius, rightBottomRadius, ButtonColor(base, flags & ~B_FLAT), popupIndicator, flags);
+		if (PlainButton(view) || !ShouldDraw(view, rect, updateRect)) {
+			HaikuControlLook::DrawMenuFieldBackground(view, rect, updateRect, leftTopRadius, rightTopRadius,
+				leftBottomRadius, rightBottomRadius, base, popupIndicator, flags);
+			return;
+		}
+		DrawFieldPill(view, rect, base, flags, popupIndicator);
 	}
 
 	// Tracker's item count asks for B_FLAT: the same accent bar as the column titles, drawn over the panel colour
@@ -2032,6 +2293,34 @@ public:
 	virtual	void DrawMenuBarBackground(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
 		uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
+		// the folder icon at the end of a Tracker window's menu bar: a round backdrop like the toolbar's buttons
+		if (strstr(typeid(*view).name(), "DraggableContainerIcon") != NULL) {
+			if (ShouldDraw(view, rect, updateRect))
+				DrawSolidButton(view, view->Bounds(), 0);
+			return;
+		}
+
+		if (PillMenuBar(view) && rect.Height() >= 10 && ShouldDraw(view, rect, updateRect)) {
+			// the bar's rounded ends need the whole bar drawn: when only a part of it is asked for (the window was
+			// resized), the whole bar is asked for, once
+			if ((view->Flags() & B_FULL_UPDATE_ON_RESIZE) == 0)
+				view->SetFlags(view->Flags() | B_FULL_UPDATE_ON_RESIZE);
+			if (!updateRect.Contains(view->Bounds())) {
+				view->Invalidate();
+				return;
+			}
+			const rgb_color tone = ToneForText(ui_color(B_MENU_ITEM_TEXT_COLOR));
+			view->PushState();
+			view->SetDrawingMode(B_OP_COPY);
+			view->SetHighColor(ui_color(B_PANEL_BACKGROUND_COLOR));
+			view->FillRect(view->Bounds());
+			view->PopState();
+			BRect bar = rect;
+			bar.InsetBy(0, 1);
+			DrawAccentBlock(view, bar, bar.Height() / 2 + 1, false, false, &tone);
+			return;
+		}
+
 		const bool foreignCount = (flags & B_FLAT) == 0 && IsTrackerCount(view);
 		if (((flags & B_FLAT) == 0 && !foreignCount) || rect.Height() < 10
 			|| !ShouldDraw(view, rect, updateRect)) {
@@ -2070,11 +2359,56 @@ public:
 	}
 
 	// the selected tab gets a two pixel line of the accent along its outer edge
+	// the other tabs of a pill tab strip have no body of their own
+	virtual	void DrawInactiveTab(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
+		uint32 flags = 0, uint32 borders = B_ALL_BORDERS, uint32 side = B_TOP_BORDER, int32 index = 0,
+		int32 selected = -1, int32 first = 0, int32 last = 0)
+	{
+		BRect outer(floorf(rect.left), floorf(rect.top), floorf(rect.right), floorf(rect.bottom));
+		if ((side == B_TOP_BORDER || side == B_BOTTOM_BORDER) && outer.Height() >= 14) {
+			if (ShouldDraw(view, outer, updateRect))
+				ClearTab(view, outer, base, side);
+			rect = outer;
+			rect.InsetBy(2, 2);
+			return;
+		}
+		HaikuControlLook::DrawInactiveTab(view, rect, updateRect, base, flags, borders, side, index, selected,
+			first, last);
+	}
+
+	// clears the tab and draws the thin rule between the tab strip and the page
+	static void ClearTab(BView* view, const BRect& outer, const rgb_color& base, uint32 side)
+	{
+		const bool dark = (base.red * 299 + base.green * 587 + base.blue * 114) / 1000 < 128;
+		view->PushState();
+		view->ClipToRect(outer);
+		view->SetDrawingMode(B_OP_COPY);
+		view->SetHighColor(base);
+		view->FillRect(outer);
+		view->SetHighColor(dark ? Mix(base, 255, 0.2f) : Mix(base, 0, 0.35f));
+		const float y = side == B_BOTTOM_BORDER ? outer.top : outer.bottom;
+		view->StrokeLine(BPoint(outer.left, y), BPoint(outer.right, y));
+		view->PopState();
+	}
+
 	virtual	void DrawActiveTab(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base,
 		uint32 flags = 0, uint32 borders = B_ALL_BORDERS, uint32 side = B_TOP_BORDER, int32 index = 0,
 		int32 selected = -1, int32 first = 0, int32 last = 0)
 	{
 		BRect outer(floorf(rect.left), floorf(rect.top), floorf(rect.right), floorf(rect.bottom));
+		// tabs along the top or bottom: the selected one is a pill of the accent, the others are plain
+		if ((side == B_TOP_BORDER || side == B_BOTTOM_BORDER) && outer.Height() >= 14) {
+			if (ShouldDraw(view, outer, updateRect)) {
+				ClearTab(view, outer, base, side);
+				BRect pill = outer;
+				pill.InsetBy(1, 3);
+				const rgb_color tone = ToneForText(ui_color(B_PANEL_TEXT_COLOR));
+				DrawAccentBlock(view, pill, pill.Height() / 2 + 1, false, (flags & B_DISABLED) != 0, &tone);
+			}
+			rect = outer;
+			rect.InsetBy(2, 2);
+			return;
+		}
 		HaikuControlLook::DrawActiveTab(view, rect, updateRect, base, flags, borders, side, index, selected,
 			first, last);
 		if ((flags & B_DISABLED) != 0 || !ShouldDraw(view, outer, updateRect))
@@ -2114,6 +2448,18 @@ public:
 			return;
 		}
 
+		// a title of a pill menu bar: a darker pill inside the bar's, with light text
+		if (PillMenuBar(view)) {
+			if (ShouldDraw(view, rect, updateRect)) {
+				const rgb_color deeper = MixColors(Dark(Accent()), Accent(), 0.25f);
+				BRect inner = rect.InsetByCopy(1, 2);
+				DrawAccentBlock(view, inner, inner.Height() / 2 + 1, false, false, &deeper);
+			}
+			view->SetLowColor(Dark(Accent()));
+			view->SetHighColor(255, 255, 255);
+			return;
+		}
+
 		// The selector was drawn under the items by DrawMenuBackground(); the item only needs the
 		// right text colour. Menu bar titles get a rounded selector of their own.
 		BMenu* menu = dynamic_cast<BMenu*>(view);
@@ -2125,6 +2471,13 @@ public:
 		view->SetHighColor(TextOn(Accent()));
 	}
 };
+
+
+static bool
+IsPillMenuBar(BView* view)
+{
+	return SnakeControlLook::PillMenuBar(view);
+}
 
 }	// namespace BPrivate
 

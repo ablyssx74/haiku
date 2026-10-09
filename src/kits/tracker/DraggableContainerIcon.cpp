@@ -33,6 +33,9 @@ All rights reserved.
 */
 
 
+#include <string.h>
+#include <typeinfo>
+
 #include "DraggableContainerIcon.h"
 
 #include <algorithm>
@@ -199,8 +202,11 @@ DraggableContainerIcon::Draw(BRect updateRect)
 
 	BRect rect(Bounds());
 	rgb_color base = ui_color(B_MENU_BACKGROUND_COLOR);
-	be_control_look->DrawBorder(this, rect, updateRect, base, B_PLAIN_BORDER,
-		0, BControlLook::B_BOTTOM_BORDER);
+	// (SnakeControlLook gives the icon a round backdrop of its own, without the line under it)
+	if (strstr(typeid(*be_control_look).name(), "SnakeControlLook") == NULL) {
+		be_control_look->DrawBorder(this, rect, updateRect, base, B_PLAIN_BORDER,
+			0, BControlLook::B_BOTTOM_BORDER);
+	}
 	be_control_look->DrawMenuBarBackground(this, rect, updateRect, base, 0,
 		BControlLook::B_ALL_BORDERS & ~BControlLook::B_LEFT_BORDER);
 

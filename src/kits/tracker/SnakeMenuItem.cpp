@@ -54,7 +54,7 @@ SnakeMenuItem::Draw()
 
 	// A menu that draws the trail itself (SnakeSelector::DrawTrail(), from its DrawBackground()) has
 	// already painted the selector; any other menu gets a lone rounded selector from the item.
-	const bool trailMenu = SnakeSelector::MenuDrawsTrail(menu);
+	const bool trailMenu = SnakeSelector::MenuPaintsSelector(menu);
 
 	menu->PushState();
 
@@ -110,7 +110,7 @@ void
 SnakeMenuItem::Highlight(bool highlight)
 {
 	BMenu* menu = Menu();
-	if (menu != NULL && SnakeSelector::MenuDrawsTrail(menu)) {
+	if (menu != NULL && SnakeSelector::MenuPaintsSelector(menu)) {
 		// The trail's shape depends on the selection, so the whole menu is redrawn, not just this
 		// row. Only from the window's own locked thread; otherwise the next draw catches up.
 		if (menu->Window() != NULL && menu->Window()->IsLocked())

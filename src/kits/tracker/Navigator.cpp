@@ -36,8 +36,12 @@ All rights reserved.
 #include "Navigator.h"
 
 #include <ControlLook.h>
+#include <Button.h>
 #include <TextControl.h>
 #include <Window.h>
+
+#include <math.h>
+#include <string.h>
 
 #include "Bitmaps.h"
 #include "Commands.h"
@@ -81,6 +85,35 @@ BNavigator::~BNavigator()
 }
 
 
+// The arrows' artwork is small inside its canvas: draw it half as large again and keep the middle, so the
+// button stays the size it was
+static BBitmap*
+LoadNavIcon(int32 id, BRect iconRect)
+{
+	const float zoom = 1.5f;
+	BRect big(0, 0, ceilf((iconRect.Width() + 1) * zoom) - 1, ceilf((iconRect.Height() + 1) * zoom) - 1);
+	BBitmap* source = new BBitmap(big, B_RGBA32);
+	GetTrackerResources()->GetIconResource(id, B_MINI_ICON, source);
+
+	BBitmap* result = new BBitmap(iconRect, B_RGBA32);
+	if (source->InitCheck() != B_OK || result->InitCheck() != B_OK) {
+		delete result;
+		return source;
+	}
+	memset(result->Bits(), 0, result->BitsLength());
+	const int32 dx = (int32)((big.Width() - iconRect.Width()) / 2);
+	const int32 dy = (int32)((big.Height() - iconRect.Height()) / 2);
+	const int32 width = (int32)iconRect.Width() + 1, height = (int32)iconRect.Height() + 1;
+	for (int32 y = 0; y < height; y++) {
+		memcpy((uint8*)result->Bits() + y * result->BytesPerRow(),
+			(uint8*)source->Bits() + (y + dy) * source->BytesPerRow() + dx * 4, width * 4);
+	}
+	delete source;
+	return result;
+}
+
+
+
 void
 BNavigator::AttachedToWindow()
 {
@@ -90,21 +123,24 @@ BNavigator::AttachedToWindow()
 		be_control_look->ComposeIconSize(20));
 
 	// Set up toolbar items
-	BBitmap* bmpBack = new BBitmap(iconRect, B_RGBA32);
-	GetTrackerResources()->GetIconResource(R_ResBackNav, B_MINI_ICON, bmpBack);
+	BBitmap* bmpBack = LoadNavIcon(R_ResBackNav, iconRect);
 	AddAction(kNavigatorCommandBackward, this, bmpBack);
+	if (BButton* button = FindButton(kNavigatorCommandBackward))
+		button->SetFlat(false);
 	SetActionEnabled(kNavigatorCommandBackward, false);
 	delete bmpBack;
 
-	BBitmap* bmpForw = new BBitmap(iconRect, B_RGBA32);
-	GetTrackerResources()->GetIconResource(R_ResForwNav, B_MINI_ICON, bmpForw);
+	BBitmap* bmpForw = LoadNavIcon(R_ResForwNav, iconRect);
 	AddAction(kNavigatorCommandForward, this, bmpForw);
+	if (BButton* button = FindButton(kNavigatorCommandForward))
+		button->SetFlat(false);
 	SetActionEnabled(kNavigatorCommandForward, false);
 	delete bmpForw;
 
-	BBitmap* bmpUp = new BBitmap(iconRect, B_RGBA32);
-	GetTrackerResources()->GetIconResource(R_ResUpNav, B_MINI_ICON, bmpUp);
+	BBitmap* bmpUp = LoadNavIcon(R_ResUpNav, iconRect);
 	AddAction(kNavigatorCommandUp, this, bmpUp);
+	if (BButton* button = FindButton(kNavigatorCommandUp))
+		button->SetFlat(false);
 	SetActionEnabled(kNavigatorCommandUp, false);
 	delete bmpUp;
 

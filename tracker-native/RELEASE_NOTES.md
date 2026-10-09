@@ -1,8 +1,19 @@
-# snaketracker 1.0.26
+# snaketracker 1.0.27
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Menu bars are accent pills.** Every window's menu bar, in Tracker and in other programs, is a rounded bar in the selector colour, with the title you open drawn as a darker pill inside it. The bar is drawn whole again when the window is resized, so it leaves no stray rounded ends. The Deskbar's own bar is left alone.
+- **The trail runs down the menus of a menu bar.** A menu opened from a menu bar title (File, Window, Attributes) now has the strip down its left edge from the top of the menu to the row you are on, as the Deskbar's menu does. Tracker's own menu rows no longer paint over it.
+- **Tracker's toolbar.** Back, forward and up are round, solid discs in the selector colour (washed out when disabled, darker when pressed), with new arrows drawn half as large again. The folder icon at the end of the menu bar sits on a matching disc.
+- **Pill tabs.** In a tab view the selected tab is an accent pill and the others are plain labels, with a thin rule between the tabs and the page. Tabs on the left or right keep the old look.
+- **Drop-down fields are pills** with a divider and a chevron, in the selector colour.
+- **Column list headers in other programs** are one accent bar, like Tracker's.
+- **Radio buttons and check boxes.** The radio button is a recessed disc with the accent dot, and check boxes get the same recessed fill. The check mark is one even stroke.
+- **Buttons.** Buttons down to 24 pixels wide get the accent caps, three pixels wide on the small ones. Small square buttons (under 34 pixels) are a solid round disc instead.
+- **Light or dark follows the window's colour.** Which shade to use for the caps, the default button and the marks is now decided from the panel colour, not from the button's own, so a panel in the middle of the range (around 104 to 127) no longer gets Haiku's bright ring around the default button. The faint line round every button is drawn in the window's colour, and the see-through corners of the pills sit on the window's colour too.
+
+Since 1.0.26 (if you skipped it):
 - **Buttons follow the theme.** Every regular button has an accent cap on each side, now a five pixel block lit from the top with a darker line on its outer edge: a darker purple on a light theme and a lighter one on a dark theme. The disabled buttons have the same caps.
 - **The default button.** On a light theme it has a dark accent body with white text. On a dark theme it is drawn like the other buttons, without Haiku's bright two pixel ring (it is still the button Enter presses), in the room the ring used to take, so it stays the same size.
 - **The Deskbar's top bar is left alone.** The leaf bar and its title keep the stock look, without caps. The snake trail in the Deskbar's menus is as before.
@@ -42,4 +53,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.26-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.26-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.27-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.27-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
