@@ -80,6 +80,7 @@ const uint32 kListMode = 'Tlst';
 const uint32 kCheckTypeahead = 'Tcty';
 
 const uint32 kMsgMouseDragged = 'Mdrg';
+const uint32 kMsgAutoArrange = 'Tarr';
 const uint32 kMsgMouseLongDown = 'Mold';
 
 
@@ -130,6 +131,9 @@ public:
 
 	// switch between mini icon mode, icon mode and list mode
 	virtual void SetViewMode(uint32 mode);
+	// asks for the icons to be put in order again shortly (the window was resized: asked for again with every step
+	// of a resize, done once it stops)
+	void ScheduleArrange(bool keepView = true);
 	uint32 ViewMode() const;
 
 	// re-use the pose view for a new directory
@@ -446,7 +450,9 @@ protected:
 	virtual void ReturnDirentIterator(EntryListBase* iterator);
 		// returns the entry iterator after _add_poses_ is done
 
-	void Cleanup(bool doAll = false);
+	void Cleanup(bool doAll = false, bool keepView = false);
+	void _ArrangeAfterViewModeChange();
+	void _ArrangeIcons(bool keepView);
 		// clean up poses
 	void NewFolder(const BMessage*);
 		// create a new folder, optionally specify a location
@@ -760,6 +766,8 @@ private:
 	const BPose* fSelectionPivotPose;
 	const BPose* fRealPivotPose;
 	BMessageRunner* fKeyRunner;
+	BMessageRunner* fArrangeRunner;
+	bool fArrangeKeepView;
 	BMessage* fDragMessage;
 	BStringList* fCachedTypesList;
 

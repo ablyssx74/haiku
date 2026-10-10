@@ -46,6 +46,7 @@ All rights reserved.
 
 
 class BGridView;
+class BSplitView;
 class BGroupLayout;
 class BGroupView;
 class BPopUpMenu;
@@ -54,6 +55,7 @@ class BMenuBar;
 namespace BPrivate {
 
 class BNavigator;
+class TSidePanel;
 class BPoseView;
 class DraggableContainerIcon;
 class ModelMenuItem;
@@ -142,6 +144,12 @@ public:
 	BPoseView* PoseView() const;
 	TShortcuts* Shortcuts() const;
 	BNavigator* Navigator() const;
+
+	// shows a folder in this window (the side panel's)
+	void NavigateTo(const entry_ref* ref);
+	// shows or hides the side panel
+	// remember: windows opened later follow the choice
+	void ToggleSidePanel(bool remember = true);
 
 	virtual void SelectionChanged();
 	virtual void ViewModeChanged(uint32 oldMode, uint32 newMode);
@@ -304,7 +312,10 @@ public:
 protected:
 	BGroupLayout* fRootLayout;
 	BGroupView* fMenuContainer;
+	BSplitView* fSplitView;
 	BGridView* fPoseContainer;
+	TSidePanel* fSidePanel;
+	BMenuItem* fSidePanelItem;
 	BorderedView* fBorderedView;
 	BGroupView* fVScrollBarContainer;
 	BGroupView* fCountContainer;

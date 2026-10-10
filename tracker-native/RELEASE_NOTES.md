@@ -1,8 +1,17 @@
-# snaketracker 1.0.30
+# snaketracker 1.0.31
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **A side panel in folder windows.** Every folder window has a panel at its left, with a splitter you can drag: your favourite folders and a tree that opens folder by folder. It is on by default; **Window > Side panel** turns it off or on (windows opened later follow your choice). It is not in the Desktop, Trash or query windows, or in Open and Save dialogs. The folder the window shows is kept selected, with the same light pill as selected files, and clicking a folder shows it in the same window.
+  - **Favorites.** The panel starts with Home, Desktop and Downloads. Drag a folder from the file view onto the panel to add it, or right-click any folder and choose **Add to favorites**; right-click a favourite for **Remove from favorites**, **Move up**, **Move down** and **Open in new window** (always a window of its own, even where the folder is already open). The list is one file, `~/config/settings/Tracker/SnakeFavorites`, a folder to a line.
+  - **Disks.** A mounted disk, a USB stick for instance, shows up under the favourites when it is mounted and goes when it is unmounted, without restarting Tracker. The boot disk, the package volumes (`system`, `config`) and Haiku's virtual file systems are never listed. **Unmount** is in the right-click menu of a disk's top folder only, never for those.
+  - **Trash.** A Trash line shows whether the Trash is full or empty and follows it. Clicking it shows the Trash in the window; its right-click menu has **Empty Trash** and **Hide Trash**, and right-clicking the empty space in the panel has **Show Trash** or **Hide Trash**.
+- **Icons keep themselves in order.** In icon and mini icon view the icons are put in sorted order on the grid when you choose the view or another icon size, when the window opens or shows another folder, when the window is resized (they run on to fit the new width), and shortly after a file or folder is made, deleted, renamed or moved in or out of the folder, or icons are dropped in the window. It waits until you stop typing a name or dragging, keeps your selection and your place in the window, and leaves list view and the Desktop alone. Your own placements of icons do not stay.
+- **Dragging over folders.** The pill that marks the folder under the cursor no longer leaves its ends behind when the cursor moves on.
+- **The Deskbar's trail starts halfway up the leaf bar**, where it meets the bar's own colour, and the edge between the menu and the Deskbar is covered from there, so the purple runs through unbroken.
+
+Since 1.0.30 (if you skipped it):
 - **Icons of its own.** The Tracker in this package has an icon of its own, a smiling yellow snake coiled up with its head raised, and the Deskbar has one too: the same snake peeking up from behind a wooden desk, in thin round glasses, with a grin and half-open eyes. They are the icons you see for the two programs wherever Haiku shows them (a Tracker window listing `/system/apps/SnakeTracker`, the Deskbar's team list). Both are vector icons and stay sharp at any size. The Deskbar's leaf button and the stock Tracker and Deskbar are unchanged.
 
 Since 1.0.29 (if you skipped it):
@@ -66,4 +75,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.30-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.30-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.31-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.31-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.

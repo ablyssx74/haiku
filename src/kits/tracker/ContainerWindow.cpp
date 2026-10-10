@@ -55,6 +55,7 @@ All rights reserved.
 #include <PopUpMenu.h>
 #include <Roster.h>
 #include <Screen.h>
+#include <SplitView.h>
 #include <UnicodeChar.h>
 #include <Volume.h>
 #include <VolumeRoster.h>
@@ -90,6 +91,7 @@ All rights reserved.
 #include "PoseView.h"
 #include "QueryContainerWindow.h"
 #include "SelectionWindow.h"
+#include "SidePanel.h"
 #include "Shortcuts.h"
 #include "TemplatesMenu.h"
 #include "Thread.h"
@@ -389,7 +391,10 @@ BContainerWindow::BContainerWindow(LockingList<BWindow>* list, uint32 openFlags,
 	fOpenFlags(openFlags),
 	fUsesLayout(useLayout),
 	fMenuContainer(NULL),
+	fSplitView(NULL),
 	fPoseContainer(NULL),
+	fSidePanel(NULL),
+	fSidePanelItem(NULL),
 	fBorderedView(NULL),
 	fVScrollBarContainer(NULL),
 	fCountContainer(NULL),
@@ -443,8 +448,12 @@ BContainerWindow::BContainerWindow(LockingList<BWindow>* list, uint32 openFlags,
 		fMenuContainer = new BGroupView(B_HORIZONTAL, 0);
 		fRootLayout->AddView(fMenuContainer);
 
+		// the folder's view, with room for a side panel at its left (shown from the Window menu)
+		fSplitView = new BSplitView(B_HORIZONTAL, 0);
+		fRootLayout->AddView(fSplitView);
+
 		fPoseContainer = new BGridView(0.0, 0.0);
-		fRootLayout->AddView(fPoseContainer);
+		fSplitView->AddChild(fPoseContainer, 1.0f);
 
 		fBorderedView = new BorderedView;
 		fPoseContainer->GridLayout()->AddView(fBorderedView, 0, 1);
@@ -911,6 +920,13 @@ BContainerWindow::RestoreStateCommon()
 	if (fUsesLayout)
 		InitLayout();
 
+	// the side panel is shown unless it was turned off (Window menu > Side panel)
+	if (fSidePanel == NULL && fSplitView != NULL && PoseView() != NULL && !PoseView()->IsFilePanel()
+		&& !PoseView()->IsDesktopView() && TargetModel() != NULL && TargetModel()->IsDirectory()
+		&& !TargetModel()->IsTrash() && !TargetModel()->IsQuery() && TrackerSettings().SnakeSidePanel()) {
+		ToggleSidePanel(false);
+	}
+
 	UpdateBackgroundImage();
 }
 
@@ -934,6 +950,44 @@ BContainerWindow::OpenParent()
 	BMessage message(kSwitchDirectory);
 	message.AddRef("refs", parent);
 	MessageReceived(&message);
+}
+
+
+void
+BContainerWindow::NavigateTo(const entry_ref* ref)
+{
+	SwitchDirectory(ref);
+
+	if (Navigator() != NULL)
+		Navigator()->UpdateLocation(TargetModel(), kActionSet);
+}
+
+
+void
+BContainerWindow::ToggleSidePanel(bool remember)
+{
+	if (fSplitView == NULL)
+		return;
+
+	if (fSidePanel == NULL) {
+		fSidePanel = new TSidePanel(this);
+		fSplitView->AddChild(0, fSidePanel, 0.25f);
+		fSplitView->SetItemWeight(1, 1.0f, false);
+	} else {
+		fSplitView->RemoveChild(fSidePanel);
+		delete fSidePanel;
+		fSidePanel = NULL;
+	}
+
+	if (fSidePanelItem != NULL)
+		fSidePanelItem->SetMarked(fSidePanel != NULL);
+
+	if (remember) {
+		// windows opened from now on follow
+		TrackerSettings settings;
+		settings.SetSnakeSidePanel(fSidePanel != NULL);
+		settings.SaveSettings(false);
+	}
 }
 
 
@@ -1076,6 +1130,10 @@ BContainerWindow::FrameResized(float, float)
 
 		PoseView()->UpdateScrollRange();
 		PoseView()->ResetPosePlacementHint();
+
+		// icons run on to fit the new width
+		if (fPreviousBounds.IsValid() && Bounds().Width() != fPreviousBounds.Width())
+			PoseView()->ScheduleArrange();
 	}
 
 	fPreviousBounds = Bounds();
@@ -1507,6 +1565,10 @@ BContainerWindow::MessageReceived(BMessage* message)
 			UpdateBackgroundImage();
 			break;
 
+		case kToggleSidePanel:
+			ToggleSidePanel(true);
+			break;
+
 		case kSwitchDirectory:
 		{
 			entry_ref ref;
@@ -1786,6 +1848,14 @@ BContainerWindow::AddWindowMenu(BMenu* menu)
 	BMenuItem* item = new SnakeMenuItem(B_TRANSLATE("List view"), new BMessage(kListMode), '3');
 	item->SetTarget(PoseView());
 	menu->AddItem(item);
+
+	if (PoseView() != NULL && !PoseView()->IsFilePanel() && !PoseView()->IsDesktopView() && fSplitView != NULL) {
+		// the folders as a tree, at the left of the window
+		fSidePanelItem = new SnakeMenuItem(B_TRANSLATE("Side panel"), new BMessage(kToggleSidePanel));
+		fSidePanelItem->SetTarget(this);
+		fSidePanelItem->SetMarked(fSidePanel != NULL);
+		menu->AddItem(fSidePanelItem);
+	}
 	menu->AddItem(new SnakeSeparatorItem());
 
 	menu->AddItem(Shortcuts()->ResizeToFitItem());

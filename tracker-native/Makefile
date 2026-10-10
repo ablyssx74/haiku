@@ -18,7 +18,7 @@ CXXLIBS  := $(if $(GCC2),,-lsupc++ -lstdc++)   # gcc 2 links its own libstdc++ (
 
 TRACKER_SRCS := $(filter-out $(KIT)/FilePanel.cpp,$(wildcard $(KIT)/*.cpp))
 # libtracker.so's own list (see src/kits/tracker/Jamfile) -- the wildcard above is trimmed to it below.
-LISTED := SnakeSelector SnakeMenuItem AttributeStream AutoMounterSettings BackgroundImage Bitmaps ContainerWindow CountView DeskWindow \
+LISTED := SidePanel SnakeSelector SnakeMenuItem AttributeStream AutoMounterSettings BackgroundImage Bitmaps ContainerWindow CountView DeskWindow \
   DesktopPoseView DraggableContainerIcon DialogPane DirMenu EntryIterator FBCPadding FSClipboard FSUndoRedo \
   FSUtils FavoritesMenu FilePanel FilePanelPriv FindPanel GroupedMenu IconCache IconMenuItem LiveMenu \
   MimeTypeList MiniMenuField Model MountMenu Navigator NavMenu NodePreloader NodeWalker OpenWithWindow \
@@ -158,7 +158,7 @@ uninstall: uninstall-launch
 # launch daemon only reads /boot/system/data/user_launch, so a home install is silently ignored.
 # Removing the package puts the stock Tracker and Deskbar back. A package can't replace files that
 # another package (haiku.hpkg) owns, hence the separate folder and the launch file.
-PKG_VERSION := 1.0.30
+PKG_VERSION := 1.0.31
 PKG := $(OUT)/package
 package: all app look
 	rm -rf $(PKG)

@@ -393,7 +393,7 @@ struct LeafInfo {
 };
 
 static DeskbarPlace
-FindDeskbarPlace(BMenu* menu, bool* stripOnLeft)
+FindDeskbarPlace(BMenu* menu, bool* stripOnLeft, BRect* leafOut = NULL)
 {
 	if (menu->Window() == NULL)
 		return kNotDeskbar;
@@ -432,6 +432,8 @@ FindDeskbarPlace(BMenu* menu, bool* stripOnLeft)
 		else
 			return kNotDeskbar;
 	}
+	if (leafOut != NULL)
+		*leafOut = leaf;
 	const float slack = 8;
 
 	// beside the Deskbar
@@ -977,9 +979,10 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 		link = FindParentLink(menu);
 	// the trail starts at the Deskbar for its leaf menu: a parent row that sits at the menu's top
 	bool deskbarRoot = false, deskbarBeside = false, deskbarAbove = false;
+	BRect deskbarLeaf;
 	if (trailOn && !link.valid) {
 		bool stripOnLeft = false;
-		DeskbarPlace place = FindDeskbarPlace(menu, &stripOnLeft);
+		DeskbarPlace place = FindDeskbarPlace(menu, &stripOnLeft, &deskbarLeaf);
 		if (place != kNotDeskbar) {
 			deskbarRoot = true;
 			deskbarBeside = place == kBesideDeskbar;
@@ -1027,6 +1030,13 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 		if (deskbarRoot) {
 			// the "parent's row" is the leaf: at the top of the menu, or at its bottom when it opens upwards
 			pTop = deskbarAbove ? (float)h : 0.0f;
+			// beside the Deskbar the trail starts halfway up the Deskbar's leaf bar, where it runs into the bar's own
+			// colour (the edge between the two windows is covered along the strip), not at the top of the menu
+			if (deskbarBeside && deskbarLeaf.IsValid()) {
+				const float y = menu->ConvertFromScreen(BPoint(0, deskbarLeaf.top + floorf(deskbarLeaf.Height() * 0.55f))).y
+					- vt;
+				pTop = std::max(0.0f, std::min(y, (float)h));
+			}
 			pBottom = pTop;
 		}
 	}
@@ -1081,7 +1091,8 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 		float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
 		if (hasOwn && ownBottom > ownTop) {
 			float bottom = menu->ConvertToScreen(BPoint(0, ownBottom + vt)).y - 1;
-			PlaceBridge(menu, BRect(x, frame.top, x, std::min(bottom, frame.bottom)), frame.top, frame.bottom);
+			float top = menu->ConvertToScreen(BPoint(0, std::min(pTop, ownTop) + vt)).y;
+			PlaceBridge(menu, BRect(x, std::max(frame.top, top), x, std::min(bottom, frame.bottom)), frame.top, frame.bottom);
 		} else
 			HideBridge(menu->Window());
 	}

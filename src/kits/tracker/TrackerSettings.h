@@ -102,6 +102,10 @@ public:
 	void SetSnakeFlat(bool flat);
 	bool SnakeArrows();
 	void SetSnakeArrows(bool arrows);
+	bool SnakeSidePanel();
+	void SetSnakeSidePanel(bool show);
+	bool SnakeSidePanelTrash();
+	void SetSnakeSidePanelTrash(bool show);
 	rgb_color SnakeAccent();
 	void SetSnakeAccent(rgb_color color);
 

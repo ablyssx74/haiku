@@ -80,6 +80,8 @@ private:
 	BooleanValueSetting* fSnakeTrail;
 	BooleanValueSetting* fSnakeFlat;
 	BooleanValueSetting* fSnakeArrows;
+	BooleanValueSetting* fSnakeSidePanel;
+	BooleanValueSetting* fSnakeSidePanelTrash;
 	HexScalarValueSetting* fSnakeAccent;
 
 	ScalarValueSetting* fRecentApplicationsCount;
@@ -146,6 +148,8 @@ TTrackerState::TTrackerState()
 	fSnakeTrail(NULL),
 	fSnakeFlat(NULL),
 	fSnakeArrows(NULL),
+	fSnakeSidePanel(NULL),
+	fSnakeSidePanelTrash(NULL),
 	fSnakeAccent(NULL),
 	fRecentApplicationsCount(NULL),
 	fRecentDocumentsCount(NULL),
@@ -180,6 +184,8 @@ TTrackerState::TTrackerState(const TTrackerState&)
 	fSnakeTrail(NULL),
 	fSnakeFlat(NULL),
 	fSnakeArrows(NULL),
+	fSnakeSidePanel(NULL),
+	fSnakeSidePanelTrash(NULL),
 	fSnakeAccent(NULL),
 	fRecentApplicationsCount(NULL),
 	fRecentDocumentsCount(NULL),
@@ -250,6 +256,8 @@ TTrackerState::LoadSettingsIfNeeded()
 	Add(fSnakeTrail = new BooleanValueSetting("SnakeTrail", kDefaultSnakeTrail));
 	Add(fSnakeFlat = new BooleanValueSetting("SnakeFlat", kDefaultSnakeFlat));
 	Add(fSnakeArrows = new BooleanValueSetting("SnakeArrows", kDefaultSnakeArrows));
+	Add(fSnakeSidePanel = new BooleanValueSetting("SnakeSidePanel", kDefaultSnakeSidePanel));
+	Add(fSnakeSidePanelTrash = new BooleanValueSetting("SnakeSidePanelTrash", kDefaultSnakeSidePanelTrash));
 	Add(fSnakeAccent
 		= new HexScalarValueSetting("SnakeAccent", RGBTOHEX(kDefaultSnakeAccent), "", ""));
 
@@ -536,6 +544,34 @@ void
 TrackerSettings::SetSnakeArrows(bool arrows)
 {
 	gTrackerState.fSnakeArrows->SetValue(arrows);
+}
+
+
+bool
+TrackerSettings::SnakeSidePanel()
+{
+	return gTrackerState.fSnakeSidePanel->Value();
+}
+
+
+void
+TrackerSettings::SetSnakeSidePanel(bool show)
+{
+	gTrackerState.fSnakeSidePanel->SetValue(show);
+}
+
+
+bool
+TrackerSettings::SnakeSidePanelTrash()
+{
+	return gTrackerState.fSnakeSidePanelTrash->Value();
+}
+
+
+void
+TrackerSettings::SetSnakeSidePanelTrash(bool show)
+{
+	gTrackerState.fSnakeSidePanelTrash->SetValue(show);
 }
 
 

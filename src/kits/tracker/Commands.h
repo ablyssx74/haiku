@@ -112,6 +112,7 @@ const uint32 kMIMETypeItem = 'Tmim';
 const uint32 kAddCurrentDir = 'Tadd';
 const uint32 kEditFavorites = 'Tedf';
 const uint32 kSwitchDirectory = 'Tswd';
+const uint32 kToggleSidePanel = 'Tsdp';
 const uint32 kQuitTracker = 'Tqit';
 
 const uint32 kSwitchToDesktop = 'TswD';

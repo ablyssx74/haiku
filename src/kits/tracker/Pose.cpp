@@ -652,7 +652,8 @@ BPose::DeselectWithoutErasingBackground(BRect, BPoseView* poseView)
 		return;
 
 	// just invalidate the background, don't draw anything
-	poseView->Invalidate(widget->CalcRect(location, NULL, poseView));
+	// (the selection pill reaches past the label)
+	poseView->Invalidate(widget->CalcRect(location, NULL, poseView).InsetByCopy(-6, -3));
 }
 
 

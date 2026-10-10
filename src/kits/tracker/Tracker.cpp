@@ -1128,6 +1128,19 @@ TTracker::OpenContainerWindow(Model* model, BMessage* originalRefsList,
 
 
 void
+TTracker::OpenFolderInNewWindow(const entry_ref* ref)
+{
+	BEntry entry(ref, true);
+	Model* model = new Model(&entry);
+	if (model->InitCheck() != B_OK) {
+		delete model;
+		return;
+	}
+	OpenContainerWindow(model, NULL, kOpen, kRestoreDecor, false);
+}
+
+
+void
 TTracker::EditQueries(const BMessage* message)
 {
 	bool editOnlyIfTemplate;

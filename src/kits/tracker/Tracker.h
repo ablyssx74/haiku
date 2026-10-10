@@ -90,6 +90,9 @@ public:
 	virtual void RefsReceived(BMessage* message);
 	virtual void ArgvReceived(int32 argc, char** argv);
 
+	// opens a window for a folder even where a window already shows it (the side panel's "Open in new window")
+	void OpenFolderInNewWindow(const entry_ref* ref);
+
 	MimeTypeList* MimeTypes() const;
 		// list of mime types that have a description and do not have
 		// themselves as a preferred handler (case of applications)

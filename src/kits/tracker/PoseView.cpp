@@ -246,6 +246,8 @@ BPoseView::BPoseView(Model* model, uint32 viewMode)
 	fSelectionPivotPose(NULL),
 	fRealPivotPose(NULL),
 	fKeyRunner(NULL),
+	fArrangeRunner(NULL),
+	fArrangeKeepView(true),
 	fDragMessage(NULL),
 	fCachedTypesList(NULL),
 	fFilterStrings(4),
@@ -300,6 +302,7 @@ BPoseView::~BPoseView()
 	delete fViewState;
 	delete fModel;
 	delete fKeyRunner;
+	delete fArrangeRunner;
 	delete fBrokenLinks;
 	delete fDragMessage;
 	delete fCachedTypesList;
@@ -1721,6 +1724,11 @@ BPoseView::AddPosesCompleted()
 	if (ViewMode() != kListMode)
 		CheckAutoPlacedPoses();
 
+	// a folder's icons are put in order when its window opens (or it shows another folder), so that places saved for
+	// another window size or an old layout don't leave them scattered or out of view (not on the Desktop)
+	if (ViewMode() != kListMode && !IsDesktopView() && !IsFilePanel())
+		Cleanup(true, false);
+
 	UpdateScrollRange();
 	HideBarberPole();
 
@@ -2324,13 +2332,28 @@ BPoseView::MessageReceived(BMessage* message)
 			if (size != (int32)UnscaledIconSizeInt())
 				fViewState->SetIconSize(size);
 			SetViewMode(message->what);
+			_ArrangeAfterViewModeChange();
 			break;
 		}
 
 		case kListMode:
 		case kMiniIconMode:
 			SetViewMode(message->what);
+			_ArrangeAfterViewModeChange();
 			break;
+
+		case kMsgAutoArrange:
+		{
+			delete fArrangeRunner;
+			fArrangeRunner = NULL;
+			const bool keepView = fArrangeKeepView;
+			if (ActivePose() != NULL || IsDragging()) {
+				// a name is being typed, or something is being dragged: later
+				ScheduleArrange(keepView);
+			} else
+				_ArrangeIcons(keepView);
+			break;
+		}
 
 		case kMsgMouseDragged:
 			MouseDragged(message);
@@ -3551,8 +3574,47 @@ BPoseView::NewFolder(const BMessage* message)
 }
 
 
+// Choosing the icon or mini icon view, or another icon size, puts all the icons in order on the grid, sorted as the
+// window is sorted, as a file manager does: the icons were only ever scattered by where they happened to be saved.
+// (Not on the Desktop, where icons stay where they are put.)
 void
-BPoseView::Cleanup(bool doAll)
+BPoseView::ScheduleArrange(bool keepView)
+{
+	if (ViewMode() == kListMode || IsDesktopView() || IsFilePanel())
+		return;
+
+	// (asked for again while one is waiting: the waiting one starts over; the view is only reset when every ask
+	// wants that)
+	fArrangeKeepView = fArrangeRunner == NULL ? keepView : (fArrangeKeepView && keepView);
+	delete fArrangeRunner;
+	BMessage message(kMsgAutoArrange);
+	fArrangeRunner = new BMessageRunner(this, &message, 400000, 1);
+	if (fArrangeRunner->InitCheck() != B_OK) {
+		delete fArrangeRunner;
+		fArrangeRunner = NULL;
+	}
+}
+
+
+void
+BPoseView::_ArrangeAfterViewModeChange()
+{
+	_ArrangeIcons(false);
+}
+
+
+void
+BPoseView::_ArrangeIcons(bool keepView)
+{
+	if (ViewMode() == kListMode || IsDesktopView() || IsFilePanel())
+		return;
+
+	Cleanup(true, keepView);
+}
+
+
+void
+BPoseView::Cleanup(bool doAll, bool keepView)
 {
 	if (ViewMode() == kListMode)
 		return;
@@ -3568,10 +3630,12 @@ BPoseView::Cleanup(bool doAll)
 
 		DisableScrollBars();
 		ClearExtent();
-		ClearSelection();
-		ScrollTo(B_ORIGIN);
+		if (!keepView) {
+			ClearSelection();
+			ScrollTo(B_ORIGIN);
+		}
 		UpdateScrollRange();
-		SetScrollBarsTo(B_ORIGIN);
+		SetScrollBarsTo(keepView ? Bounds().LeftTop() : B_ORIGIN);
 		ResetPosePlacementHint();
 
 		BRect viewBounds(Bounds());
@@ -3591,7 +3655,7 @@ BPoseView::Cleanup(bool doAll)
 		UpdateScrollRange();
 		EnableScrollBars();
 
-		if (HScrollBar()) {
+		if (HScrollBar() && !keepView) {
 			float min;
 			float max;
 			HScrollBar()->GetRange(&min, &max);
@@ -5283,6 +5347,9 @@ BPoseView::MoveSelectionTo(Model* model, BPoint dropPoint, BContainerWindow* src
 
 	MoveSelectionInto(model, srcWindow, window, buttons, dropPoint, false, false,
 		moveMode == kCreateLink, moveMode == kCreateRelativeLink, dragStart, pinToGrid);
+
+	// icons dropped in the window are put in their places in order
+	ScheduleArrange();
 }
 
 
@@ -5464,6 +5531,20 @@ BPoseView::FSNotification(const BMessage* message)
 	dev_t device;
 	Model* targetModel = TargetModel();
 	TrackerSettings settings;
+
+	// entries made, removed or renamed in this folder: the icons are put in order again shortly
+	if (targetModel != NULL && ViewMode() != kListMode) {
+		const int32 opcode = message->GetInt32("opcode", 0);
+		int64 directory = -1, fromDirectory = -1, toDirectory = -1;
+		message->FindInt64("directory", &directory);
+		message->FindInt64("from directory", &fromDirectory);
+		message->FindInt64("to directory", &toDirectory);
+		const ino_t here = targetModel->NodeRef()->node;
+		if (((opcode == B_ENTRY_CREATED || opcode == B_ENTRY_REMOVED) && directory == here)
+			|| (opcode == B_ENTRY_MOVED && (fromDirectory == here || toDirectory == here))) {
+			ScheduleArrange();
+		}
+	}
 
 	switch (message->GetInt32("opcode", 0)) {
 		case B_ENTRY_CREATED:
