@@ -1,8 +1,11 @@
-# snaketracker 1.0.29
+# snaketracker 1.0.30
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Icons of its own.** The Tracker in this package has an icon of its own, a smiling yellow snake coiled up with its head raised, and the Deskbar has one too: the same snake peeking up from behind a wooden desk, in thin round glasses, with a grin and half-open eyes. They are the icons you see for the two programs wherever Haiku shows them (a Tracker window listing `/system/apps/SnakeTracker`, the Deskbar's team list). Both are vector icons and stay sharp at any size. The Deskbar's leaf button and the stock Tracker and Deskbar are unchanged.
+
+Since 1.0.29 (if you skipped it):
 - **Selected files are a pill.** In Tracker windows and on the Desktop, the name of a selected file sits on a pill in a light tint of the selector colour, with dark text on it, in place of the stark reversed (white) box. In a window that is not active it is a more muted pill. It works in list, icon and mini icon views, and while you drag a selection. The other columns of the row keep their normal text colour.
 - **Renaming a file uses the same pill.** The edit box has no border and no white background: it is the pill's colour with dark text, and the selected text is a deeper tint of the accent instead of an inverted block. The pill follows the box as the name gets longer or shorter, and leaves nothing behind when you stop editing, in windows and on the Desktop. Over a wallpaper nothing is erased behind the pill.
 - **The lines between menu items are thin pills.** In Tracker's and the Deskbar's menus (the Be menu, the Desktop and window context menus, Mount, New and the like) the separator is a line about a pixel and a half thick with rounded ends, tinted a little towards the selector colour, and fading out at both ends. It follows light and dark themes, the same on the Desktop as in a window. Menus in other programs keep the stock lines: Haiku draws those itself.
@@ -63,4 +66,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.29-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.29-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.30-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.30-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
