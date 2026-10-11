@@ -16,6 +16,7 @@
 #include <Rect.h>
 
 class BMenu;
+class BMenuItem;
 class BView;
 
 
@@ -58,6 +59,15 @@ void		SelectionColors(const rgb_color& low, bool active, rgb_color* pill, rgb_co
 rgb_color	DrawSelectionPill(BView* view, BRect frame, bool active, bool erase = true,
 				const rgb_color* backdrop = NULL);
 bool		MenuPaintsSelector(BMenu* menu);
+
+// The pill look of Tracker's popup menus (SnakeControlLook draws it): call CaptureMenuBackdrop() just before a popup
+// menu opens, so the menu levels can paint the screen behind them as their background (a window is a rectangle and
+// the pill's round ends would show square corners). PillMenu() says whether a menu level is drawn that way, and with
+// which colours: \a fill is the pill's, \a text the colour of the items' text on it.
+void		CaptureMenuBackdrop();
+bool		PillMenu(BMenu* menu, rgb_color* fill, rgb_color* text);
+// whether the arrow of an item is under the trail's bar (the snake passes through it), so it is not drawn
+bool		ArrowHidden(BMenu* menu, BMenuItem* item);
 
 }	// namespace SnakeSelector
 

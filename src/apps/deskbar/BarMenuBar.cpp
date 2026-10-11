@@ -35,6 +35,7 @@ All rights reserved.
 
 
 #include "BarMenuBar.h"
+#include "SnakeSelector.h"
 
 #include <algorithm>
 
@@ -263,6 +264,15 @@ void
 TBarMenuBar::DrawBackground(BRect updateRect)
 {
 	BMenu::DrawBackground(updateRect);
+}
+
+
+void
+TBarMenuBar::MouseDown(BPoint where)
+{
+	// the Deskbar's menu is drawn in the pill look too: it needs a picture of the screen from before it opens
+	SnakeSelector::CaptureMenuBackdrop();
+	BMenuBar::MouseDown(where);
 }
 
 

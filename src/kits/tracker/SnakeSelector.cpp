@@ -14,6 +14,8 @@
 #include <vector>
 
 #include <Bitmap.h>
+#include <Screen.h>
+#include <image.h>
 #include <Shape.h>
 #include <InterfaceDefs.h>
 #include <Entry.h>
@@ -1226,5 +1228,79 @@ DrawTrail(BMenu* menu)
 	menu->DrawBitmap(&bitmap, bounds.LeftTop());
 	menu->PopState();
 }
+
+// #pragma mark - the pill look of popup menus
+
+
+// SnakeControlLook's side of it: its picture holder and its test, found by name in the add-on's image.
+static bool sPillSymbolsLooked = false;
+static void (*sSetBackdrop)(BBitmap*, bool (*)(BMenu*)) = NULL;
+static bool (*sPillMenu)(BMenu*, rgb_color*, rgb_color*) = NULL;
+static bool (*sArrowHidden)(BMenu*, BMenuItem*) = NULL;
+
+
+// Whether a menu holds nothing but Tracker's own items (and separators).
+static bool
+OnlyOurItems(BMenu* menu)
+{
+	for (int32 i = 0; i < menu->CountItems(); i++) {
+		BMenuItem* item = menu->ItemAt(i);
+		if (dynamic_cast<SnakeMenuItem*>(item) == NULL && dynamic_cast<BSeparatorItem*>(item) == NULL)
+			return false;
+	}
+	return true;
+}
+
+
+static void
+FindPillSymbols()
+{
+	if (sPillSymbolsLooked)
+		return;
+	sPillSymbolsLooked = true;
+	image_info info;
+	int32 cookie = 0;
+	while (get_next_image_info(B_CURRENT_TEAM, &cookie, &info) == B_OK) {
+		if (strstr(info.name, "SnakeControlLook") == NULL)
+			continue;
+		get_image_symbol(info.id, "snake_set_menu_backdrop", B_SYMBOL_TYPE_TEXT, (void**)&sSetBackdrop);
+		get_image_symbol(info.id, "snake_pill_menu", B_SYMBOL_TYPE_TEXT, (void**)&sPillMenu);
+		get_image_symbol(info.id, "snake_arrow_hidden", B_SYMBOL_TYPE_TEXT, (void**)&sArrowHidden);
+		break;
+	}
+}
+
+
+void
+CaptureMenuBackdrop()
+{
+	FindPillSymbols();
+	if (sSetBackdrop == NULL || sPillMenu == NULL)
+		return;
+	BScreen screen(B_MAIN_SCREEN_ID);
+	if (!screen.IsValid())
+		return;
+	BBitmap* bitmap = NULL;
+	if (screen.GetBitmap(&bitmap, false, NULL) != B_OK || bitmap == NULL)
+		return;
+	sSetBackdrop(bitmap, OnlyOurItems);	// (it takes the picture)
+}
+
+
+bool
+PillMenu(BMenu* menu, rgb_color* fill, rgb_color* text)
+{
+	FindPillSymbols();
+	return sPillMenu != NULL && menu != NULL && sPillMenu(menu, fill, text);
+}
+
+
+bool
+ArrowHidden(BMenu* menu, BMenuItem* item)
+{
+	FindPillSymbols();
+	return sArrowHidden != NULL && sArrowHidden(menu, item);
+}
+
 
 }	// namespace SnakeSelector

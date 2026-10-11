@@ -34,6 +34,7 @@ All rights reserved.
 
 
 #include "SnakeMenuItem.h"
+#include "SnakeSelector.h"
 #include "ContainerWindow.h"
 
 #include <Alert.h>
@@ -2504,6 +2505,7 @@ BContainerWindow::ShowDropContextMenu(BPoint where, BPoseView* source)
 	}
 
 	// Don't send message, sticky menu, synchronous
+	SnakeSelector::CaptureMenuBackdrop();
 	item = fDropContextMenu->Go(global, false, true, false);
 	if (item != NULL)
 		return item->Command();
@@ -2569,6 +2571,7 @@ BContainerWindow::ShowContextMenu(BPoint where, const entry_ref* ref)
 
 				// this is now asynchronous so that we don't
 				// deadlock in Window::Quit,
+				SnakeSelector::CaptureMenuBackdrop();
 				fDragContextMenu->Go(global);
 			}
 
@@ -2613,6 +2616,7 @@ BContainerWindow::ShowContextMenu(BPoint where, const entry_ref* ref)
 	}
 
 	// synchronous Go()
+	SnakeSelector::CaptureMenuBackdrop();
 	fContextMenu->Go(global, true, true, true);
 	fContextMenu = NULL;
 }

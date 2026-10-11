@@ -59,7 +59,11 @@ SnakeMenuItem::Draw()
 
 	menu->PushState();
 
-	const rgb_color background = ui_color(B_MENU_BACKGROUND_COLOR);
+	// in the pill look (a popup menu with a picture of the screen behind it) the menu is a light pill, and the text on
+	// it is dark
+	rgb_color pillFill, pillText;
+	const bool pill = SnakeSelector::PillMenu(menu, &pillFill, &pillText);
+	const rgb_color background = pill ? pillFill : ui_color(B_MENU_BACKGROUND_COLOR);
 	if (!trailMenu) {
 		menu->SetHighColor(background);
 		menu->FillRect(frame);
@@ -74,7 +78,7 @@ SnakeMenuItem::Draw()
 	} else {
 		menu->SetLowColor(background);
 		if (IsEnabled())
-			text = ui_color(B_MENU_ITEM_TEXT_COLOR);
+			text = pill ? pillText : ui_color(B_MENU_ITEM_TEXT_COLOR);
 		else
 			text = tint_color(background, B_DISABLED_LABEL_TINT);
 	}
@@ -93,7 +97,7 @@ SnakeMenuItem::Draw()
 		if (Shortcut(&modifiers) != 0)
 			_DrawShortcut(text, privateAccessor.HasSubmenus());
 
-		if (Submenu() != NULL) {
+		if (Submenu() != NULL && !SnakeSelector::ArrowHidden(menu, this)) {
 			float symbolSize = roundf(frame.Height() * 2 / 3);
 			BRect symbolRect(0, 0, symbolSize, symbolSize);
 			symbolRect.OffsetTo(BPoint(frame.right - symbolSize,
@@ -128,7 +132,9 @@ SnakeSeparatorItem::Draw()
 
 	const BRect frame = Frame();
 	// (the menu's own low colour is not the colour it is drawn on in every menu: the Desktop's)
-	const rgb_color low = ui_color(B_MENU_BACKGROUND_COLOR);
+	rgb_color pillFill, pillText;
+	const bool inPillMenu = SnakeSelector::PillMenu(menu, &pillFill, &pillText);
+	const rgb_color low = inPillMenu ? pillFill : ui_color(B_MENU_BACKGROUND_COLOR);
 	const bool dark = (low.red * 299 + low.green * 587 + low.blue * 114) / 1000 < 128;
 	const rgb_color accent = SnakeSelector::Accent();
 	// a mid tone for the line, with the accent in it

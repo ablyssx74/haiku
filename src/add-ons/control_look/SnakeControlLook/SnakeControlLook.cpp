@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <map>
+#include <utility>
 #include <new>
 #include <typeinfo>
 #include <vector>
@@ -47,7 +48,9 @@
 #include <Shape.h>
 #include <MenuBar.h>
 #include <MenuItem.h>
+#include <PopUpMenu.h>
 #include <Message.h>
+#include <MessageFilter.h>
 #include <Path.h>
 #include <Roster.h>
 #include <View.h>
@@ -309,12 +312,13 @@ SelectedItem(BMenu* menu)
 // be read without waiting (the parent window is locked by the tracking thread, which may be waiting
 // for this one, so only a try-lock is safe).
 struct ParentLink {
-	ParentLink() : valid(false), rowTop(0), rowBottom(0), windowLeft(0), parentTop(0), parentBottom(0) {}
+	ParentLink() : valid(false), rowTop(0), rowBottom(0), windowLeft(0), windowRight(0), parentTop(0), parentBottom(0) {}
 
 	bool	valid;
 	float	rowTop;			// the parent's open row, in screen coordinates
 	float	rowBottom;
 	float	windowLeft;		// the parent window's left edge, in screen coordinates
+	float	windowRight;	// and its right edge
 	float	parentTop;		// and its vertical extent, to check the row against
 	float	parentBottom;
 };
@@ -332,6 +336,25 @@ Links()
 {
 	static std::map<BMenu*, ParentLink>* links = new std::map<BMenu*, ParentLink>();
 	return *links;
+}
+
+
+// The part of a menu's edge that the trail's vertical bar covers (the pill look), in the menu's own coordinates: an arrow
+// that points into a submenu and lies within it is hidden, the snake passes through it.
+struct TrailBar {
+	TrailBar() : valid(false), onRight(false), top(0), bottom(0) {}
+
+	bool	valid;
+	bool	onRight;
+	float	top;
+	float	bottom;
+};
+
+static std::map<BMenu*, TrailBar>&
+TrailBars()
+{
+	static std::map<BMenu*, TrailBar>* bars = new std::map<BMenu*, TrailBar>();
+	return *bars;
 }
 
 
@@ -354,6 +377,7 @@ FindParentLink(BMenu* menu)
 		link.rowTop = row.top;
 		link.rowBottom = row.bottom + 1;
 		link.windowLeft = parentWindow->Frame().left;
+		link.windowRight = parentWindow->Frame().right;
 		link.parentTop = parentWindow->Frame().top;
 		link.parentBottom = parentWindow->Frame().bottom;
 
@@ -471,7 +495,7 @@ static void ForgetBridge(SeamBridge* bridge);
 
 class SeamBridge : public BWindow {
 public:
-	SeamBridge(BWindow* child, int width = 1, bool bulge = false)
+	SeamBridge(BWindow* child, int width = 1, bool bulge = false, bool horizontal = false)
 		:
 		BWindow(BRect(0, 0, width - 1, 7), "seam", B_NO_BORDER_WINDOW_LOOK, (window_feel)1025,
 			B_NOT_MOVABLE | B_NOT_CLOSABLE | B_NOT_ZOOMABLE | B_NOT_MINIMIZABLE | B_NOT_RESIZABLE
@@ -489,13 +513,17 @@ public:
 		fRounded(false),
 		fHeight(8),
 		fLeft(-1),
-		fTop(-1)
+		fTop(-1),
+		fHorizontal(horizontal),
+		fFill(make_color(0, 0, 0, 0)),
+		fHotFrom(0),
+		fHotTo(1000000)
 	{
 		SetSizeLimits(0, width - 1, 0, 4000);
 		BView* view = new SeamView(this);
 		AddChild(view);
 		BMessage tick('Tick');
-		fRunner = new BMessageRunner(BMessenger(this), &tick, 100000);
+		fRunner = new BMessageRunner(BMessenger(this), &tick, 25000);
 	}
 
 	~SeamBridge()
@@ -506,7 +534,8 @@ public:
 	// from the submenu's thread: where the seam is. The submenu redraws on every hover change, so nothing is
 	// touched unless the seam actually moved or changed colour (a needless resize or redraw flickers).
 	void Place(BRect strip, rgb_color accent, bool bulgeRight = true, bool edgeTop = true, bool edgeBottom = true,
-		int skipFrom = -1, int skipTo = -1, bool rounded = false)
+		int skipFrom = -1, int skipTo = -1, bool rounded = false, rgb_color fill = make_color(0, 0, 0, 0),
+		int hotFrom = 0, int hotTo = 1000000)
 	{
 		if (LockWithTimeout(20000) != B_OK)
 			return;		// busy; the next draw places it
@@ -514,8 +543,12 @@ public:
 		bool same = !IsHidden() && left == fLeft && top == fTop && height == fHeight
 			&& bulgeRight == fBulgeRight && edgeTop == fEdgeTop && edgeBottom == fEdgeBottom && skipFrom == fSkipFrom
 			&& skipTo == fSkipTo && rounded == fRounded && accent.red == fAccent.red && accent.green == fAccent.green
-			&& accent.blue == fAccent.blue;
+			&& accent.blue == fAccent.blue && hotFrom == fHotFrom && hotTo == fHotTo && fill.red == fFill.red
+			&& fill.green == fFill.green && fill.blue == fFill.blue && fill.alpha == fFill.alpha;
 		if (!same) {
+			fFill = fill;
+			fHotFrom = hotFrom;
+			fHotTo = hotTo;
 			fAccent = accent;
 			fBulgeRight = bulgeRight;
 			fEdgeTop = edgeTop;
@@ -560,7 +593,7 @@ public:
 					bool beside = ((mine.right <= frame.left - 1 && mine.right >= frame.left - 6)
 						|| (mine.left >= frame.right + 1 && mine.left <= frame.right + 6))
 						&& mine.top >= frame.top - 2 && mine.bottom <= frame.bottom + 2;
-					if (!beside)
+					if (!beside && !fHorizontal)
 						hide = true;
 				}
 				if (looper != NULL)
@@ -590,6 +623,10 @@ public:
 	int SkipFrom() const { return fSkipFrom; }
 	int SkipTo() const { return fSkipTo; }
 	bool Rounded() const { return fRounded; }
+	bool Horizontal() const { return fHorizontal; }
+	rgb_color FillColor() const { return fFill; }
+	int HotFrom() const { return fHotFrom; }
+	int HotTo() const { return fHotTo; }
 
 private:
 	class SeamView : public BView {
@@ -657,14 +694,19 @@ private:
 				return;
 			}
 			const bool flat = FlatFill();
-			for (int y = 0; y < h; y++) {
-				if (y == 0 && !flat)
+			const bool horizontal = fBridge->Horizontal();
+			const bool twoColours = fBridge->FillColor().alpha != 0;
+			const int length = horizontal ? fBridge->Width() : h;
+			for (int y = 0; y < length; y++) {
+				if (twoColours)
+					SetHighColor((y < fBridge->HotFrom() || y > fBridge->HotTo()) ? fBridge->FillColor() : accent);
+				else if (y == 0 && !flat)
 					SetHighColor(Light(accent));
-				else if (y == h - 1 && !flat)
+				else if (y == length - 1 && !flat)
 					SetHighColor(Dark(accent));
 				else
 					SetHighColor(accent);
-				FillRect(BRect(0, y, 0, y));
+				FillRect(horizontal ? BRect(y, 0, y, 0) : BRect(0, y, 0, y));
 			}
 		}
 
@@ -686,6 +728,10 @@ private:
 	int				fHeight;
 	int				fLeft;
 	int				fTop;
+	bool			fHorizontal;
+	rgb_color		fFill;		// the colour outside the lit part, when there is one (alpha 0: none)
+	int				fHotFrom;
+	int				fHotTo;
 };
 
 
@@ -706,6 +752,22 @@ Bulges()
 
 
 static std::map<BWindow*, SeamBridge*>&
+TopCovers()
+{
+	static std::map<BWindow*, SeamBridge*>* covers = new std::map<BWindow*, SeamBridge*>();
+	return *covers;
+}
+
+
+static std::map<BWindow*, SeamBridge*>&
+BottomCovers()
+{
+	static std::map<BWindow*, SeamBridge*>* covers = new std::map<BWindow*, SeamBridge*>();
+	return *covers;
+}
+
+
+static std::map<BWindow*, SeamBridge*>&
 VBulges()
 {
 	static std::map<BWindow*, SeamBridge*>* bulges = new std::map<BWindow*, SeamBridge*>();
@@ -717,6 +779,18 @@ static void
 ForgetBridge(SeamBridge* bridge)
 {
 	BAutolock lock(LinkLock());
+	for (std::map<BWindow*, SeamBridge*>::iterator it = TopCovers().begin(); it != TopCovers().end();) {
+		if (it->second == bridge)
+			TopCovers().erase(it++);
+		else
+			++it;
+	}
+	for (std::map<BWindow*, SeamBridge*>::iterator it = BottomCovers().begin(); it != BottomCovers().end();) {
+		if (it->second == bridge)
+			BottomCovers().erase(it++);
+		else
+			++it;
+	}
 	for (std::map<BWindow*, SeamBridge*>::iterator it = VBulges().begin(); it != VBulges().end();) {
 		if (it->second == bridge)
 			VBulges().erase(it++);
@@ -784,8 +858,85 @@ HideBridge(BWindow* window)
 }
 
 
+// Menu windows are reused, and one that is shown again comes up in front of the covers made for it earlier, so its border
+// would show over them. A cover that is already up is therefore shown again now and then, which puts it back in front
+// (at most every so often per window: it is a brief flicker of a one pixel window).
 static void
-PlaceBridge(BMenu* menu, BRect strip, float parentTop, float parentBottom)
+KeepInFront(BWindow* child, SeamBridge* cover)
+{
+	struct Raised {
+		BRect		frame;
+		bigtime_t	time;
+	};
+	static std::map<std::pair<BWindow*, SeamBridge*>, Raised>* last
+		= new std::map<std::pair<BWindow*, SeamBridge*>, Raised>();
+	const bigtime_t now = system_time();
+	const BRect frame = child->Frame();
+	{
+		BAutolock lock(LinkLock());
+		Raised& done = (*last)[std::make_pair(child, cover)];
+		// at once when this window is not showing what it showed when the cover was last brought forward (it is being
+		// used for another submenu), otherwise now and then
+		if (done.time != 0 && done.frame == frame && now - done.time < 150000)
+			return;
+		done.frame = frame;
+		done.time = now;
+	}
+	if (cover->LockWithTimeout(20000) == B_OK) {
+		if (!cover->IsHidden()) {
+			cover->Hide();
+			cover->Show();
+		}
+		cover->Unlock();
+	}
+}
+
+
+// A one pixel strip, in a flat colour, over a line of the window system's border (the pill look, where menus overlap).
+static void
+PlaceCover(BMenu* menu, std::map<BWindow*, SeamBridge*>& covers, BRect strip, rgb_color color)
+{
+	BWindow* child = menu->Window();
+	SeamBridge* cover;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BWindow*, SeamBridge*>::iterator it = covers.find(child);
+		if (it == covers.end()) {
+			cover = new SeamBridge(child, 17, false, true);
+			cover->Run();
+			covers[child] = cover;
+		} else
+			cover = it->second;
+	}
+	cover->Place(strip, color);
+	KeepInFront(child, cover);
+}
+
+
+static void
+HideCovers(BWindow* child)
+{
+	SeamBridge* top = NULL;
+	SeamBridge* bottom = NULL;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BWindow*, SeamBridge*>::iterator it = TopCovers().find(child);
+		if (it != TopCovers().end())
+			top = it->second;
+		it = BottomCovers().find(child);
+		if (it != BottomCovers().end())
+			bottom = it->second;
+	}
+	if (top != NULL)
+		top->PostMessage('Hide');
+	if (bottom != NULL)
+		bottom->PostMessage('Hide');
+}
+
+
+static void
+PlaceBridge(BMenu* menu, BRect strip, float parentTop, float parentBottom, rgb_color color,
+	rgb_color fill = make_color(0, 0, 0, 0), int hotFrom = 0, int hotTo = 1000000)
 {
 	BWindow* child = menu->Window();
 
@@ -819,7 +970,8 @@ PlaceBridge(BMenu* menu, BRect strip, float parentTop, float parentBottom)
 		} else
 			bridge = it->second;
 	}
-	bridge->Place(strip, Accent());
+	bridge->Place(strip, color, true, true, true, -1, -1, false, fill, hotFrom, hotTo);
+	KeepInFront(child, bridge);
 	SeamLog("placed", child, strip, parentTop, parentBottom);
 }
 
@@ -957,14 +1109,497 @@ States()
 }
 
 
+// #pragma mark - the pill look
+
+// Tracker takes a picture of the screen just before it opens one of its popup menus and hands it over
+// (snake_set_menu_backdrop()). A menu window is a rectangle, so the round ends of a pill would show square corners; with
+// the picture, each menu level paints the part of the screen behind it as its own background and a solid pill over
+// that, which looks see-through (the same way hDesktop's menus are drawn). Menus of other programs, and menu bars,
+// have no picture and are drawn as before.
+struct BackdropState {
+	BackdropState() : bitmap(NULL), time(0), root(NULL), eligible(NULL) {}
+
+	BBitmap*	bitmap;
+	bigtime_t	time;
+	BMenu*		root;		// the menu this picture was taken for (set when it is first drawn)
+	bool		(*eligible)(BMenu*);	// Tracker's own test of whether a menu holds nothing but its items
+};
+
+static BLocker&
+BackdropLock()
+{
+	static BLocker* lock = new BLocker("snake menu backdrop");
+	return *lock;
+}
+
+
+static BackdropState&
+Backdrop()
+{
+	static BackdropState* state = new BackdropState();
+	return *state;
+}
+
+
+static const bigtime_t kBackdropValid = 60000000;	// a minute
+
+
+static float
+Luminance(const rgb_color& c)
+{
+	return 0.299f * c.red + 0.587f * c.green + 0.114f * c.blue;
+}
+
+
+// The pill's colour (the Selector Color in a light tint), the lit row's (the Selector Color), and the text on the pill.
 static void
-DrawTrail(BMenu* menu, const BRect& updateRect)
+PillColors(rgb_color* fill, rgb_color* hot, rgb_color* textOnFill)
+{
+	const rgb_color white = make_color(255, 255, 255);
+	const bool darkTheme = Luminance(ui_color(B_MENU_BACKGROUND_COLOR)) < 128.0f;
+	*fill = MixColors(Accent(), white, darkTheme ? 0.62f : 0.42f);
+	*hot = MixColors(Accent(), white, darkTheme ? 0.18f : 0.0f);
+	*textOnFill = Luminance(*fill) > 140.0f ? make_color(20, 22, 28) : white;
+}
+
+
+static BMenu*
+RootMenu(BMenu* menu)
+{
+	// (the top of the chain of menus: a menu bar's own menus start one, the bar is not part of it)
+	while (menu->Supermenu() != NULL && dynamic_cast<BMenuBar*>(menu->Supermenu()) == NULL)
+		menu = menu->Supermenu();
+	return menu;
+}
+
+
+// Whether this menu level is drawn in the pill look.
+static bool
+PillMenu(BMenu* menu)
+{
+	if (menu == NULL || menu->Window() == NULL || dynamic_cast<BMenuBar*>(menu) != NULL)
+		return false;
+	BMenu* root = RootMenu(menu);
+	// a popup menu, or the Deskbar's own menu
+	if (dynamic_cast<BPopUpMenu*>(root) == NULL && strstr(typeid(*root).name(), "TDeskbarMenu") == NULL)
+		return false;
+
+	BAutolock lock(BackdropLock());
+	BackdropState& state = Backdrop();
+	if (state.bitmap == NULL)
+		return false;
+	// A picture is taken for one menu chain: it is claimed by the first menu drawn after it (which must be soon after it
+	// was taken, so a picture left over from an old chain is never picked up by a later menu), and is good for as long as
+	// that chain is open, however long that is.
+	if (state.root == NULL && system_time() - state.time > kBackdropValid)
+		return false;
+	// the menu must hold nothing but Tracker's own items (and separators): they draw their text in the pill's colours
+	if (state.eligible == NULL || !state.eligible(menu))
+		return false;
+	if (state.root == NULL)
+		state.root = root;
+	else if (state.root != root || root->Window() == NULL || root->Window()->IsHidden())
+		return false;
+
+	// (a menu taller than the screen, with scroll arrows, only partly fits in the picture: that is drawn too)
+	const BRect bounds = menu->Bounds();
+	const BPoint origin = menu->ConvertToScreen(bounds.LeftTop());
+	return (state.bitmap->Bounds() & BRect(origin.x, origin.y, origin.x + bounds.Width(), origin.y + bounds.Height()))
+		.IsValid();
+}
+
+
+// Which side the menu this one was opened from is on: -1 left, 1 right, 0 for a root menu. The corner of a submenu
+// that sits against its parent's row is square.
+static int
+ParentSide(BMenu* menu)
+{
+	BMenu* parent = menu->Supermenu();
+	if (parent != NULL && menu->Window() != NULL && dynamic_cast<BMenuBar*>(parent) != NULL
+		&& strstr(typeid(*menu).name(), "TDeskbarMenu") != NULL) {
+		// the Deskbar's menu beside the Deskbar: its corner against the Deskbar is square too
+		bool stripOnLeft = false;
+		if (FindDeskbarPlace(menu, &stripOnLeft) == kBesideDeskbar)
+			return stripOnLeft ? -1 : 1;
+		return 0;
+	}
+	if (parent == NULL || parent->Window() == NULL || menu->Window() == NULL || dynamic_cast<BMenuBar*>(parent) != NULL)
+		return 0;
+	return parent->Window()->Frame().left < menu->Window()->Frame().left ? -1 : 1;
+}
+
+
+// Whether the bottom of this submenu lies within its parent's height: its corner on the parent's side then lies over the
+// parent's panel, and is square too (a round one would show the picture of the empty desktop there).
+static bool
+BottomOverParent(BMenu* menu)
+{
+	BMenu* parent = menu->Supermenu();
+	if (parent == NULL || parent->Window() == NULL || menu->Window() == NULL)
+		return false;
+	return menu->Window()->Frame().bottom <= parent->Window()->Frame().bottom;
+}
+
+
+// The menu's background in the pill look: the screen behind it, and the solid pill over that.
+static void
+DrawPillBase(BMenu* menu)
+{
+	const BRect bounds = menu->Bounds();
+	const BPoint origin = menu->ConvertToScreen(bounds.LeftTop());
+	const BRect source(origin.x, origin.y, origin.x + bounds.Width(), origin.y + bounds.Height());
+
+	float radius = 8.0f;
+	for (int32 i = 0; i < menu->CountItems(); i++) {
+		BMenuItem* item = menu->ItemAt(i);
+		if (dynamic_cast<BSeparatorItem*>(item) == NULL) {
+			radius = floorf((item->Frame().Height() + 1.0f - 2.0f) / 2.0f);
+			break;
+		}
+	}
+	if (radius < 3.0f)
+		radius = 3.0f;
+
+	rgb_color fill, hot, text;
+	PillColors(&fill, &hot, &text);
+
+	menu->PushState();
+	menu->SetDrawingMode(B_OP_COPY);
+	{
+		BAutolock lock(BackdropLock());
+		BackdropState& state = Backdrop();
+		if (state.bitmap != NULL) {
+			// only the part of the menu that is on the screen has a picture
+			const BRect shown = source & state.bitmap->Bounds();
+			if (shown.IsValid()) {
+				const BRect target(bounds.left + (shown.left - source.left), bounds.top + (shown.top - source.top),
+					bounds.left + (shown.right - source.left), bounds.top + (shown.bottom - source.top));
+				menu->DrawBitmap(state.bitmap, shown, target);
+			}
+		}
+	}
+	menu->SetDrawingMode(B_OP_ALPHA);
+	menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+	menu->SetHighColor(fill);
+	menu->FillRoundRect(bounds, radius, radius);
+	const int side = ParentSide(menu);
+	const bool squareBottom = side != 0 && BottomOverParent(menu);
+	if (side < 0) {
+		menu->FillRect(BRect(bounds.left, bounds.top, bounds.left + radius, bounds.top + radius));
+		if (squareBottom)
+			menu->FillRect(BRect(bounds.left, bounds.bottom - radius, bounds.left + radius, bounds.bottom));
+	} else if (side > 0) {
+		menu->FillRect(BRect(bounds.right - radius, bounds.top, bounds.right, bounds.top + radius));
+		if (squareBottom)
+			menu->FillRect(BRect(bounds.right - radius, bounds.bottom - radius, bounds.right, bounds.bottom));
+	}
+	menu->PopState();
+}
+
+
+// In the pill look a submenu is moved over its parent, far enough to cover the arrow that marks the row it was opened
+// from, so the two windows overlap and the border between them lies under the submenu.
+static void
+OverlapParent(BMenu* menu, const ParentLink& link)
+{
+	BWindow* window = menu->Window();
+	if (window == NULL || !link.valid)
+		return;
+	const float overlap = 16.0f;
+	const BRect frame = window->Frame();
+	// where the parent is now (it may itself have been moved since the link was recorded)
+	float parentLeft = link.windowLeft, parentRight = link.windowRight;
+	BMenu* parentMenu = menu->Supermenu();
+	if (parentMenu != NULL && parentMenu->Window() != NULL) {
+		const BRect parentFrame = parentMenu->Window()->Frame();
+		parentLeft = parentFrame.left;
+		parentRight = parentFrame.right;
+	}
+	const bool parentOnLeft = parentLeft < frame.left;
+	const float delta = parentOnLeft ? (parentRight + 1.0f - overlap) - frame.left
+		: (parentLeft - 1.0f + overlap) - frame.right;
+	// only the small gap between the windows; anything else is some other geometry and is left alone
+	if (fabsf(delta) >= 1.0f && fabsf(delta) <= 24.0f)
+		window->MoveBy(delta, 0);
+	// the window opens a pixel below its parent's row; it is lifted so that its first row lines up with the parent's
+	const float lift = frame.top - link.rowTop;
+	if (lift >= 1.0f && lift <= 3.0f)
+		window->MoveBy(0, -lift);
+}
+
+
+// The menu code moves a submenu's window now and then (when its items have been listed, say) after it was last drawn,
+// which would undo the overlap with nothing to redo it. So the window is watched: when it is moved, the overlap is
+// applied again, and the menu is drawn again so the strips over its border follow.
+class OverlapFilter : public BMessageFilter {
+public:
+	OverlapFilter() : BMessageFilter(B_ANY_DELIVERY, B_ANY_SOURCE, B_WINDOW_MOVED) {}
+
+	virtual filter_result Filter(BMessage* message, BHandler** target)
+	{
+		BWindow* window = dynamic_cast<BWindow*>(Looper());
+		if (window == NULL)
+			return B_DISPATCH_MESSAGE;
+		for (int32 i = 0; i < window->CountChildren(); i++) {
+			BMenu* menu = dynamic_cast<BMenu*>(window->ChildAt(i));
+			if (menu == NULL || !PillMenu(menu))
+				continue;
+			ParentLink link;
+			{
+				BAutolock lock(LinkLock());
+				std::map<BMenu*, ParentLink>::iterator it = Links().find(menu);
+				if (it != Links().end())
+					link = it->second;
+			}
+			if (link.valid) {
+				OverlapParent(menu, link);
+				menu->Invalidate();
+			}
+		}
+		return B_DISPATCH_MESSAGE;
+	}
+};
+
+
+static void
+EnsureOverlapFilter(BWindow* window)
+{
+	BList* filters = window->CommonFilterList();
+	if (filters != NULL) {
+		for (int32 i = 0; i < filters->CountItems(); i++) {
+			if (dynamic_cast<OverlapFilter*>((BMessageFilter*)filters->ItemAt(i)) != NULL)
+				return;
+		}
+	}
+	window->AddCommonFilter(new OverlapFilter());
+}
+
+
+// For Tracker, which loads this add-on into its own program: it hands over the picture of the screen (this takes it)...
+extern "C" _EXPORT void
+snake_set_menu_backdrop(BBitmap* screen, bool (*eligible)(BMenu*))
+{
+	BAutolock lock(BackdropLock());
+	BackdropState& state = Backdrop();
+	delete state.bitmap;
+	state.bitmap = screen;
+	state.eligible = eligible;
+	state.time = system_time();
+	state.root = NULL;
+}
+
+
+// ...and asks whether the arrow of one of its items is under the trail (so it is not drawn).
+extern "C" _EXPORT bool
+snake_arrow_hidden(BMenu* menu, BMenuItem* item)
+{
+	if (menu == NULL || item == NULL)
+		return false;
+	TrailBar bar;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BMenu*, TrailBar>::iterator it = TrailBars().find(menu);
+		if (it == TrailBars().end())
+			return false;
+		bar = it->second;
+	}
+	const BRect frame = item->Frame();
+	const float middle = (frame.top + frame.bottom) / 2;
+	return bar.valid && bar.onRight && middle >= bar.top && middle <= bar.bottom;
+}
+
+
+// ...and asks whether a menu is drawn in the pill look, and with what colours (for the text of its items).
+extern "C" _EXPORT bool
+snake_pill_menu(BMenu* menu, rgb_color* fill, rgb_color* text)
+{
+	if (!PillMenu(menu))
+		return false;
+	rgb_color hot;
+	rgb_color f, t;
+	PillColors(&f, &hot, &t);
+	if (fill != NULL)
+		*fill = f;
+	if (text != NULL)
+		*text = t;
+	return true;
+}
+
+
+// Raises the lit trail like a round bar (a quarter circle across its width, lit from the top left), for a touch of depth.
+// `lit` is the coverage of the lit shapes (0..1); the result at each pixel is how much lighter (+) or darker (-) than flat
+// it is, about -0.3..0.3.
+static inline uint8
+Shaded(uint8 c, float s)
+{
+	float v = s >= 0.0f ? c + (255.0f - c) * s : c * (1.0f + s);
+	return (uint8)std::max(0.0f, std::min(255.0f, v + 0.5f));
+}
+
+
+static void
+RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out, bool edgeLeft = false,
+	bool edgeRight = false, int edgeFrom = 0)
+{
+	out.assign((size_t)w * h, 0.0f);
+	// distance from each lit pixel to the nearest edge of the lit shape (the window's own edges are not edges)
+	const size_t n = (size_t)w * h;
+	std::vector<float> d(n, 0.0f);
+	const float big = 1e4f;
+	// (an edge of the window that is the menu's own edge, against the Deskbar, counts as an edge of the shape)
+	for (size_t k = 0; k < n; ++k) {
+		const int x = (int)(k % w);
+		const int y = (int)(k / w);
+		d[k] = lit[k] > 0.5f ? (y >= edgeFrom && ((edgeLeft && x == 0) || (edgeRight && x == w - 1)) ? 1.0f : big) : 0.0f;
+	}
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x) {
+			float& v = d[(size_t)y * w + x];
+			if (v == 0.0f) continue;
+			if (x > 0) v = std::min(v, d[(size_t)y * w + x - 1] + 1.0f);
+			if (y > 0) v = std::min(v, d[(size_t)(y - 1) * w + x] + 1.0f);
+			if (x > 0 && y > 0) v = std::min(v, d[(size_t)(y - 1) * w + x - 1] + 1.4142f);
+			if (x + 1 < w && y > 0) v = std::min(v, d[(size_t)(y - 1) * w + x + 1] + 1.4142f);
+		}
+	for (int y = h - 1; y >= 0; --y)
+		for (int x = w - 1; x >= 0; --x) {
+			float& v = d[(size_t)y * w + x];
+			if (v == 0.0f) continue;
+			if (x + 1 < w) v = std::min(v, d[(size_t)y * w + x + 1] + 1.0f);
+			if (y + 1 < h) v = std::min(v, d[(size_t)(y + 1) * w + x] + 1.0f);
+			if (x + 1 < w && y + 1 < h) v = std::min(v, d[(size_t)(y + 1) * w + x + 1] + 1.4142f);
+			if (x > 0 && y + 1 < h) v = std::min(v, d[(size_t)(y + 1) * w + x - 1] + 1.4142f);
+		}
+	// the height of a round bar: a quarter circle of radius R from the edge in
+	const float R = 7.0f;
+	std::vector<float> hgt(n, 0.0f);
+	for (size_t k = 0; k < n; ++k) {
+		if (d[k] <= 0.0f) continue;
+		float t = std::min(1.0f, (d[k] - 0.5f) / R);
+		if (t < 0.0f) t = 0.0f;
+		hgt[k] = R * sqrtf(std::max(0.0f, 1.0f - (1.0f - t) * (1.0f - t)));
+	}
+	std::vector<float> sm(n, 0.0f);   // a light blur takes the angles out of the distance map
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x) {
+			float sum = 0.0f;
+			int cnt = 0;
+			for (int dy = -1; dy <= 1; ++dy)
+				for (int dx = -1; dx <= 1; ++dx) {
+					int xx = x + dx, yy = y + dy;
+					if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+					sum += hgt[(size_t)yy * w + xx];
+					++cnt;
+				}
+			sm[(size_t)y * w + x] = sum / cnt;
+		}
+	// light from the top left; the result is how much lighter (+) or darker (-) than flat each pixel is
+	const float lx = -0.45f, ly = -0.75f, lz = 0.55f;
+	const float ln = sqrtf(lx * lx + ly * ly + lz * lz);
+	const float strength = 0.55f;
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x) {
+			size_t k = (size_t)y * w + x;
+			if (lit[k] <= 0.0f) continue;
+			auto H = [&](int xx, int yy) {
+				xx = std::max(0, std::min(w - 1, xx));
+				yy = std::max(0, std::min(h - 1, yy));
+				return sm[(size_t)yy * w + xx];
+			};
+			float gx = (H(x + 1, y) - H(x - 1, y)) * 0.5f, gy = (H(x, y + 1) - H(x, y - 1)) * 0.5f;
+			float nn = sqrtf(gx * gx + gy * gy + 1.0f);
+			float dot = (-gx * lx - gy * ly + lz) / (nn * ln);
+			out[k] = (dot - lz / ln) * strength * lit[k];
+		}
+}
+
+
+// A submenu that is drawn while its parent's window is busy (a big folder takes a while to list, and the parent window
+// is locked meanwhile) cannot read where the parent's row is yet, so it is drawn without the trail. It asks to be drawn
+// again shortly, a few times, until it can; the parent, which draws its row differently while a submenu is open, is
+// drawn again too.
+class RefreshFilter : public BMessageFilter {
+public:
+	RefreshFilter() : BMessageFilter(B_ANY_DELIVERY, B_ANY_SOURCE, 'SnRf') {}
+
+	virtual filter_result Filter(BMessage* message, BHandler** target)
+	{
+		BWindow* window = dynamic_cast<BWindow*>(Looper());
+		if (window == NULL)
+			return B_SKIP_MESSAGE;
+		for (int32 i = 0; i < window->CountChildren(); i++) {
+			BMenu* menu = dynamic_cast<BMenu*>(window->ChildAt(i));
+			if (menu == NULL)
+				continue;
+			menu->Invalidate();
+			BMenu* parent = menu->Supermenu();
+			if (parent != NULL && parent->Window() != NULL && parent->Window()->LockWithTimeout(0) == B_OK) {
+				parent->Invalidate();
+				parent->Window()->Unlock();
+			}
+		}
+		return B_SKIP_MESSAGE;
+	}
+};
+
+
+static bool
+HasRefreshFilter(BWindow* window)
+{
+	BList* filters = window->CommonFilterList();
+	if (filters == NULL)
+		return false;
+	for (int32 i = 0; i < filters->CountItems(); i++) {
+		if (dynamic_cast<RefreshFilter*>((BMessageFilter*)filters->ItemAt(i)) != NULL)
+			return true;
+	}
+	return false;
+}
+
+
+static std::map<BMenu*, int>&
+LinkRetries()
+{
+	static std::map<BMenu*, int>* retries = new std::map<BMenu*, int>();
+	return *retries;
+}
+
+
+static void
+DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 {
 	BRect bounds = menu->Bounds();
 	const int w = (int)bounds.Width() + 1, h = (int)bounds.Height() + 1;
 	if (w < 8 || h < 8 || menu->Window() == NULL)
 		return;
 	const float vt = bounds.top;	// view y of the bitmap's first row
+
+	// The pill look (a captured screen behind the menu, see PillMenu()): one solid pill per menu level, the trail's
+	// bends all with the radius of the pill's round ends (half a row's height, less its two outer pixels), and
+	// no tabs or strips in windows of their own.
+	float pillR = 0;
+	{
+		BAutolock lock(LinkLock());
+		TrailBars().erase(menu);
+	}
+	if (pill) {
+		for (int32 i = 0; i < menu->CountItems(); i++) {
+			BMenuItem* it = menu->ItemAt(i);
+			if (dynamic_cast<BSeparatorItem*>(it) == NULL) {
+				pillR = floorf((it->Frame().Height() + 1.0f - 2.0f) / 2.0f);
+				break;
+			}
+		}
+		if (pillR < 3.0f)
+			pillR = 3.0f;
+		HideBulge(menu->Window());
+		HideVBulge(menu->Window());
+	}
+	bool bridged = false;
+	const float selR = pill ? pillR : kSelR, barW = pill ? pillR : kBarW, barR = pill ? pillR : kBarR;
+	const float filletR = pill ? pillR : kFilletR;
+	// (in the pill look a row that is a pixel or two off its parent's row still counts as level with it)
+	const float tol = pill ? 2.5f : 0.5f;
 
 	const bool trailOn = TrailEnabled();
 	BMenuItem* selected = SelectedItem(menu);
@@ -974,9 +1609,39 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	const float myLeft = menu->Window()->Frame().left;
 	const bool childOnRight = open && child->Window()->Frame().left > myLeft;
 
+	// While this menu is drawn its window is locked by this thread, so it can say where its open row is: the submenu,
+	// which cannot always read that from its own thread (a big folder is drawn while this window is busy), falls back on it.
+	if (open) {
+		BRect row = menu->ConvertToScreen(selected->Frame());
+		ParentLink fromParent;
+		fromParent.valid = true;
+		fromParent.rowTop = row.top;
+		fromParent.rowBottom = row.bottom + 1;
+		fromParent.windowLeft = menu->Window()->Frame().left;
+		fromParent.windowRight = menu->Window()->Frame().right;
+		fromParent.parentTop = menu->Window()->Frame().top;
+		fromParent.parentBottom = menu->Window()->Frame().bottom;
+		BAutolock lock(LinkLock());
+		Links()[child] = fromParent;
+	}
+
 	ParentLink link;
 	if (trailOn)
 		link = FindParentLink(menu);
+	if (trailOn && menu->Supermenu() != NULL && menu->Superitem() != NULL
+		&& dynamic_cast<BMenuBar*>(menu->Supermenu()) == NULL) {
+		BAutolock lock(LinkLock());
+		int& tries = LinkRetries()[menu];
+		if (link.valid)
+			tries = 0;
+		else if (++tries <= 30) {
+			BWindow* window = menu->Window();
+			if (!HasRefreshFilter(window))
+				window->AddCommonFilter(new RefreshFilter());
+			BMessage again('SnRf');
+			new BMessageRunner(BMessenger(window), &again, 80000, 1);	// (one shot; it goes with the window)
+		}
+	}
 	// the trail starts at the Deskbar for its leaf menu: a parent row that sits at the menu's top
 	bool deskbarRoot = false, deskbarBeside = false, deskbarAbove = false;
 	BRect deskbarLeaf;
@@ -993,15 +1658,19 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 			link.rowBottom = link.rowTop + 1;
 		}
 	}
+	if (pill && link.valid && !deskbarRoot) {
+		OverlapParent(menu, link);
+		EnsureOverlapFilter(menu->Window());
+	}
 	const bool parentOnLeft = link.valid && link.windowLeft < myLeft;
 	// the side the selected row's bulge sticks out of: away from the neighbouring menu
 	const bool bulgeRight = link.valid ? parentOnLeft : (open ? !childOnRight : true);
 
 	// cover the window border that runs between this menu and its parent, along the parent's open row
-	if (link.valid && !deskbarRoot) {
+	if (link.valid && !deskbarRoot && !pill) {
 		BRect frame = menu->Window()->Frame();
 		float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
-		PlaceBridge(menu, BRect(x, link.rowTop + 1, x, link.rowBottom - 2), link.parentTop, link.parentBottom);
+		PlaceBridge(menu, BRect(x, link.rowTop + 1, x, link.rowBottom - 2), link.parentTop, link.parentBottom, Accent());
 	}
 
 	{
@@ -1032,7 +1701,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 			pTop = deskbarAbove ? (float)h : 0.0f;
 			// beside the Deskbar the trail starts halfway up the Deskbar's leaf bar, where it runs into the bar's own
 			// colour (the edge between the two windows is covered along the strip), not at the top of the menu
-			if (deskbarBeside && deskbarLeaf.IsValid()) {
+			if (deskbarBeside && !pill && deskbarLeaf.IsValid()) {
 				const float y = menu->ConvertFromScreen(BPoint(0, deskbarLeaf.top + floorf(deskbarLeaf.Height() * 0.55f))).y
 					- vt;
 				pTop = std::max(0.0f, std::min(y, (float)h));
@@ -1055,25 +1724,25 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 		bool cutTop = top < 0, cutBottom = bottom > h;
 		float t = std::max(top, 0.0f), b = std::min(bottom, (float)h);
 		if (b > t) {
-			bool leftFlush = (childEdge && !childOnRight) || (onTrail && parentOnLeft) || (kBulge && !bulgeRight);
-			bool rightFlush = (childEdge && childOnRight) || (onTrail && !parentOnLeft) || (kBulge && bulgeRight);
+			bool leftFlush = (childEdge && !childOnRight) || (onTrail && parentOnLeft) || (kBulge && !pill && !bulgeRight);
+			bool rightFlush = (childEdge && childOnRight) || (onTrail && !parentOnLeft) || (kBulge && !pill && bulgeRight);
 			float x0 = leftFlush ? 0.0f : 3.0f, x1 = rightFlush ? (float)w : w - 3.0f;
-			bool expTop = onTrail && top < pTop - 0.5f, expBottom = onTrail && bottom > pBottom + 0.5f;
+			bool expTop = onTrail && top < pTop - tol, expBottom = onTrail && bottom > pBottom + tol;
 			float tl = cutTop ? 0.0f
-				: ((!leftFlush || (onTrail && parentOnLeft && expTop)) ? kSelR : 0.0f);
+				: ((!leftFlush || (onTrail && parentOnLeft && expTop)) ? selR : 0.0f);
 			float tr = cutTop ? 0.0f
-				: ((!rightFlush || (onTrail && !parentOnLeft && expTop)) ? kSelR : 0.0f);
+				: ((!rightFlush || (onTrail && !parentOnLeft && expTop)) ? selR : 0.0f);
 			float br = cutBottom ? 0.0f
-				: ((!rightFlush || (onTrail && !parentOnLeft && expBottom)) ? kSelR : 0.0f);
+				: ((!rightFlush || (onTrail && !parentOnLeft && expBottom)) ? selR : 0.0f);
 			float bl = cutBottom ? 0.0f
-				: ((!leftFlush || (onTrail && parentOnLeft && expBottom)) ? kSelR : 0.0f);
+				: ((!leftFlush || (onTrail && parentOnLeft && expBottom)) ? selR : 0.0f);
 			Piece p = {x0, t, x1 - x0, b - t, tl, tr, br, bl};
 			pieces.push_back(p);
 		}
 	}
 
 	// the bulge: a tab of the selector outside the edge away from the neighbouring menu
-	if (kBulge) {
+	if (kBulge && !pill) {
 		BRect row;
 		if (hasOwn && ownBottom > ownTop && ownTop >= 0 && ownBottom <= h)
 			row = menu->ConvertToScreen(selected->Frame());
@@ -1086,15 +1755,30 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	}
 
 	// the window border between the Deskbar and its menu, covered along the trail's strip
-	if (deskbarRoot && deskbarBeside) {
+	if (deskbarRoot && deskbarBeside && !pill) {
 		BRect frame = menu->Window()->Frame();
 		float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
 		if (hasOwn && ownBottom > ownTop) {
 			float bottom = menu->ConvertToScreen(BPoint(0, ownBottom + vt)).y - 1;
 			float top = menu->ConvertToScreen(BPoint(0, std::min(pTop, ownTop) + vt)).y;
-			PlaceBridge(menu, BRect(x, std::max(frame.top, top), x, std::min(bottom, frame.bottom)), frame.top, frame.bottom);
+			PlaceBridge(menu, BRect(x, std::max(frame.top, top), x, std::min(bottom, frame.bottom)), frame.top, frame.bottom,
+				Accent());
 		} else
 			HideBridge(menu->Window());
+	}
+
+	// beside the Deskbar the window border between the menu and the Deskbar is covered along the Deskbar's leaf, so the
+	// snake runs into it
+	if (pill && deskbarRoot && deskbarBeside && deskbarLeaf.IsValid()) {
+		BRect frame = menu->Window()->Frame();
+		const float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
+		const float y1 = std::min(frame.bottom, deskbarLeaf.bottom);
+		if (y1 > frame.top) {
+			rgb_color fillColor, hotColor, textUnused;
+			PillColors(&fillColor, &hotColor, &textUnused);
+			PlaceBridge(menu, BRect(x, frame.top, x, y1), frame.top, frame.bottom, Accent());
+			bridged = true;
+		}
 	}
 
 	// the elbow bar down the edge that faces the parent, from the parent's row to our own
@@ -1107,23 +1791,76 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 		top = std::max(top, 0.0f);
 		bottom = std::min(bottom, (float)h);
 		if (bottom > top) {
-			float rt = top < pTop - 0.5f ? kSelR : 0.0f, rb = bottom > pBottom + 0.5f ? kSelR : 0.0f;
+			float rt = top < pTop - tol ? selR : 0.0f, rb = bottom > pBottom + tol ? selR : 0.0f;
 			// the strip hanging into the parent carries the curve at the free end of the vertical part
-			if (kVBulge) {
+			if (kVBulge && !pill) {
 				rt = 0.0f;
 				rb = 0.0f;
 			}
 			Piece p;
-			if (parentOnLeft) {
-				Piece q = {0, top, kBarW, bottom - top, rt, kBarR, kBarR, rb};
+			if (pill) {
+				// where the bar runs past the parent's row its free end (the corner on the parent's side) is round like
+				// a pill's end; otherwise the corner beside the lit row is
+				const bool extTop = top < pTop - tol, extBottom = bottom > pBottom + tol;
+				const float outerT = extTop ? pillR : 0.0f, innerT = extTop ? 0.0f : pillR;
+				const float outerB = extBottom ? pillR : 0.0f, innerB = extBottom ? 0.0f : pillR;
+				if (parentOnLeft) {
+					Piece q = {0, top, barW, bottom - top, outerT, innerT, innerB, outerB};
+					p = q;
+				} else {
+					Piece q = {(float)w - barW, top, barW, bottom - top, innerT, outerT, outerB, innerB};
+					p = q;
+				}
+				// Each menu window has the window system's one pixel border outside its frame. Where the menus overlap it
+				// lies over the parent's panel: it is covered by a one pixel window along the submenu's edge (in the
+				// pill's colour, and in the trail's colour along the bar, but not along the round ends of a bar that runs
+				// past the parent's row, where the join is open anyway), and by one over the top and one over the bottom
+				// border where they cross the parent.
+				if (!deskbarRoot) {
+					BRect frame = menu->Window()->Frame();
+					const float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
+					float sTop = menu->ConvertToScreen(BPoint(0, top + vt)).y;
+					float sBottom = menu->ConvertToScreen(BPoint(0, bottom + vt)).y - 1;
+					if (extTop)
+						sTop += pillR;
+					if (extBottom)
+						sBottom -= pillR;
+					const float y0 = std::max(frame.top - 1, link.parentTop), y1 = std::min(frame.bottom + 1, link.parentBottom);
+					sTop = std::max(sTop, y0);
+					sBottom = std::min(sBottom, y1);
+					if (y1 > y0 && sBottom > sTop) {
+						rgb_color fillColor, hotColor, textUnused;
+						PillColors(&fillColor, &hotColor, &textUnused);
+						PlaceBridge(menu, BRect(x, y0, x, y1), link.parentTop, link.parentBottom, hotColor, fillColor,
+							(int)(sTop - y0), (int)(sBottom - y0));
+						bridged = true;
+
+						const float lx = parentOnLeft ? frame.left - 1 : link.windowLeft;
+						if (frame.top - 1 >= link.parentTop && frame.top - 1 <= link.parentBottom)
+							PlaceCover(menu, TopCovers(), BRect(lx, frame.top - 1, lx + 16, frame.top - 1), fillColor);
+						if (frame.bottom + 1 >= link.parentTop && frame.bottom + 1 <= link.parentBottom)
+							PlaceCover(menu, BottomCovers(), BRect(lx, frame.bottom + 1, lx + 16, frame.bottom + 1), fillColor);
+					}
+				}
+			} else if (parentOnLeft) {
+				Piece q = {0, top, barW, bottom - top, rt, barR, barR, rb};
 				p = q;
 			} else {
-				Piece q = {(float)w - kBarW, top, kBarW, bottom - top, kBarR, rt, rb, kBarR};
+				Piece q = {(float)w - barW, top, barW, bottom - top, barR, rt, rb, barR};
 				p = q;
+			}
+			if (pill) {
+				TrailBar bar;
+				bar.valid = true;
+				bar.onRight = !parentOnLeft;
+				bar.top = top + vt;
+				bar.bottom = bottom + vt;
+				BAutolock lock(LinkLock());
+				TrailBars()[menu] = bar;
 			}
 			pieces.push_back(p);
 			if (hasOwn && ownBottom > ownTop) {
-				float ex = parentOnLeft ? kBarW : w - kBarW;
+				float ex = parentOnLeft ? barW : w - barW;
 				int dx = parentOnLeft ? 1 : -1;
 				if (top < ownTop - 0.5f) {
 					Fillet fl = {ex, ownTop, dx, -1};
@@ -1137,8 +1874,13 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 		}
 	}
 
+	if (pill && !bridged) {
+		HideBridge(menu->Window());
+		HideCovers(menu->Window());
+	}
+
 	// the vertical part hangs into the parent menu, where it runs past the parent's row
-	if (kVBulge) {
+	if (kVBulge && !pill) {
 		bool placed = false;
 		if (link.valid && !deskbarRoot && hasOwn && ownBottom > ownTop && (ownTop < pTop - 0.5f || ownBottom > pBottom + 0.5f)) {
 			float eTop = std::min(ownTop, pTop), eBottom = std::max(ownBottom, pBottom);
@@ -1179,17 +1921,60 @@ DrawTrail(BMenu* menu, const BRect& updateRect)
 	}
 	for (size_t k = 0; k < fillets.size(); k++) {
 		const Fillet& f = fillets[k];
-		int x0 = std::max(0, (int)floorf(std::min(f.x, f.x + f.dx * kFilletR)) - 1);
-		int x1 = std::min(w - 1, (int)ceilf(std::max(f.x, f.x + f.dx * kFilletR)) + 1);
-		int y0 = std::max(0, (int)floorf(std::min(f.y, f.y + f.dy * kFilletR)) - 1);
-		int y1 = std::min(h - 1, (int)ceilf(std::max(f.y, f.y + f.dy * kFilletR)) + 1);
+		int x0 = std::max(0, (int)floorf(std::min(f.x, f.x + f.dx * filletR)) - 1);
+		int x1 = std::min(w - 1, (int)ceilf(std::max(f.x, f.x + f.dx * filletR)) + 1);
+		int y0 = std::max(0, (int)floorf(std::min(f.y, f.y + f.dy * filletR)) - 1);
+		int y1 = std::min(h - 1, (int)ceilf(std::max(f.y, f.y + f.dy * filletR)) + 1);
 		for (int y = y0; y <= y1; ++y) {
 			for (int x = x0; x <= x1; ++x) {
-				float c = FilletCoverage(x + 0.5f, y + 0.5f, f.x, f.y, f.dx, f.dy, kFilletR);
+				float c = FilletCoverage(x + 0.5f, y + 0.5f, f.x, f.y, f.dx, f.dy, filletR);
 				float& dst = cover[(size_t)y * w + x];
 				dst = std::max(dst, c);
 			}
 		}
+	}
+
+	if (pill) {
+		// flat, in the Selector Color, clipped to the pill's rounded corners, with no outline or bevel
+		const int side = ParentSide(menu);
+		const bool squareBottom = side != 0 && BottomOverParent(menu);
+		BBitmap flat(BRect(0, 0, w - 1, h - 1), B_RGBA32);
+		if (flat.InitCheck() != B_OK)
+			return;
+		rgb_color hot, fillUnused, textUnused;
+		PillColors(&fillUnused, &hot, &textUnused);
+		uint8* fbits = (uint8*)flat.Bits();
+		const int32 fbpr = flat.BytesPerRow();
+		std::vector<float> lit((size_t)w * h), shadow;
+		for (int y = 0; y < h; ++y) {
+			for (int x = 0; x < w; ++x) {
+				lit[(size_t)y * w + x] = cover[(size_t)y * w + x]
+					* RoundRectCoverage(x + 0.5f, y + 0.5f, 0, 0, (float)w, (float)h, side < 0 ? 0.0f : pillR,
+						side > 0 ? 0.0f : pillR, (side > 0 && squareBottom) ? 0.0f : pillR,
+						(side < 0 && squareBottom) ? 0.0f : pillR);
+			}
+		}
+		// (along the Deskbar's leaf the snake runs into the leaf, flat, with no edge between the two)
+		int edgeFrom = 0;
+		if (deskbarRoot && deskbarBeside && deskbarLeaf.IsValid())
+			edgeFrom = std::max(0, (int)ceilf(menu->ConvertFromScreen(BPoint(0, deskbarLeaf.bottom + 1)).y - vt));
+		RaisedShade(lit, w, h, shadow, deskbarRoot && parentOnLeft, deskbarRoot && !parentOnLeft, edgeFrom);
+		for (int y = 0; y < h; ++y) {
+			uint8* row = fbits + y * fbpr;
+			for (int x = 0; x < w; ++x) {
+				const float c = lit[(size_t)y * w + x];
+				const float s = shadow[(size_t)y * w + x];
+				uint8* px = row + x * 4;
+				px[0] = Shaded(hot.blue, s);  px[1] = Shaded(hot.green, s);  px[2] = Shaded(hot.red, s);
+				px[3] = (uint8)lroundf(c * 255.0f);
+			}
+		}
+		menu->PushState();
+		menu->SetDrawingMode(B_OP_ALPHA);
+		menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+		menu->DrawBitmap(&flat, bounds.LeftTop());
+		menu->PopState();
+		return;
 	}
 
 	// composite with the bevel: light where the pixel above is empty, dark where the one below is
@@ -1545,9 +2330,15 @@ public:
 	virtual	void DrawMenuBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
+		BMenu* menu = dynamic_cast<BMenu*>(view);
+		if (menu != NULL && PillMenu(menu)) {
+			DrawPillBase(menu);
+			DrawTrail(menu, updateRect, true);
+			return;
+		}
+
 		HaikuControlLook::DrawMenuBackground(view, rect, updateRect, base, flags, borders);
 
-		BMenu* menu = dynamic_cast<BMenu*>(view);
 		if (menu != NULL && dynamic_cast<BMenuBar*>(menu) == NULL)
 			DrawTrail(menu, updateRect);
 	}
