@@ -1966,7 +1966,7 @@ public:
 		disc.bottom = disc.top + d;
 		view->SetHighColor(body);
 		view->SetDrawingMode(B_OP_ALPHA);
-		view->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+		view->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_COMPOSITE);
 		view->SetPenSize(1);
 		view->FillEllipse(disc);
 		view->PopState();
@@ -1978,7 +1978,9 @@ public:
 		view->PushState();
 		view->ClipToRect(frame);
 		view->SetDrawingMode(B_OP_ALPHA);
-		view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+		// (composite, not overlay: Qt draws buttons on an offscreen bitmap with an alpha channel, and overlay leaves
+		// some of its pixels see-through, which shows as stripes. On an opaque surface the two look the same.)
+		view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_COMPOSITE);
 		const bool pressed = (flags & (B_ACTIVATED | B_CLICKED)) != 0;
 		if (!pressed && !disabled) {
 			BRect gloss(frame.left + 2, frame.top + 2, frame.right - 2, frame.top + frame.Height() * 0.45f);
@@ -2109,7 +2111,7 @@ public:
 				view->PushState();
 				view->ClipToRect(rect);
 				view->SetDrawingMode(B_OP_ALPHA);
-				view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+				view->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_COMPOSITE);
 				view->SetHighColor(0, 0, 0, 38);
 				view->FillRect(rect.InsetByCopy(0, 1));
 				view->PopState();

@@ -1,8 +1,11 @@
-# snaketracker 1.0.31
+# snaketracker 1.0.32
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Buttons in Qt programs look right.** In programs written with Qt (Cricket's Qt version, the Qt6 Configurator and the like), the buttons showed vertical stripes across their top half. Qt draws each button on an off-screen picture and puts it on the window with its see-through parts respected, and the control look left parts of the button see-through. The button's gloss, its side caps and the pressed column title are now drawn so that the button stays solid. Nothing changes in programs that draw buttons the usual Haiku way: the buttons look the same there.
+
+Since 1.0.31 (if you skipped it):
 - **A side panel in folder windows.** Every folder window has a panel at its left, with a splitter you can drag: your favourite folders and a tree that opens folder by folder. It is on by default; **Window > Side panel** turns it off or on (windows opened later follow your choice). It is not in the Desktop, Trash or query windows, or in Open and Save dialogs. The folder the window shows is kept selected, with the same light pill as selected files, and clicking a folder shows it in the same window.
   - **Favorites.** The panel starts with Home, Desktop and Downloads. Drag a folder from the file view onto the panel to add it, or right-click any folder and choose **Add to favorites**; right-click a favourite for **Remove from favorites**, **Move up**, **Move down** and **Open in new window** (always a window of its own, even where the folder is already open). The list is one file, `~/config/settings/Tracker/SnakeFavorites`, a folder to a line.
   - **Disks.** A mounted disk, a USB stick for instance, shows up under the favourites when it is mounted and goes when it is unmounted, without restarting Tracker. The boot disk, the package volumes (`system`, `config`) and Haiku's virtual file systems are never listed. **Unmount** is in the right-click menu of a disk's top folder only, never for those.
@@ -75,4 +78,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.31-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.31-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.32-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.32-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
