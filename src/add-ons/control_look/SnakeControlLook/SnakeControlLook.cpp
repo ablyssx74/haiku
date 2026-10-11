@@ -861,20 +861,24 @@ HideBridge(BWindow* window)
 // Menu windows are reused, and one that is shown again comes up in front of the covers made for it earlier, so its border
 // would show over them. A cover that is already up is therefore shown again now and then, which puts it back in front
 // (at most every so often per window: it is a brief flicker of a one pixel window).
+struct RaisedCover {
+	RaisedCover() : frame(), time(0) {}
+
+	BRect		frame;
+	bigtime_t	time;
+};
+
+
 static void
 KeepInFront(BWindow* child, SeamBridge* cover)
 {
-	struct Raised {
-		BRect		frame;
-		bigtime_t	time;
-	};
-	static std::map<std::pair<BWindow*, SeamBridge*>, Raised>* last
-		= new std::map<std::pair<BWindow*, SeamBridge*>, Raised>();
+	static std::map<std::pair<BWindow*, SeamBridge*>, RaisedCover>* last
+		= new std::map<std::pair<BWindow*, SeamBridge*>, RaisedCover>();
 	const bigtime_t now = system_time();
 	const BRect frame = child->Frame();
 	{
 		BAutolock lock(LinkLock());
-		Raised& done = (*last)[std::make_pair(child, cover)];
+		RaisedCover& done = (*last)[std::make_pair(child, cover)];
 		// at once when this window is not showing what it showed when the cover was last brought forward (it is being
 		// used for another submenu), otherwise now and then
 		if (done.time != 0 && done.frame == frame && now - done.time < 150000)
@@ -1437,6 +1441,15 @@ Shaded(uint8 c, float s)
 }
 
 
+static inline float
+HeightAt(const std::vector<float>& map, int w, int h, int x, int y)
+{
+	x = std::max(0, std::min(w - 1, x));
+	y = std::max(0, std::min(h - 1, y));
+	return map[(size_t)y * w + x];
+}
+
+
 static void
 RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out, bool edgeLeft = false,
 	bool edgeRight = false, int edgeFrom = 0)
@@ -1501,12 +1514,8 @@ RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out
 		for (int x = 0; x < w; ++x) {
 			size_t k = (size_t)y * w + x;
 			if (lit[k] <= 0.0f) continue;
-			auto H = [&](int xx, int yy) {
-				xx = std::max(0, std::min(w - 1, xx));
-				yy = std::max(0, std::min(h - 1, yy));
-				return sm[(size_t)yy * w + xx];
-			};
-			float gx = (H(x + 1, y) - H(x - 1, y)) * 0.5f, gy = (H(x, y + 1) - H(x, y - 1)) * 0.5f;
+			float gx = (HeightAt(sm, w, h, x + 1, y) - HeightAt(sm, w, h, x - 1, y)) * 0.5f;
+			float gy = (HeightAt(sm, w, h, x, y + 1) - HeightAt(sm, w, h, x, y - 1)) * 0.5f;
 			float nn = sqrtf(gx * gx + gy * gy + 1.0f);
 			float dot = (-gx * lx - gy * ly + lz) / (nn * ln);
 			out[k] = (dot - lz / ln) * strength * lit[k];
