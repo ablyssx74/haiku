@@ -284,9 +284,7 @@ MenuDrawsTrail(BMenu* menu)
 
 	for (int32 i = 0; i < menu->CountItems(); i++) {
 		BMenuItem* item = menu->ItemAt(i);
-		if (dynamic_cast<SnakeMenuItem*>(item) == NULL && dynamic_cast<BSeparatorItem*>(item) == NULL
-			// the Deskbar's window menus: a window's own item, which draws itself in the pill's colours
-			&& strstr(typeid(*item).name(), "TWindowMenuItem") == NULL)
+		if (dynamic_cast<SnakeMenuItem*>(item) == NULL && dynamic_cast<BSeparatorItem*>(item) == NULL)
 			return false;
 	}
 	return true;
@@ -1239,7 +1237,7 @@ static bool sPillSymbolsLooked = false;
 static void (*sSetBackdrop)(BBitmap*, bool (*)(BMenu*)) = NULL;
 static bool (*sPillMenu)(BMenu*, rgb_color*, rgb_color*) = NULL;
 static bool (*sArrowHidden)(BMenu*, BMenuItem*) = NULL;
-static void (*sDrawRaised)(BView*, BRect, float, uint32, uint32) = NULL;
+static void (*sDrawRaised)(BView*, BRect, float, uint32, uint32, int, int) = NULL;
 static void (*sPillColors)(rgb_color*, rgb_color*, rgb_color*, rgb_color*, rgb_color*) = NULL;
 
 
@@ -1249,7 +1247,11 @@ OnlyOurItems(BMenu* menu)
 {
 	for (int32 i = 0; i < menu->CountItems(); i++) {
 		BMenuItem* item = menu->ItemAt(i);
-		if (dynamic_cast<SnakeMenuItem*>(item) == NULL && dynamic_cast<BSeparatorItem*>(item) == NULL)
+		if (dynamic_cast<SnakeMenuItem*>(item) == NULL && dynamic_cast<BSeparatorItem*>(item) == NULL
+			// the Deskbar's window menus: a window's own item, which draws itself in the pill's colours
+			&& strstr(typeid(*item).name(), "TWindowMenuItem") == NULL
+			// and the Deskbar's programs, whose headers are pills of their own
+			&& strstr(typeid(*item).name(), "TTeamMenuItem") == NULL)
 			return false;
 	}
 	return true;
@@ -1313,12 +1315,12 @@ PillColors(rgb_color* fill, rgb_color* hot, rgb_color* box, rgb_color* text, rgb
 
 
 bool
-DrawRaised(BView* view, BRect rect, float radius, uint32 round, uint32 closed)
+DrawRaised(BView* view, BRect rect, float radius, uint32 round, uint32 closed, int openFrom, int openTo)
 {
 	FindPillSymbols();
 	if (sDrawRaised == NULL)
 		return false;
-	sDrawRaised(view, rect, radius, round, closed);
+	sDrawRaised(view, rect, radius, round, closed, openFrom, openTo);
 	return true;
 }
 

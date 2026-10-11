@@ -274,8 +274,13 @@ TBarMenuBar::DrawBackground(BRect updateRect)
 		// the snake joins the block at the edge nearest the menu: the left one, except for a Deskbar on the left side of
 		// the screen (the round corner is the one on the far side; a horizontal Deskbar has none)
 		const bool joinOnRight = fBarView->Vertical() && fBarView->Left();
-		SnakeSelector::DrawRaised(this, bounds, 10,
-			fBarView->Vertical() ? (joinOnRight ? 4 : 8) : 0, 8);
+		if (fBarView->Vertical()) {
+			SnakeSelector::DrawRaised(this, bounds, 10, joinOnRight ? 4 : 8, 8);
+		} else {
+			// (a horizontal Deskbar: no round corner, the edge towards the screen's edge is open, the one towards the menu
+			// is the block's edge except where the snake of the menu runs into it, at the left)
+			SnakeSelector::DrawRaised(this, bounds, 10, 0, fBarView->Top() ? 8 : 4, 0, 12);
+		}
 
 		// the block keeps its colour over 30% at that edge and then fades gently towards the panel's colour at the far end
 		BGradientLinear fade;

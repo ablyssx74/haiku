@@ -73,7 +73,9 @@ bool		ArrowHidden(BMenu* menu, BMenuItem* item);
 // draws a block in the selector colour, rounded and shaded like a raised bar (a lit row of the trail): \a round has the corners
 // that are round (1 top left, 2 top right, 4 bottom right, 8 bottom left), \a closed the sides that are edges of the shape
 // (1 left, 2 right, 4 top, 8 bottom)
-bool		DrawRaised(BView* view, BRect rect, float radius, uint32 round, uint32 closed);
+// (the top and bottom edges are not edges between the columns \a openFrom and \a openTo: the snake runs through there)
+bool		DrawRaised(BView* view, BRect rect, float radius, uint32 round, uint32 closed, int openFrom = 0,
+				int openTo = -1);
 bool		PillColors(rgb_color* fill, rgb_color* hot, rgb_color* box, rgb_color* text, rgb_color* boxText);
 
 }	// namespace SnakeSelector

@@ -364,7 +364,9 @@ FindParentLink(BMenu* menu)
 	BMenu* parent = menu->Supermenu();
 	BMenuItem* item = menu->Superitem();
 	ParentLink link;
-	if (parent == NULL || item == NULL || parent->Window() == NULL || dynamic_cast<BMenuBar*>(parent) != NULL) {
+	// (the window menu of a program in the Deskbar's list opens beside the list as a menu of its own: no trail, no overlap)
+	if (parent == NULL || item == NULL || parent->Window() == NULL || dynamic_cast<BMenuBar*>(parent) != NULL
+		|| strstr(typeid(*parent).name(), "TTeamMenu") != NULL) {
 		BAutolock lock(LinkLock());
 		Links().erase(menu);
 		return link;
@@ -1185,9 +1187,9 @@ PillMenu(BMenu* menu)
 		return false;
 	BMenu* root = RootMenu(menu);
 	// a popup menu, or the Deskbar's own menu
-	// (or the window menu of a program in the Deskbar's list)
+	// (or the Deskbar's list of programs, when it is a menu, or the window menu of a program in it)
 	if (dynamic_cast<BPopUpMenu*>(root) == NULL && strstr(typeid(*root).name(), "TDeskbarMenu") == NULL
-		&& strstr(typeid(*root).name(), "TWindowMenu") == NULL)
+		&& strstr(typeid(*root).name(), "TWindowMenu") == NULL && strstr(typeid(*root).name(), "TTeamMenu") == NULL)
 		return false;
 
 	BAutolock lock(BackdropLock());
@@ -1247,6 +1249,34 @@ BottomOverParent(BMenu* menu)
 }
 
 
+// Which corners of a menu's pill are square: the one against its parent (or against the Deskbar), and the one at the bottom
+// when it ends within its parent's height; below or above the Deskbar's leaf, the corner on the side of the snake's bar.
+static void
+SquareCorners(BMenu* menu, bool* tl, bool* tr, bool* br, bool* bl)
+{
+	*tl = *tr = *br = *bl = false;
+	const int side = ParentSide(menu);
+	const bool squareBottom = side != 0 && BottomOverParent(menu);
+	if (side < 0) {
+		*tl = true;
+		*bl = squareBottom;
+	} else if (side > 0) {
+		*tr = true;
+		*br = squareBottom;
+	} else if (strstr(typeid(*menu).name(), "TDeskbarMenu") != NULL || strstr(typeid(*menu).name(), "TTeamMenu") != NULL) {
+		bool stripOnLeft = false;
+		const DeskbarPlace place = FindDeskbarPlace(menu, &stripOnLeft);
+		if (place == kBelowLeaf) {
+			*tl = stripOnLeft;
+			*tr = !stripOnLeft;
+		} else if (place == kAboveLeaf) {
+			*bl = stripOnLeft;
+			*br = !stripOnLeft;
+		}
+	}
+}
+
+
 // The menu's background in the pill look: the screen behind it, and the solid pill over that.
 static void
 DrawPillBase(BMenu* menu)
@@ -1288,17 +1318,16 @@ DrawPillBase(BMenu* menu)
 	menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
 	menu->SetHighColor(fill);
 	menu->FillRoundRect(bounds, radius, radius);
-	const int side = ParentSide(menu);
-	const bool squareBottom = side != 0 && BottomOverParent(menu);
-	if (side < 0) {
+	bool sqTL, sqTR, sqBR, sqBL;
+	SquareCorners(menu, &sqTL, &sqTR, &sqBR, &sqBL);
+	if (sqTL)
 		menu->FillRect(BRect(bounds.left, bounds.top, bounds.left + radius, bounds.top + radius));
-		if (squareBottom)
-			menu->FillRect(BRect(bounds.left, bounds.bottom - radius, bounds.left + radius, bounds.bottom));
-	} else if (side > 0) {
+	if (sqTR)
 		menu->FillRect(BRect(bounds.right - radius, bounds.top, bounds.right, bounds.top + radius));
-		if (squareBottom)
-			menu->FillRect(BRect(bounds.right - radius, bounds.bottom - radius, bounds.right, bounds.bottom));
-	}
+	if (sqBL)
+		menu->FillRect(BRect(bounds.left, bounds.bottom - radius, bounds.left + radius, bounds.bottom));
+	if (sqBR)
+		menu->FillRect(BRect(bounds.right - radius, bounds.bottom - radius, bounds.right, bounds.bottom));
 	menu->PopState();
 }
 
@@ -1417,14 +1446,14 @@ snake_pill_colors(rgb_color* fill, rgb_color* hot, rgb_color* box, rgb_color* te
 
 static inline uint8 Shaded(uint8 c, float s);
 static void RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out, bool edgeLeft, bool edgeRight,
-	int edgeFrom, bool edgeTop, bool edgeBottom);
+	int edgeFrom, bool edgeTop, bool edgeBottom, int openFrom, int openTo);
 
 
 // The Deskbar draws its block at the top (behind the leaf) the way a lit row of the trail is: the selector colour, rounded
 // and shaded like a raised bar. `round` says which corners are round (1 top left, 2 top right, 4 bottom right, 8 bottom
 // left) and `closed` which sides are edges of the shape (1 left, 2 right, 4 top, 8 bottom) as opposed to running on.
 extern "C" _EXPORT void
-snake_draw_raised(BView* view, BRect rect, float radius, uint32 round, uint32 closed)
+snake_draw_raised(BView* view, BRect rect, float radius, uint32 round, uint32 closed, int openFrom, int openTo)
 {
 	const int w = (int)rect.Width() + 1, h = (int)rect.Height() + 1;
 	if (view == NULL || w < 2 || h < 2)
@@ -1441,7 +1470,7 @@ snake_draw_raised(BView* view, BRect rect, float radius, uint32 round, uint32 cl
 				(round & 1) ? radius : 0.0f, (round & 2) ? radius : 0.0f, (round & 4) ? radius : 0.0f,
 				(round & 8) ? radius : 0.0f);
 	}
-	RaisedShade(lit, w, h, shade, (closed & 1) != 0, (closed & 2) != 0, 0, (closed & 4) != 0, (closed & 8) != 0);
+	RaisedShade(lit, w, h, shade, (closed & 1) != 0, (closed & 2) != 0, 0, (closed & 4) != 0, (closed & 8) != 0, openFrom, openTo);
 	uint8* bits = (uint8*)bitmap.Bits();
 	const int32 bpr = bitmap.BytesPerRow();
 	for (int y = 0; y < h; ++y) {
@@ -1522,7 +1551,7 @@ HeightAt(const std::vector<float>& map, int w, int h, int x, int y)
 
 static void
 RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out, bool edgeLeft = false,
-	bool edgeRight = false, int edgeFrom = 0, bool edgeTop = false, bool edgeBottom = false)
+	bool edgeRight = false, int edgeFrom = 0, bool edgeTop = false, bool edgeBottom = false, int openFrom = 0, int openTo = -1)
 {
 	out.assign((size_t)w * h, 0.0f);
 	// distance from each lit pixel to the nearest edge of the lit shape (the window's own edges are not edges)
@@ -1534,7 +1563,7 @@ RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out
 		const int x = (int)(k % w);
 		const int y = (int)(k / w);
 		const bool atEdge = (y >= edgeFrom && ((edgeLeft && x == 0) || (edgeRight && x == w - 1)))
-			|| (edgeTop && y == 0) || (edgeBottom && y == h - 1);
+			|| ((edgeTop && y == 0) || (edgeBottom && y == h - 1)) && !(x >= openFrom && x <= openTo);
 		d[k] = lit[k] > 0.5f ? (atEdge ? 1.0f : big) : 0.0f;
 	}
 	for (int y = 0; y < h; ++y)
@@ -1861,6 +1890,20 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 			HideBridge(menu->Window());
 	}
 
+	// below or above the leaf (a horizontal Deskbar) the border between the leaf's block and the menu is covered along the
+	// snake's bar, so the snake runs into the block
+	if (pill && deskbarRoot && !deskbarBeside) {
+		BRect frame = menu->Window()->Frame();
+		rgb_color fillColor, hotColor, textUnused;
+		PillColors(&fillColor, &hotColor, &textUnused);
+		const float x0 = parentOnLeft ? frame.left : frame.right - barW + 1;
+		if (deskbarAbove)
+			PlaceCover(menu, BottomCovers(), BRect(x0, frame.bottom + 1, x0 + barW - 1, frame.bottom + 1), hotColor);
+		else
+			PlaceCover(menu, TopCovers(), BRect(x0, frame.top - 1, x0 + barW - 1, frame.top - 1), hotColor);
+		bridged = true;
+	}
+
 	// beside the Deskbar the window border between the menu and the Deskbar is covered along the Deskbar's leaf, so the
 	// snake runs into it
 	if (pill && deskbarRoot && deskbarBeside && deskbarLeaf.IsValid()) {
@@ -2034,8 +2077,8 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 
 	if (pill) {
 		// flat, in the Selector Color, clipped to the pill's rounded corners, with no outline or bevel
-		const int side = ParentSide(menu);
-		const bool squareBottom = side != 0 && BottomOverParent(menu);
+		bool sqTL, sqTR, sqBR, sqBL;
+		SquareCorners(menu, &sqTL, &sqTR, &sqBR, &sqBL);
 		BBitmap flat(BRect(0, 0, w - 1, h - 1), B_RGBA32);
 		if (flat.InitCheck() != B_OK)
 			return;
@@ -2047,9 +2090,8 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				lit[(size_t)y * w + x] = cover[(size_t)y * w + x]
-					* RoundRectCoverage(x + 0.5f, y + 0.5f, 0, 0, (float)w, (float)h, side < 0 ? 0.0f : pillR,
-						side > 0 ? 0.0f : pillR, (side > 0 && squareBottom) ? 0.0f : pillR,
-						(side < 0 && squareBottom) ? 0.0f : pillR);
+					* RoundRectCoverage(x + 0.5f, y + 0.5f, 0, 0, (float)w, (float)h, sqTL ? 0.0f : pillR,
+						sqTR ? 0.0f : pillR, sqBR ? 0.0f : pillR, sqBL ? 0.0f : pillR);
 			}
 		}
 		// (along the Deskbar's leaf the snake runs into the leaf, flat, with no edge between the two)
