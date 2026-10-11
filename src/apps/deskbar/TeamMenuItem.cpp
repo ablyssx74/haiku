@@ -44,6 +44,7 @@ All rights reserved.
 
 #include <Bitmap.h>
 #include <ControlLook.h>
+#include <GradientLinear.h>
 #include <Debug.h>
 #include <Font.h>
 #include <Mime.h>
@@ -239,6 +240,35 @@ TTeamMenuItem::Draw()
 
 	menu->PushState();
 
+	if (fBarView->PillLook()) {
+		// the program's header: a pill in the selector colour, a little lighter under the pointer
+		rgb_color hot;
+		fBarView->PillColors(NULL, &hot, NULL, NULL, NULL);
+		bool lit = _IsSelected() && (!fBarView->Dragging()
+			|| fBarView->AppCanHandleTypes(Signature()));
+		rgb_color top = tint_color(hot, lit ? 0.80f : 0.92f);
+		rgb_color bottom = hot;
+		if (lit)
+			bottom = tint_color(hot, 0.95f);
+		BRect pill(frame.left + 3, frame.top + 2, frame.right - 3,
+			frame.bottom - 2);
+		BGradientLinear gradient;
+		gradient.SetStart(pill.LeftTop());
+		gradient.SetEnd(pill.LeftBottom());
+		gradient.AddColor(top, 0);
+		gradient.AddColor(bottom, 255);
+		menu->SetDrawingMode(B_OP_ALPHA);
+		menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+		float radius = floorf(pill.Height() / 2);
+		menu->FillRoundRect(pill, radius, radius, gradient);
+		menu->SetDrawingMode(B_OP_COPY);
+
+		menu->MovePenTo(ContentLocation());
+		DrawContent();
+		menu->PopState();
+		return;
+	}
+
 	rgb_color menuColor = ui_color(B_MENU_BACKGROUND_COLOR);
 	bool canHandle = !fBarView->Dragging()
 		|| fBarView->AppCanHandleTypes(Signature());
@@ -347,6 +377,11 @@ TTeamMenuItem::DrawContent()
 		menu->SetHighColor(ui_color(B_MENU_SELECTED_ITEM_TEXT_COLOR));
 	else
 		menu->SetHighColor(ui_color(B_MENU_ITEM_TEXT_COLOR));
+	if (fBarView->PillLook()) {
+		rgb_color hot;
+		fBarView->PillColors(NULL, &hot, NULL, NULL, NULL);
+		menu->SetHighColor(TBarView::PillTextOn(hot));
+	}
 
 	menu->MovePenBy(0, fLabelAscent);
 

@@ -105,6 +105,12 @@ public:
 	// window placement methods
 			bool			Vertical() const;
 			bool			Left() const;
+			// the pill look of the panel (the Snake control look, the vertical expanded Deskbar on the right)
+			bool			PillLook() const;
+			bool			PillColors(rgb_color* fill, rgb_color* hot,
+								rgb_color* box, rgb_color* text,
+								rgb_color* boxText) const;
+	static	rgb_color		PillTextOn(rgb_color color);
 			bool			Top() const;
 			bool			AcrossTop() const;
 			bool			AcrossBottom() const;

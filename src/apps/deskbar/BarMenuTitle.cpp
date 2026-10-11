@@ -103,7 +103,9 @@ TBarMenuTitle::Draw()
 		frame.right = windowBounds.right;
 
 	// fill in background
-	if (IsSelected()) {
+	if (fBarView != NULL && fBarView->PillLook()) {
+		// (the bar paints the leaf's block; an open menu does not change it)
+	} else if (IsSelected()) {
 		be_control_look->DrawMenuItemBackground(menu, frame, frame, base,
 			BControlLook::B_ACTIVATED);
 	} else

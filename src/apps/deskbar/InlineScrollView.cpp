@@ -19,6 +19,8 @@
 #include <Screen.h>
 #include <Window.h>
 
+#include "SnakeSelector.h"
+
 
 const int kDefaultScrollStep = 19;
 const int kScrollerDimension = 12;
@@ -86,6 +88,9 @@ ScrollArrow::ScrollArrow(BRect frame)
 	fEnabled(false)
 {
 	SetViewUIColor(B_MENU_BACKGROUND_COLOR);
+	rgb_color fill;
+	if (SnakeSelector::PillColors(&fill, NULL, NULL, NULL, NULL))
+		SetViewColor(fill);
 }
 
 
@@ -427,6 +432,13 @@ void
 TInlineScrollView::Draw(BRect updateRect)
 {
 	BRect frame = Bounds();
+	rgb_color fill;
+	if (SnakeSelector::PillColors(&fill, NULL, NULL, NULL, NULL)) {
+		// (the Deskbar's lavender panel)
+		SetHighColor(fill);
+		FillRect(frame);
+		return;
+	}
 	be_control_look->DrawButtonBackground(this, frame, updateRect,
 		ui_color(B_MENU_BACKGROUND_COLOR));
 }

@@ -44,6 +44,7 @@ All rights reserved.
 #include "BarApp.h"
 #include "BarMenuBar.h"
 #include "BarView.h"
+#include "SnakeSelector.h"
 #include "ExpandoMenuBar.h"
 #include "ResourceSet.h"
 #include "TeamMenu.h"
@@ -105,7 +106,39 @@ void
 TWindowMenuItem::Draw()
 {
 	if (!fExpanded) {
+		BMenu* pillMenu = Menu();
+		rgb_color pillFill, pillText;
+		if (pillMenu != NULL && SnakeSelector::PillMenu(pillMenu, &pillFill, &pillText)) {
+			// in a pill menu the menu paints the background and the lit row; the label is drawn in the pill's colours
+			pillMenu->PushState();
+			pillMenu->MovePenTo(ContentLocation());
+			DrawContent();
+			pillMenu->PopState();
+			return;
+		}
 		BMenuItem::Draw();
+		return;
+	}
+
+	TBarView* pillBar = (static_cast<TBarApp*>(be_app))->BarView();
+	if (pillBar != NULL && pillBar->PillLook()) {
+		// the dark box behind the windows is painted by the menu; the row under the pointer is lit
+		BMenu* pillMenu = Menu();
+		pillMenu->PushState();
+		if (IsEnabled() && IsSelected() && !pillMenu->IsRedrawAfterSticky()
+			&& !pillBar->Dragging()) {
+			rgb_color hot;
+			pillBar->PillColors(NULL, &hot, NULL, NULL, NULL);
+			BRect row(Frame());
+			row.InsetBy(10, 1);
+			pillMenu->SetDrawingMode(B_OP_ALPHA);
+			pillMenu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+			pillMenu->SetHighColor(hot);
+			pillMenu->FillRoundRect(row, 6, 6);
+		}
+		pillMenu->SetDrawingMode(B_OP_COPY);
+		DrawContent();
+		pillMenu->PopState();
 		return;
 	}
 
@@ -187,6 +220,23 @@ TWindowMenuItem::DrawContent()
 		menu->SetHighColor(ui_color(B_MENU_SELECTED_ITEM_TEXT_COLOR));
 	else
 		menu->SetHighColor(ui_color(B_MENU_ITEM_TEXT_COLOR));
+	if (!fExpanded) {
+		rgb_color pillFill, pillText;
+		if (SnakeSelector::PillMenu(menu, &pillFill, &pillText)) {
+			menu->SetHighColor(IsSelected() && IsEnabled() ? SnakeSelector::TextOn(SnakeSelector::Accent())
+				: pillText);
+			if (!IsEnabled())
+				menu->SetHighColor(tint_color(pillFill, B_DARKEN_2_TINT));
+		}
+	}
+	{
+		TBarView* pillBar = (static_cast<TBarApp*>(be_app))->BarView();
+		if (fExpanded && pillBar != NULL && pillBar->PillLook()) {
+			rgb_color boxText, hot;
+			pillBar->PillColors(NULL, &hot, NULL, NULL, &boxText);
+			menu->SetHighColor(IsSelected() ? TBarView::PillTextOn(hot) : boxText);
+		}
+	}
 
 	float labelWidth = menu->StringWidth(Label());
 	BPoint penLocation = menu->PenLocation();

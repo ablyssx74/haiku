@@ -42,6 +42,7 @@ All rights reserved.
 #include <Bitmap.h>
 #include <ControlLook.h>
 #include <Debug.h>
+#include <GradientLinear.h>
 #include <IconUtils.h>
 #include <NodeInfo.h>
 
@@ -263,6 +264,41 @@ TBarMenuBar::Draw(BRect updateRect)
 void
 TBarMenuBar::DrawBackground(BRect updateRect)
 {
+	if (fBarView != NULL && fBarView->PillLook()) {
+		// the leaf's block: a lit bar of the trail, in the selector colour, rounded and shaded like it, on the panel
+		rgb_color fill;
+		fBarView->PillColors(&fill, NULL, NULL, NULL, NULL);
+		BRect bounds(Bounds());
+		SetHighColor(fill);
+		FillRect(bounds);
+		// the snake joins the block at the edge nearest the menu: the left one, except for a Deskbar on the left side of
+		// the screen (the round corner is the one on the far side; a horizontal Deskbar has none)
+		const bool joinOnRight = fBarView->Vertical() && fBarView->Left();
+		SnakeSelector::DrawRaised(this, bounds, 10,
+			fBarView->Vertical() ? (joinOnRight ? 4 : 8) : 0, 8);
+
+		// the block keeps its colour over 30% at that edge and then fades gently towards the panel's colour at the far end
+		BGradientLinear fade;
+		BRect faded;
+		if (joinOnRight) {
+			fade.SetStart(BPoint(bounds.right - bounds.Width() * 0.3f, 0));
+			fade.SetEnd(BPoint(bounds.left, 0));
+			faded = BRect(bounds.left, bounds.top, bounds.right - bounds.Width() * 0.3f, bounds.bottom - 1);
+		} else {
+			fade.SetStart(BPoint(bounds.left + bounds.Width() * 0.3f, 0));
+			fade.SetEnd(BPoint(bounds.right, 0));
+			faded = BRect(bounds.left + bounds.Width() * 0.3f, bounds.top, bounds.right, bounds.bottom - 1);
+		}
+		fill.alpha = 0;
+		fade.AddColor(fill, 0);
+		fill.alpha = 153;
+		fade.AddColor(fill, 255);
+		SetDrawingMode(B_OP_ALPHA);
+		SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+		FillRect(faded, fade);
+		SetDrawingMode(B_OP_COPY);
+		return;
+	}
 	BMenu::DrawBackground(updateRect);
 }
 

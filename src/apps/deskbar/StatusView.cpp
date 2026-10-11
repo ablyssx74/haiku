@@ -1384,6 +1384,11 @@ TDragRegion::AttachedToWindow()
 	CalculateRegions();
 
 	SetViewUIColor(B_MENU_BACKGROUND_COLOR, 1.1);
+	if (fBarView->PillLook()) {
+		rgb_color fill;
+		fBarView->PillColors(&fill, NULL, NULL, NULL, NULL);
+		SetViewColor(fill);
+	}
 
 	ResizeToPreferred();
 }
@@ -1411,6 +1416,13 @@ TDragRegion::GetPreferredSize(float* width, float* height)
 void
 TDragRegion::Draw(BRect updateRect)
 {
+	if (fBarView->PillLook()) {
+		// (the lavender panel has no lines)
+		SetHighColor(ViewColor());
+		FillRect(updateRect);
+		return;
+	}
+
 	rgb_color menuColor = ViewColor();
 	rgb_color hilite = tint_color(menuColor, B_DARKEN_1_TINT);
 	rgb_color ldark = tint_color(menuColor, 1.02);
@@ -1813,6 +1825,8 @@ TResizeControl::Draw(BRect updateRect)
 		return;
 
 	rgb_color menuColor = ViewColor();
+	if (fBarView->PillLook())
+		fBarView->PillColors(&menuColor, NULL, NULL, NULL, NULL);
 	rgb_color menuHilite = menuColor;
 	if (IsTracking()) {
 		// draw drag region highlighted if tracking mouse

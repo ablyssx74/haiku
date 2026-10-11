@@ -58,6 +58,7 @@ All rights reserved.
 #include "FSUtils.h"
 #include "InlineScrollView.h"
 #include "ResourceSet.h"
+#include "SnakeSelector.h"
 #include "StatusView.h"
 #include "TeamMenuItem.h"
 
@@ -225,6 +226,11 @@ TBarView::AttachedToWindow()
 	fBarWindow = dynamic_cast<TBarWindow*>(Window());
 
 	SetViewUIColor(B_MENU_BACKGROUND_COLOR);
+	if (PillLook()) {
+		rgb_color fill;
+		PillColors(&fill, NULL, NULL, NULL, NULL);
+		SetViewColor(fill);
+	}
 	SetFont(be_plain_font);
 
 	fMouseFilter = new BarViewMessageFilter(this);
@@ -254,6 +260,15 @@ void
 TBarView::Draw(BRect)
 {
 	BRect bounds(Bounds());
+
+	if (PillLook()) {
+		// one lavender panel: no lines between the parts
+		rgb_color fill;
+		PillColors(&fill, NULL, NULL, NULL, NULL);
+		SetHighColor(fill);
+		FillRect(bounds);
+		return;
+	}
 
 	rgb_color hilite = tint_color(ViewColor(), B_DARKEN_1_TINT);
 
@@ -854,6 +869,30 @@ bool
 TBarView::Left() const
 {
 	return fBarApp->Settings()->left;
+}
+
+
+bool
+TBarView::PillLook() const
+{
+	return SnakeSelector::PillColors(NULL, NULL, NULL, NULL, NULL);
+}
+
+
+bool
+TBarView::PillColors(rgb_color* fill, rgb_color* hot, rgb_color* box,
+	rgb_color* text, rgb_color* boxText) const
+{
+	return SnakeSelector::PillColors(fill, hot, box, text, boxText);
+}
+
+
+rgb_color
+TBarView::PillTextOn(rgb_color color)
+{
+	float luminance = 0.299f * color.red + 0.587f * color.green
+		+ 0.114f * color.blue;
+	return luminance > 140.0f ? make_color(20, 22, 28) : make_color(255, 255, 255);
 }
 
 

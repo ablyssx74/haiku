@@ -39,10 +39,11 @@ All rights reserved.
 //	window control menu items (Show All, Hide All, Close All)
 //	in WindowMenu
 
+#include "SnakeMenuItem.h"
 #include <MenuItem.h>
 
 
-class TShowHideMenuItem : public BMenuItem {
+class TShowHideMenuItem : public SnakeMenuItem {
 public:
 						TShowHideMenuItem(const char* title,
 										  const BList* teams,

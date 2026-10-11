@@ -68,6 +68,13 @@ void		CaptureMenuBackdrop();
 bool		PillMenu(BMenu* menu, rgb_color* fill, rgb_color* text);
 // whether the arrow of an item is under the trail's bar (the snake passes through it), so it is not drawn
 bool		ArrowHidden(BMenu* menu, BMenuItem* item);
+// the colours of the pill look, for the Deskbar's own panel (false when the Snake control look is not in use): the pill, the
+// lit row, the dark box for a program's windows, the text on the pill and the text on the box
+// draws a block in the selector colour, rounded and shaded like a raised bar (a lit row of the trail): \a round has the corners
+// that are round (1 top left, 2 top right, 4 bottom right, 8 bottom left), \a closed the sides that are edges of the shape
+// (1 left, 2 right, 4 top, 8 bottom)
+bool		DrawRaised(BView* view, BRect rect, float radius, uint32 round, uint32 closed);
+bool		PillColors(rgb_color* fill, rgb_color* hot, rgb_color* box, rgb_color* text, rgb_color* boxText);
 
 }	// namespace SnakeSelector
 

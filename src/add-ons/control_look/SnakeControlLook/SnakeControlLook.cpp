@@ -1185,7 +1185,9 @@ PillMenu(BMenu* menu)
 		return false;
 	BMenu* root = RootMenu(menu);
 	// a popup menu, or the Deskbar's own menu
-	if (dynamic_cast<BPopUpMenu*>(root) == NULL && strstr(typeid(*root).name(), "TDeskbarMenu") == NULL)
+	// (or the window menu of a program in the Deskbar's list)
+	if (dynamic_cast<BPopUpMenu*>(root) == NULL && strstr(typeid(*root).name(), "TDeskbarMenu") == NULL
+		&& strstr(typeid(*root).name(), "TWindowMenu") == NULL)
 		return false;
 
 	BAutolock lock(BackdropLock());
@@ -1393,6 +1395,74 @@ snake_set_menu_backdrop(BBitmap* screen, bool (*eligible)(BMenu*))
 }
 
 
+// The Deskbar draws its own panel in the same colours: the pill, the lit row, the dark box for a program's windows, the
+// text on the pill, and the text on the box.
+extern "C" _EXPORT void
+snake_pill_colors(rgb_color* fill, rgb_color* hot, rgb_color* box, rgb_color* text, rgb_color* boxText)
+{
+	rgb_color f, h, t;
+	PillColors(&f, &h, &t);
+	if (fill != NULL)
+		*fill = f;
+	if (hot != NULL)
+		*hot = h;
+	if (box != NULL)
+		*box = MixColors(Accent(), make_color(0, 0, 0), 0.38f);
+	if (text != NULL)
+		*text = t;
+	if (boxText != NULL)
+		*boxText = make_color(245, 243, 252);
+}
+
+
+static inline uint8 Shaded(uint8 c, float s);
+static void RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out, bool edgeLeft, bool edgeRight,
+	int edgeFrom, bool edgeTop, bool edgeBottom);
+
+
+// The Deskbar draws its block at the top (behind the leaf) the way a lit row of the trail is: the selector colour, rounded
+// and shaded like a raised bar. `round` says which corners are round (1 top left, 2 top right, 4 bottom right, 8 bottom
+// left) and `closed` which sides are edges of the shape (1 left, 2 right, 4 top, 8 bottom) as opposed to running on.
+extern "C" _EXPORT void
+snake_draw_raised(BView* view, BRect rect, float radius, uint32 round, uint32 closed)
+{
+	const int w = (int)rect.Width() + 1, h = (int)rect.Height() + 1;
+	if (view == NULL || w < 2 || h < 2)
+		return;
+	BBitmap bitmap(BRect(0, 0, w - 1, h - 1), B_RGBA32);
+	if (bitmap.InitCheck() != B_OK)
+		return;
+	rgb_color fill, hot, text;
+	PillColors(&fill, &hot, &text);
+	std::vector<float> lit((size_t)w * h), shade;
+	for (int y = 0; y < h; ++y) {
+		for (int x = 0; x < w; ++x)
+			lit[(size_t)y * w + x] = RoundRectCoverage(x + 0.5f, y + 0.5f, 0, 0, (float)w, (float)h,
+				(round & 1) ? radius : 0.0f, (round & 2) ? radius : 0.0f, (round & 4) ? radius : 0.0f,
+				(round & 8) ? radius : 0.0f);
+	}
+	RaisedShade(lit, w, h, shade, (closed & 1) != 0, (closed & 2) != 0, 0, (closed & 4) != 0, (closed & 8) != 0);
+	uint8* bits = (uint8*)bitmap.Bits();
+	const int32 bpr = bitmap.BytesPerRow();
+	for (int y = 0; y < h; ++y) {
+		uint8* row = bits + y * bpr;
+		for (int x = 0; x < w; ++x) {
+			const float s = shade[(size_t)y * w + x];
+			uint8* px = row + x * 4;
+			px[0] = Shaded(hot.blue, s);
+			px[1] = Shaded(hot.green, s);
+			px[2] = Shaded(hot.red, s);
+			px[3] = (uint8)lroundf(lit[(size_t)y * w + x] * 255.0f);
+		}
+	}
+	view->PushState();
+	view->SetDrawingMode(B_OP_ALPHA);
+	view->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+	view->DrawBitmap(&bitmap, rect.LeftTop());
+	view->PopState();
+}
+
+
 // ...and asks whether the arrow of one of its items is under the trail (so it is not drawn).
 extern "C" _EXPORT bool
 snake_arrow_hidden(BMenu* menu, BMenuItem* item)
@@ -1452,7 +1522,7 @@ HeightAt(const std::vector<float>& map, int w, int h, int x, int y)
 
 static void
 RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out, bool edgeLeft = false,
-	bool edgeRight = false, int edgeFrom = 0)
+	bool edgeRight = false, int edgeFrom = 0, bool edgeTop = false, bool edgeBottom = false)
 {
 	out.assign((size_t)w * h, 0.0f);
 	// distance from each lit pixel to the nearest edge of the lit shape (the window's own edges are not edges)
@@ -1463,7 +1533,9 @@ RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out
 	for (size_t k = 0; k < n; ++k) {
 		const int x = (int)(k % w);
 		const int y = (int)(k / w);
-		d[k] = lit[k] > 0.5f ? (y >= edgeFrom && ((edgeLeft && x == 0) || (edgeRight && x == w - 1)) ? 1.0f : big) : 0.0f;
+		const bool atEdge = (y >= edgeFrom && ((edgeLeft && x == 0) || (edgeRight && x == w - 1)))
+			|| (edgeTop && y == 0) || (edgeBottom && y == h - 1);
+		d[k] = lit[k] > 0.5f ? (atEdge ? 1.0f : big) : 0.0f;
 	}
 	for (int y = 0; y < h; ++y)
 		for (int x = 0; x < w; ++x) {
@@ -1661,6 +1733,19 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 			deskbarRoot = true;
 			deskbarBeside = place == kBesideDeskbar;
 			deskbarAbove = place == kAboveLeaf;
+			if (pill && deskbarBeside) {
+				// the menu opens lower than the Deskbar's block; it is lifted three pixels and moved a pixel over the Deskbar's edge, once for each time
+				// it is shown (a window that has already been lifted is at the place it was left)
+				static std::map<BWindow*, float>* lifted = new std::map<BWindow*, float>();
+				BWindow* window = menu->Window();
+				const float top = window->Frame().top;
+				BAutolock lock(LinkLock());
+				std::map<BWindow*, float>::iterator it = lifted->find(window);
+				if (it == lifted->end() || it->second != top) {
+					window->MoveBy(stripOnLeft ? -1 : 1, -3);
+					(*lifted)[window] = top - 3;
+				}
+			}
 			link.valid = true;
 			link.windowLeft = stripOnLeft ? myLeft - 1 : myLeft + 1;
 			link.rowTop = menu->Window()->Frame().top;
@@ -1781,11 +1866,15 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 	if (pill && deskbarRoot && deskbarBeside && deskbarLeaf.IsValid()) {
 		BRect frame = menu->Window()->Frame();
 		const float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
-		const float y1 = std::min(frame.bottom, deskbarLeaf.bottom);
+		float y1 = std::min(frame.bottom, deskbarLeaf.bottom);
+		if (hasOwn && ownBottom > ownTop) {
+			// (on down to the lit row, along the whole of the trail's bar)
+			y1 = std::max(y1, std::min(frame.bottom, menu->ConvertToScreen(BPoint(0, ownBottom + vt)).y - 1));
+		}
 		if (y1 > frame.top) {
 			rgb_color fillColor, hotColor, textUnused;
 			PillColors(&fillColor, &hotColor, &textUnused);
-			PlaceBridge(menu, BRect(x, frame.top, x, y1), frame.top, frame.bottom, Accent());
+			PlaceBridge(menu, BRect(x, frame.top, x, y1), frame.top, frame.bottom, hotColor);
 			bridged = true;
 		}
 	}

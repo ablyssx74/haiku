@@ -171,6 +171,12 @@ TTimeView::Draw(BRect /*updateRect*/)
 	SetLowColor(ViewColor());
 	FillRect(Bounds());
 	SetHighUIColor(B_MENU_ITEM_TEXT_COLOR);
+	TBarView* barView = static_cast<TBarApp*>(be_app)->BarView();
+	if (barView != NULL && barView->PillLook()) {
+		rgb_color text;
+		barView->PillColors(NULL, NULL, NULL, &text, NULL);
+		SetHighColor(text);
+	}
 
 	DrawString(fCurrentTimeStr, fTimeLocation);
 

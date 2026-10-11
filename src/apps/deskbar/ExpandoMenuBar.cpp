@@ -845,6 +845,36 @@ TExpandoMenuBar::Draw(BRect updateRect)
 void
 TExpandoMenuBar::DrawBackground(BRect updateRect)
 {
+	if (fBarView != NULL && fBarView->PillLook()) {
+		// the lavender panel, and a dark rounded box under each program that shows its windows
+		rgb_color fill, box;
+		fBarView->PillColors(&fill, NULL, &box, NULL, NULL);
+		SetHighColor(fill);
+		FillRect(Bounds());
+
+		SetDrawingMode(B_OP_ALPHA);
+		SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+		SetHighColor(box);
+		for (int32 i = 0; i < CountItems(); i++) {
+			TTeamMenuItem* team = dynamic_cast<TTeamMenuItem*>(ItemAt(i));
+			if (team == NULL || !team->IsExpanded())
+				continue;
+			int32 last = i;
+			while (last + 1 < CountItems()
+				&& dynamic_cast<TWindowMenuItem*>(ItemAt(last + 1)) != NULL)
+				last++;
+			if (last == i)
+				continue;
+			BRect head = team->Frame();
+			BRect tail = ItemAt(last)->Frame();
+			BRect area(head.left + 8, head.bottom - 8, head.right - 8,
+				tail.bottom - 2);
+			FillRoundRect(area, 8, 8);
+		}
+		SetDrawingMode(B_OP_COPY);
+		return;
+	}
+
 	if (Vertical())
 		return;
 

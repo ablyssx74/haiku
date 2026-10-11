@@ -51,7 +51,7 @@ const float kVPad = 2.0f;
 TShowHideMenuItem::TShowHideMenuItem(const char* title, const BList* teams,
 	uint32 action)
 	:
-	BMenuItem(title, NULL),
+	SnakeMenuItem(title, NULL),
 	fTeams(teams),
 	fAction(action)
 {

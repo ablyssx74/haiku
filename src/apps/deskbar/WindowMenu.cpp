@@ -35,6 +35,7 @@ All rights reserved.
 
 
 #include "SnakeMenuItem.h"
+#include "SnakeSelector.h"
 #include "WindowMenu.h"
 
 #include <Catalog.h>
@@ -83,6 +84,12 @@ TWindowMenu::TWindowMenu(const BList* team, const char* signature)
 void
 TWindowMenu::AttachedToWindow()
 {
+	{
+		// the window menu is drawn in the pill look when the Deskbar's panel is: a picture of the screen from before it opens
+		TBarView* pillBar = (static_cast<TBarApp*>(be_app))->BarView();
+		if (pillBar != NULL && pillBar->PillLook())
+			SnakeSelector::CaptureMenuBackdrop();
+	}
 	RemoveItems(0, CountItems(), true);
 	int32 miniCount = 0;
 

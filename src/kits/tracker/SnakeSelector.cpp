@@ -284,7 +284,9 @@ MenuDrawsTrail(BMenu* menu)
 
 	for (int32 i = 0; i < menu->CountItems(); i++) {
 		BMenuItem* item = menu->ItemAt(i);
-		if (dynamic_cast<SnakeMenuItem*>(item) == NULL && dynamic_cast<BSeparatorItem*>(item) == NULL)
+		if (dynamic_cast<SnakeMenuItem*>(item) == NULL && dynamic_cast<BSeparatorItem*>(item) == NULL
+			// the Deskbar's window menus: a window's own item, which draws itself in the pill's colours
+			&& strstr(typeid(*item).name(), "TWindowMenuItem") == NULL)
 			return false;
 	}
 	return true;
@@ -1237,6 +1239,8 @@ static bool sPillSymbolsLooked = false;
 static void (*sSetBackdrop)(BBitmap*, bool (*)(BMenu*)) = NULL;
 static bool (*sPillMenu)(BMenu*, rgb_color*, rgb_color*) = NULL;
 static bool (*sArrowHidden)(BMenu*, BMenuItem*) = NULL;
+static void (*sDrawRaised)(BView*, BRect, float, uint32, uint32) = NULL;
+static void (*sPillColors)(rgb_color*, rgb_color*, rgb_color*, rgb_color*, rgb_color*) = NULL;
 
 
 // Whether a menu holds nothing but Tracker's own items (and separators).
@@ -1266,6 +1270,8 @@ FindPillSymbols()
 		get_image_symbol(info.id, "snake_set_menu_backdrop", B_SYMBOL_TYPE_TEXT, (void**)&sSetBackdrop);
 		get_image_symbol(info.id, "snake_pill_menu", B_SYMBOL_TYPE_TEXT, (void**)&sPillMenu);
 		get_image_symbol(info.id, "snake_arrow_hidden", B_SYMBOL_TYPE_TEXT, (void**)&sArrowHidden);
+		get_image_symbol(info.id, "snake_draw_raised", B_SYMBOL_TYPE_TEXT, (void**)&sDrawRaised);
+		get_image_symbol(info.id, "snake_pill_colors", B_SYMBOL_TYPE_TEXT, (void**)&sPillColors);
 		break;
 	}
 }
@@ -1292,6 +1298,28 @@ PillMenu(BMenu* menu, rgb_color* fill, rgb_color* text)
 {
 	FindPillSymbols();
 	return sPillMenu != NULL && menu != NULL && sPillMenu(menu, fill, text);
+}
+
+
+bool
+PillColors(rgb_color* fill, rgb_color* hot, rgb_color* box, rgb_color* text, rgb_color* boxText)
+{
+	FindPillSymbols();
+	if (sPillColors == NULL)
+		return false;
+	sPillColors(fill, hot, box, text, boxText);
+	return true;
+}
+
+
+bool
+DrawRaised(BView* view, BRect rect, float radius, uint32 round, uint32 closed)
+{
+	FindPillSymbols();
+	if (sDrawRaised == NULL)
+		return false;
+	sDrawRaised(view, rect, radius, round, closed);
+	return true;
 }
 
 
