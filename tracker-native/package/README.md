@@ -10,9 +10,12 @@ Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 **Install it for the whole system** (the launch files point at `/system/apps`): double-click the `.hpkg` and choose "System", or copy it to `/boot/system/packages/`. A "home" install puts the files under `~/config` and the launch files then point at nothing.
 
-The package installs to `/boot/system/apps/SnakeTracker` and a launch file in
-`/boot/system/data/user_launch`, so the system's own Tracker and Deskbar are left alone. They are
-replaced at the next start (log out and in, or restart). To go back, remove the package and pick the
+The package installs to `/boot/system/apps/SnakeTracker`, a launch file in
+`/boot/system/data/user_launch` and a small background server, `/boot/system/servers/snaketracker_server`,
+so the system's own Tracker and Deskbar are left alone. They are replaced at the next start (log out and
+in, or restart). The server starts with the desktop and makes sure it is these Tracker and Deskbar that run
+(starting them again if one crashes); it has nothing to do when the launch daemon already starts them, and it
+quits when the system shuts down. To go back, remove the package and pick the
 default control look in Appearance.
 
 Source: https://github.com/ablyssx74/haiku (`tracker-native/`, `src/add-ons/control_look/SnakeControlLook`).

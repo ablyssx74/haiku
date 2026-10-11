@@ -124,6 +124,15 @@ $(OUT)/SnakeControlLook: $(CL)/SnakeControlLook.cpp
 		-o $@ $< -lbe $(CXXLIBS) -L$(DEV)/lib
 
 look: $(OUT)/SnakeControlLook
+
+# The background server that makes sure these Tracker and Deskbar are the ones running (see snaketracker_server.cpp)
+$(OUT)/snaketracker_server: snaketracker_server.cpp snaketracker_server.rdef
+	@mkdir -p $(OUT)
+	$(CXX) -O2 -Wno-multichar -I$(DEV)/headers/private/app -I$(DEV)/headers/private/shared -o $@ snaketracker_server.cpp -lbe $(CXXLIBS) -L$(DEV)/lib
+	rc -o $(OUT)/snaketracker_server.rsrc snaketracker_server.rdef
+	xres -o $@ $(OUT)/snaketracker_server.rsrc
+	mimeset -f $@ >/dev/null 2>&1 || true
+server: $(OUT)/snaketracker_server
 install-look: look
 	mkdir -p $(CL_DIR)
 	rm -f $(CL_DIR)/SnakeControlLook
@@ -158,15 +167,14 @@ uninstall: uninstall-launch
 # launch daemon only reads /boot/system/data/user_launch, so a home install is silently ignored.
 # Removing the package puts the stock Tracker and Deskbar back. A package can't replace files that
 # another package (haiku.hpkg) owns, hence the separate folder and the launch file.
-PKG_VERSION := 1.0.32
+PKG_VERSION := 1.0.33
 PKG := $(OUT)/package
-package: all app look
+package: all app look server
 	rm -rf $(PKG)
-	mkdir -p $(PKG)/apps/SnakeTracker/lib $(PKG)/add-ons/control_look $(PKG)/data/user_launch \
+	mkdir -p $(PKG)/apps/SnakeTracker/lib $(PKG)/add-ons/control_look $(PKG)/data/user_launch $(PKG)/servers \
 		$(PKG)/documentation/packages/snaketracker
 	cp $(OUT)/Tracker $(OUT)/Deskbar $(PKG)/apps/SnakeTracker/
-	cp package/handoff $(PKG)/apps/SnakeTracker/handoff
-	chmod +x $(PKG)/apps/SnakeTracker/handoff
+	cp $(OUT)/snaketracker_server $(PKG)/servers/
 	cp $(OUT)/libtracker.so $(PKG)/apps/SnakeTracker/lib/
 	cp $(OUT)/SnakeControlLook $(PKG)/add-ons/control_look/
 	cp package/x-snake-tracker $(PKG)/data/user_launch/
@@ -177,6 +185,6 @@ package: all app look
 
 clean:
 	rm -rf $(OUT)
-.PHONY: package look install-look activate-look deactivate-look all app install install-launch uninstall-launch uninstall clean
+.PHONY: package server look install-look activate-look deactivate-look all app install install-launch uninstall-launch uninstall clean
 
 -include $(shell find $(OUT) -name "*.d" 2>/dev/null)

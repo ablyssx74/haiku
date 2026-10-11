@@ -1,8 +1,11 @@
-# snaketracker 1.0.32
+# snaketracker 1.0.33
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **No more "Bash is waiting to quit" when you restart or shut down.** The start-up job that hands Tracker and Deskbar over to these builds was a shell script, which the system registers as an application called "Bash" and asks to quit at shutdown, and a script cannot answer. It waited out the system's 3 second limit each time. It is now a small background server, `snaketracker_server` (in `/boot/system/servers`), that starts with the desktop like the other system servers, does the same work (hands Tracker and Deskbar over if the launch daemon would start the system's, and starts them again if one crashes) and answers the system when it asks it to quit. If the launch daemon already starts these builds, it does nothing. The server has an icon of its own: the smiling snake, with human teeth, surfing on a red board with its tail wrapped round a globe.
+
+Since 1.0.32 (if you skipped it):
 - **Buttons in Qt programs look right.** In programs written with Qt (Cricket's Qt version, the Qt6 Configurator and the like), the buttons showed vertical stripes across their top half. Qt draws each button on an off-screen picture and puts it on the window with its see-through parts respected, and the control look left parts of the button see-through. The button's gloss, its side caps and the pressed column title are now drawn so that the button stays solid. Nothing changes in programs that draw buttons the usual Haiku way: the buttons look the same there.
 
 Since 1.0.31 (if you skipped it):
@@ -78,4 +81,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.32-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.32-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.33-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.33-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.

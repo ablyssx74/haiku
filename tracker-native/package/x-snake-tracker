@@ -14,11 +14,12 @@ target desktop {
 		launch /system/apps/SnakeTracker/Deskbar
 	}
 
-	# If this file was read before the system's, the system's launch lines replace the two above. This job
+	# If this file was read before the system's, the system's launch lines replace the two above. This server
 	# checks what the launch daemon is going to start and hands over to the snake-trail ones if it is the
-	# system's. It must not "require" the two services: stopping a service stops the jobs that require it.
-	job snaketracker-handoff {
-		launch /bin/sh /system/apps/SnakeTracker/handoff
-		on initial_volumes_mounted
+	# system's (and keeps them running). It does nothing if the daemon already has it right. It is an application
+	# of its own, so the system can ask it to quit when it shuts down.
+	service x-vnd.snaketracker-server {
+		launch /system/servers/snaketracker_server
+		legacy
 	}
 }
