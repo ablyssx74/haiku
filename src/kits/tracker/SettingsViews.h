@@ -101,6 +101,20 @@ private:
 };
 
 
+// A tiny square that shows the colour chosen below it.
+class SnakeColorSwatch : public BView {
+public:
+	SnakeColorSwatch(const char* name);
+
+	virtual void Draw(BRect updateRect);
+
+	void SetColor(rgb_color color);
+
+private:
+	rgb_color fColor;
+};
+
+
 class WindowsSettingsView : public SettingsView {
 public:
 	WindowsSettingsView();
@@ -128,6 +142,7 @@ private:
 	BCheckBox* fSnakeFlatCheckBox;
 	BCheckBox* fSnakeArrowsCheckBox;
 	BColorControl* fSnakeAccentControl;
+	SnakeColorSwatch* fSnakeAccentSwatch;
 
 	bool fShowFullPathInTitleBar;
 	bool fSingleWindowBrowse;

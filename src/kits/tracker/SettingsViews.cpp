@@ -42,6 +42,7 @@ All rights reserved.
 #include <ColorControl.h>
 #include <ControlLook.h>
 #include <LayoutBuilder.h>
+#include <math.h>
 #include <Locale.h>
 #include <MenuField.h>
 #include <NodeMonitor.h>
@@ -407,6 +408,45 @@ _ColorValue(rgb_color color)
 }
 
 
+//	#pragma mark - SnakeColorSwatch
+
+
+SnakeColorSwatch::SnakeColorSwatch(const char* name)
+	:
+	BView(name, B_WILL_DRAW),
+	fColor(kDefaultSnakeAccent)
+{
+	SetViewColor(B_TRANSPARENT_COLOR);
+	const float size = ceilf(be_plain_font->Size() * 1.4f);
+	SetExplicitMinSize(BSize(size, size));
+	SetExplicitMaxSize(BSize(size, size));
+	SetExplicitPreferredSize(BSize(size, size));
+}
+
+
+void
+SnakeColorSwatch::SetColor(rgb_color color)
+{
+	fColor = color;
+	Invalidate();
+}
+
+
+void
+SnakeColorSwatch::Draw(BRect)
+{
+	BRect bounds(Bounds());
+	rgb_color panel = ui_color(B_PANEL_BACKGROUND_COLOR);
+	SetHighColor(panel);
+	FillRect(bounds);
+	// a thin frame in a darker tone of the panel, and the colour inside it
+	SetHighColor(tint_color(panel, B_DARKEN_3_TINT));
+	StrokeRect(bounds);
+	SetHighColor(fColor);
+	FillRect(bounds.InsetByCopy(1, 1));
+}
+
+
 WindowsSettingsView::WindowsSettingsView()
 	:
 	SettingsView("WindowsSettingsView"),
@@ -422,6 +462,7 @@ WindowsSettingsView::WindowsSettingsView()
 	fSnakeFlatCheckBox(NULL),
 	fSnakeArrowsCheckBox(NULL),
 	fSnakeAccentControl(NULL),
+	fSnakeAccentSwatch(NULL),
 	fShowFullPathInTitleBar(kDefaultShowFullPathInTitleBar),
 	fSingleWindowBrowse(kDefaultSingleWindowBrowse),
 	fShowNavigator(kDefaultShowNavigator),
@@ -482,6 +523,8 @@ WindowsSettingsView::WindowsSettingsView()
 	fSnakeAccentControl = new BColorControl(BPoint(0, 0), B_CELLS_32x8, 4,
 		"snake_accent", new BMessage(kSnakeAccentChanged));
 
+	fSnakeAccentSwatch = new SnakeColorSwatch("snake_accent_swatch");
+
 	const float spacing = be_control_look->DefaultItemSpacing();
 
 	BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
@@ -504,7 +547,11 @@ WindowsSettingsView::WindowsSettingsView()
 			.Add(fSnakeTrailCheckBox)
 			.Add(fSnakeFlatCheckBox)
 			.Add(fSnakeArrowsCheckBox)
-			.Add(new BStringView("", B_TRANSLATE("Menu selector color:")))
+			.AddGroup(B_HORIZONTAL, spacing / 2)
+				.Add(new BStringView("", B_TRANSLATE("SnakeTracker color:")))
+				.Add(fSnakeAccentSwatch)
+				.AddGlue()
+				.End()
 			.Add(fSnakeAccentControl)
 			.SetInsets(0, spacing, 0, 0)
 			.End()
@@ -654,6 +701,7 @@ WindowsSettingsView::MessageReceived(BMessage* message)
 		case kSnakeAccentChanged:
 		{
 			settings.SetSnakeAccent(fSnakeAccentControl->ValueAsColor());
+			fSnakeAccentSwatch->SetColor(fSnakeAccentControl->ValueAsColor());
 			Window()->PostMessage(kSettingsContentsModified);
 			break;
 		}
@@ -832,6 +880,7 @@ WindowsSettingsView::ShowCurrentSettings()
 	fSnakeFlatCheckBox->SetValue(settings.SnakeFlat());
 	fSnakeArrowsCheckBox->SetValue(settings.SnakeArrows());
 	fSnakeAccentControl->SetValue(settings.SnakeAccent());
+	fSnakeAccentSwatch->SetColor(settings.SnakeAccent());
 }
 
 
