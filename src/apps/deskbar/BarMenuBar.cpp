@@ -311,8 +311,9 @@ TBarMenuBar::DrawBackground(BRect updateRect)
 void
 TBarMenuBar::MouseDown(BPoint where)
 {
-	// the Deskbar's menu is drawn in the pill look too: it needs a picture of the screen from before it opens
-	SnakeSelector::CaptureMenuBackdrop();
+	// the Deskbar's menus are drawn in the pill look too: a new chain of menus begins, and each level has the screen behind
+	// it captured as it opens
+	SnakeSelector::BeginMenuChain();
 	BMenuBar::MouseDown(where);
 }
 

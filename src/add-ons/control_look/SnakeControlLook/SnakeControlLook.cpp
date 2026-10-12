@@ -1122,12 +1122,19 @@ States()
 // the picture, each menu level paints the part of the screen behind it as its own background and a solid pill over
 // that, which looks see-through (the same way hDesktop's menus are drawn). Menus of other programs, and menu bars,
 // have no picture and are drawn as before.
-struct BackdropState {
-	BackdropState() : bitmap(NULL), time(0), root(NULL), eligible(NULL) {}
+struct BackdropTile {
+	BackdropTile(BBitmap* b, const BRect& r) : bitmap(b), rect(r) {}
 
 	BBitmap*	bitmap;
+	BRect		rect;		// where on the screen it was taken
+};
+
+struct BackdropState {
+	BackdropState() : time(0), root(NULL), eligible(NULL) {}
+
+	std::vector<BackdropTile>	tiles;	// the parts of the screen behind the menus of the chain, taken as each level opens
 	bigtime_t	time;
-	BMenu*		root;		// the menu this picture was taken for (set when it is first drawn)
+	BMenu*		root;		// the menu this chain was begun for (set when it is first drawn)
 	bool		(*eligible)(BMenu*);	// Tracker's own test of whether a menu holds nothing but its items
 };
 
@@ -1194,7 +1201,7 @@ PillMenu(BMenu* menu)
 
 	BAutolock lock(BackdropLock());
 	BackdropState& state = Backdrop();
-	if (state.bitmap == NULL)
+	if (state.tiles.empty())
 		return false;
 	// A picture is taken for one menu chain: it is claimed by the first menu drawn after it (which must be soon after it
 	// was taken, so a picture left over from an old chain is never picked up by a later menu), and is good for as long as
@@ -1212,8 +1219,12 @@ PillMenu(BMenu* menu)
 	// (a menu taller than the screen, with scroll arrows, only partly fits in the picture: that is drawn too)
 	const BRect bounds = menu->Bounds();
 	const BPoint origin = menu->ConvertToScreen(bounds.LeftTop());
-	return (state.bitmap->Bounds() & BRect(origin.x, origin.y, origin.x + bounds.Width(), origin.y + bounds.Height()))
-		.IsValid();
+	const BRect menuRect(origin.x, origin.y, origin.x + bounds.Width(), origin.y + bounds.Height());
+	for (size_t i = 0; i < state.tiles.size(); i++) {
+		if ((state.tiles[i].rect & menuRect).IsValid())
+			return true;
+	}
+	return false;
 }
 
 
@@ -1304,14 +1315,16 @@ DrawPillBase(BMenu* menu)
 	{
 		BAutolock lock(BackdropLock());
 		BackdropState& state = Backdrop();
-		if (state.bitmap != NULL) {
-			// only the part of the menu that is on the screen has a picture
-			const BRect shown = source & state.bitmap->Bounds();
-			if (shown.IsValid()) {
-				const BRect target(bounds.left + (shown.left - source.left), bounds.top + (shown.top - source.top),
-					bounds.left + (shown.right - source.left), bounds.top + (shown.bottom - source.top));
-				menu->DrawBitmap(state.bitmap, shown, target);
-			}
+		// (only the part of the menu that was captured has a picture: each tile gives the part it covers)
+		for (size_t i = 0; i < state.tiles.size(); i++) {
+			const BRect shown = source & state.tiles[i].rect;
+			if (!shown.IsValid())
+				continue;
+			const BRect from(shown.left - state.tiles[i].rect.left, shown.top - state.tiles[i].rect.top,
+				shown.right - state.tiles[i].rect.left, shown.bottom - state.tiles[i].rect.top);
+			const BRect target(bounds.left + (shown.left - source.left), bounds.top + (shown.top - source.top),
+				bounds.left + (shown.right - source.left), bounds.top + (shown.bottom - source.top));
+			menu->DrawBitmap(state.tiles[i].bitmap, from, target);
 		}
 	}
 	menu->SetDrawingMode(B_OP_ALPHA);
@@ -1410,17 +1423,62 @@ EnsureOverlapFilter(BWindow* window)
 }
 
 
-// For Tracker, which loads this add-on into its own program: it hands over the picture of the screen (this takes it)...
+// For Tracker, which loads this add-on into its own program: it begins a menu chain (what was captured for an earlier
+// chain is dropped) and says which menus are fit for the pill look...
 extern "C" _EXPORT void
-snake_set_menu_backdrop(BBitmap* screen, bool (*eligible)(BMenu*))
+snake_begin_menu_chain(bool (*eligible)(BMenu*))
 {
 	BAutolock lock(BackdropLock());
 	BackdropState& state = Backdrop();
-	delete state.bitmap;
-	state.bitmap = screen;
+	for (size_t i = 0; i < state.tiles.size(); i++)
+		delete state.tiles[i].bitmap;
+	state.tiles.clear();
 	state.eligible = eligible;
 	state.time = system_time();
 	state.root = NULL;
+}
+
+
+// ...asks whether a menu that is about to open should have the part of the screen behind it captured (it will be drawn in
+// the pill look, and belongs to the chain that was begun last)...
+extern "C" _EXPORT bool
+snake_wants_tile(BMenu* menu)
+{
+	if (menu == NULL)
+		return false;
+	BMenu* root = RootMenu(menu);
+	if (dynamic_cast<BPopUpMenu*>(root) == NULL && strstr(typeid(*root).name(), "TDeskbarMenu") == NULL
+		&& strstr(typeid(*root).name(), "TWindowMenu") == NULL && strstr(typeid(*root).name(), "TTeamMenu") == NULL)
+		return false;
+	BAutolock lock(BackdropLock());
+	BackdropState& state = Backdrop();
+	if (state.eligible == NULL || !state.eligible(menu))
+		return false;
+	if (state.root == NULL)
+		return system_time() - state.time <= kBackdropValid;
+	return state.root == root;
+}
+
+
+// ...and hands over the part of the screen behind each menu level, taken just before that level opens (this takes it).
+extern "C" _EXPORT void
+snake_add_menu_tile(BBitmap* bitmap, BRect rect)
+{
+	BAutolock lock(BackdropLock());
+	BackdropState& state = Backdrop();
+	// (a level that was captured again, as its menu opens once more, replaces the earlier picture of the same place)
+	for (size_t i = 0; i < state.tiles.size(); i++) {
+		if (state.tiles[i].rect == rect) {
+			delete state.tiles[i].bitmap;
+			state.tiles[i].bitmap = bitmap;
+			return;
+		}
+	}
+	while (state.tiles.size() >= 24) {
+		delete state.tiles.front().bitmap;
+		state.tiles.erase(state.tiles.begin());
+	}
+	state.tiles.push_back(BackdropTile(bitmap, rect));
 }
 
 

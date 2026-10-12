@@ -2505,7 +2505,7 @@ BContainerWindow::ShowDropContextMenu(BPoint where, BPoseView* source)
 	}
 
 	// Don't send message, sticky menu, synchronous
-	SnakeSelector::CaptureMenuBackdrop();
+	SnakeSelector::CaptureMenuBackdrop(fDropContextMenu, global);
 	item = fDropContextMenu->Go(global, false, true, false);
 	if (item != NULL)
 		return item->Command();
@@ -2571,7 +2571,7 @@ BContainerWindow::ShowContextMenu(BPoint where, const entry_ref* ref)
 
 				// this is now asynchronous so that we don't
 				// deadlock in Window::Quit,
-				SnakeSelector::CaptureMenuBackdrop();
+				SnakeSelector::CaptureMenuBackdrop(fDragContextMenu, global);
 				fDragContextMenu->Go(global);
 			}
 
@@ -2616,7 +2616,7 @@ BContainerWindow::ShowContextMenu(BPoint where, const entry_ref* ref)
 	}
 
 	// synchronous Go()
-	SnakeSelector::CaptureMenuBackdrop();
+	SnakeSelector::CaptureMenuBackdrop(fContextMenu, global);
 	fContextMenu->Go(global, true, true, true);
 	fContextMenu = NULL;
 }

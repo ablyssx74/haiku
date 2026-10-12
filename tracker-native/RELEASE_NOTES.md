@@ -1,8 +1,11 @@
-# snaketracker 1.0.37
+# snaketracker 1.0.38
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Menus open without the delay on slow graphics hardware.** The pill menus need the picture of the screen behind them (a window is a rectangle, so the round corners show what lies under the menu). It was taken of the whole screen each time a menu chain opened, which took close to a second on some hardware. Each menu level now captures only the part of the screen it covers, just before it opens, so the cost is a small fraction of that and does not grow with the screen's size.
+
+Since 1.0.37 (if you skipped it):
 - **The colour setting is called "SnakeTracker color" and shows what you picked.** In Tracker preferences > Windows, the setting that was called "Menu selector color" is now "SnakeTracker color", with a small square beside it that shows the colour you have chosen; it changes as you move the sliders and goes back when you press Revert or Defaults.
 
 Since 1.0.36 (if you skipped it):
@@ -94,4 +97,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.37-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.37-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.38-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.38-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.

@@ -367,7 +367,7 @@ BCountView::MouseDown(BPoint)
 	ConvertToScreen(&point);
 	BRect clickToOpenRect(Bounds());
 	ConvertToScreen(&clickToOpenRect);
-	SnakeSelector::CaptureMenuBackdrop();
+	SnakeSelector::CaptureMenuBackdrop(&menu, point);
 	menu.Go(point, true, true, clickToOpenRect);
 }
 

@@ -111,6 +111,9 @@ TDeskbarMenu::AttachedToWindow()
 	}
 
 	BNavMenu::AttachedToWindow();
+
+	// (the pill look: the screen behind the menu, before it is shown)
+	SnakeSelector::CaptureRootTile(this, ScreenLocation());
 }
 
 

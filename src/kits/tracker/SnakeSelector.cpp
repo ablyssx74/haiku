@@ -35,6 +35,7 @@
 #include <MessageRunner.h>
 #include <Messenger.h>
 #include <Menu.h>
+#include <MenuBar.h>
 #include <map>
 #include <MenuItem.h>
 #include <View.h>
@@ -876,6 +877,8 @@ InvalidateParent(BMenu* parent)
 void
 AttachLink(BMenu* submenu)
 {
+	CaptureSubmenuTile(submenu);	// (the pill look: the screen behind it, before it is shown)
+
 	BMenu* parent = submenu->Supermenu();
 	BMenuItem* item = submenu->Superitem();
 	ParentLink link;
@@ -1234,7 +1237,9 @@ DrawTrail(BMenu* menu)
 
 // SnakeControlLook's side of it: its picture holder and its test, found by name in the add-on's image.
 static bool sPillSymbolsLooked = false;
-static void (*sSetBackdrop)(BBitmap*, bool (*)(BMenu*)) = NULL;
+static void (*sBeginChain)(bool (*)(BMenu*)) = NULL;
+static void (*sAddTile)(BBitmap*, BRect) = NULL;
+static bool (*sWantsTile)(BMenu*) = NULL;
 static bool (*sPillMenu)(BMenu*, rgb_color*, rgb_color*) = NULL;
 static bool (*sArrowHidden)(BMenu*, BMenuItem*) = NULL;
 static void (*sDrawRaised)(BView*, BRect, float, uint32, uint32, int, int) = NULL;
@@ -1269,7 +1274,9 @@ FindPillSymbols()
 	while (get_next_image_info(B_CURRENT_TEAM, &cookie, &info) == B_OK) {
 		if (strstr(info.name, "SnakeControlLook") == NULL)
 			continue;
-		get_image_symbol(info.id, "snake_set_menu_backdrop", B_SYMBOL_TYPE_TEXT, (void**)&sSetBackdrop);
+		get_image_symbol(info.id, "snake_begin_menu_chain", B_SYMBOL_TYPE_TEXT, (void**)&sBeginChain);
+		get_image_symbol(info.id, "snake_add_menu_tile", B_SYMBOL_TYPE_TEXT, (void**)&sAddTile);
+		get_image_symbol(info.id, "snake_wants_tile", B_SYMBOL_TYPE_TEXT, (void**)&sWantsTile);
 		get_image_symbol(info.id, "snake_pill_menu", B_SYMBOL_TYPE_TEXT, (void**)&sPillMenu);
 		get_image_symbol(info.id, "snake_arrow_hidden", B_SYMBOL_TYPE_TEXT, (void**)&sArrowHidden);
 		get_image_symbol(info.id, "snake_draw_raised", B_SYMBOL_TYPE_TEXT, (void**)&sDrawRaised);
@@ -1280,18 +1287,108 @@ FindPillSymbols()
 
 
 void
-CaptureMenuBackdrop()
+BeginMenuChain()
 {
 	FindPillSymbols();
-	if (sSetBackdrop == NULL || sPillMenu == NULL)
+	if (sBeginChain == NULL || sPillMenu == NULL || sAddTile == NULL)
+		return;
+	sBeginChain(OnlyOurItems);
+}
+
+
+bool
+WantsMenuTile(BMenu* menu)
+{
+	FindPillSymbols();
+	return sWantsTile != NULL && sAddTile != NULL && sWantsTile(menu);
+}
+
+
+void
+CaptureMenuTile(BRect region)
+{
+	FindPillSymbols();
+	if (sAddTile == NULL)
 		return;
 	BScreen screen(B_MAIN_SCREEN_ID);
 	if (!screen.IsValid())
 		return;
-	BBitmap* bitmap = NULL;
-	if (screen.GetBitmap(&bitmap, false, NULL) != B_OK || bitmap == NULL)
+	// (whole pixels, inside the screen)
+	BRect rect(floorf(region.left), floorf(region.top), ceilf(region.right), ceilf(region.bottom));
+	rect = rect & screen.Frame();
+	if (!rect.IsValid())
 		return;
-	sSetBackdrop(bitmap, OnlyOurItems);	// (it takes the picture)
+	BBitmap* bitmap = NULL;
+	if (screen.GetBitmap(&bitmap, false, &rect) != B_OK || bitmap == NULL)
+		return;
+	sAddTile(bitmap, rect);	// (it takes the picture)
+}
+
+
+// The part of the screen that a menu will cover when it opens with its top left at \a where (a popup menu, the
+// Deskbar's leaf menu): its size is the one it asks for, and the screen pushes it back in. A few pixels more all round
+// make up for the border of the window.
+static BRect
+PredictRootRect(BMenu* menu, BPoint where)
+{
+	float width = 250, height = 300;
+	if (menu != NULL)
+		menu->GetPreferredSize(&width, &height);
+	BScreen screen(B_MAIN_SCREEN_ID);
+	BRect frame = screen.Frame();
+	float left = std::min(where.x, frame.right + 1 - width);
+	float top = std::min(where.y, frame.bottom + 1 - height);
+	left = std::max(left, frame.left);
+	top = std::max(top, frame.top);
+	return BRect(left - 8, top - 8, left + width + 8, top + height + 8);
+}
+
+
+void
+CaptureRootTile(BMenu* menu, BPoint where)
+{
+	if (WantsMenuTile(menu))
+		CaptureMenuTile(PredictRootRect(menu, where));
+}
+
+
+void
+CaptureMenuBackdrop(BMenu* menu, BPoint where)
+{
+	BeginMenuChain();
+	CaptureRootTile(menu, where);
+}
+
+
+// A submenu that is about to open beside its parent's row: the screen behind it (to the right of the parent, or to the left
+// when there is no room), the way a BMenu places it.
+void
+CaptureSubmenuTile(BMenu* submenu)
+{
+	BMenu* parent = submenu->Supermenu();
+	BMenuItem* item = submenu->Superitem();
+	if (parent == NULL || item == NULL || parent->Window() == NULL || dynamic_cast<BMenuBar*>(parent) != NULL
+		|| !WantsMenuTile(submenu))
+		return;
+	float width = 200, height = 300;
+	submenu->GetPreferredSize(&width, &height);
+	const BRect parentFrame = parent->Window()->Frame();
+	const BRect row = parent->ConvertToScreen(item->Frame());
+	BScreen screen(B_MAIN_SCREEN_ID);
+	const BRect frame = screen.Frame();
+	float left, right;
+	if (parentFrame.right + 1 + width <= frame.right + 1) {
+		// to the right, and a little over the parent (the pill look overlaps it)
+		left = parentFrame.right - 40;
+		right = parentFrame.right + 1 + width + 8;
+	} else {
+		left = parentFrame.left - width - 8;
+		right = parentFrame.left + 40;
+	}
+	float top = row.top - 8;
+	if (row.top + height > frame.bottom + 1)
+		top = frame.bottom + 1 - height - 8;
+	CaptureMenuTile(BRect(left, std::max(top, frame.top), right, std::min(top + height + 16, frame.bottom)));
 }
 
 

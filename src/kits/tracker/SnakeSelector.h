@@ -13,6 +13,7 @@
 
 
 #include <GraphicsDefs.h>
+#include <Point.h>
 #include <Rect.h>
 
 class BMenu;
@@ -64,7 +65,17 @@ bool		MenuPaintsSelector(BMenu* menu);
 // menu opens, so the menu levels can paint the screen behind them as their background (a window is a rectangle and
 // the pill's round ends would show square corners). PillMenu() says whether a menu level is drawn that way, and with
 // which colours: \a fill is the pill's, \a text the colour of the items' text on it.
-void		CaptureMenuBackdrop();
+// BeginMenuChain() starts a menu chain (call it just before a menu opens); each menu level then has the screen behind it
+// captured as it is about to open: CaptureMenuBackdrop() does both for a popup menu that opens at \a where, and
+// CaptureSubmenuTile() for a submenu that opens beside its parent's row. CaptureMenuTile() takes a part of the screen
+// that the caller has worked out, for menus that open somewhere else. WantsMenuTile() says whether a menu is drawn in the
+// pill look (and so needs the capture at all).
+void		BeginMenuChain();
+bool		WantsMenuTile(BMenu* menu);
+void		CaptureMenuTile(BRect screenRect);
+void		CaptureRootTile(BMenu* menu, BPoint where);
+void		CaptureMenuBackdrop(BMenu* menu, BPoint where);
+void		CaptureSubmenuTile(BMenu* submenu);
 bool		PillMenu(BMenu* menu, rgb_color* fill, rgb_color* text);
 // whether the arrow of an item is under the trail's bar (the snake passes through it), so it is not drawn
 bool		ArrowHidden(BMenu* menu, BMenuItem* item);

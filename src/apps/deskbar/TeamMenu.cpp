@@ -50,6 +50,7 @@ All rights reserved.
 #include "BarMenuBar.h"
 #include "BarView.h"
 #include "DeskbarUtils.h"
+#include "SnakeSelector.h"
 #include "StatusView.h"
 #include "TeamMenuItem.h"
 
@@ -178,6 +179,9 @@ TTeamMenu::AttachedToWindow()
 	}
 
 	BMenu::AttachedToWindow();
+
+	// (the pill look: the screen behind the menu, before it is shown)
+	SnakeSelector::CaptureRootTile(this, ScreenLocation());
 }
 
 
