@@ -40,6 +40,7 @@ All rights reserved.
 #include <Locale.h>
 #include <ScrollView.h>
 
+#include "SnakeSelector.h"
 #include "TrackerSettings.h"
 #include "TrackerSettingsWindow.h"
 
@@ -56,6 +57,8 @@ public:
 
 private:
 	SettingsView* fSettingsView;
+	rgb_color fPillText;
+	bool fPillDrawn;
 };
 
 }	// namespace BPrivate
@@ -116,6 +119,8 @@ TrackerSettingsWindow::TrackerSettingsWindow()
 		new DesktopSettingsView()), kDesktopSettings);
 	fSettingsTypeListView->AddItem(new SettingsItem(B_TRANSLATE("Windows"),
 		new WindowsSettingsView()), kWindowsSettings);
+	fSettingsTypeListView->AddItem(new SettingsItem(B_TRANSLATE("SnakeTracker"),
+		new SnakeSettingsView()), kSnakeSettings);
 	fSettingsTypeListView->AddItem(new SettingsItem(
 		B_TRANSLATE("Volume icons"), new SpaceBarSettingsView()),
 		kSpaceBarSettings);
@@ -313,7 +318,8 @@ TrackerSettingsWindow::_HandleChangedSettingsView()
 SettingsItem::SettingsItem(const char* label, SettingsView* view)
 	:
 	BStringItem(label),
-	fSettingsView(view)
+	fSettingsView(view),
+	fPillDrawn(false)
 {
 }
 
@@ -324,6 +330,7 @@ SettingsItem::DrawItem(BView* owner, BRect rect, bool drawEverything)
 	if (fSettingsView) {
 		bool isRevertable = fSettingsView->IsRevertable();
 		bool isSelected = IsSelected();
+		fPillDrawn = false;
 
 		if (isSelected || drawEverything) {
 			rgb_color color;
@@ -335,6 +342,19 @@ SettingsItem::DrawItem(BView* owner, BRect rect, bool drawEverything)
 			owner->SetHighColor(color);
 			owner->SetLowColor(color);
 			owner->FillRect(rect);
+
+			// the selected pane is a raised pill in the SnakeTracker colors
+			rgb_color hot, text;
+			if (isSelected && SnakeSelector::PillColors(NULL, &hot, NULL, &text, NULL)) {
+				owner->SetHighColor(ui_color(B_LIST_BACKGROUND_COLOR));
+				owner->FillRect(rect);
+				BRect pill = rect.InsetByCopy(2, 1);
+				if (SnakeSelector::DrawRaised(owner, pill, floorf(pill.Height() / 2), 1 | 2 | 4 | 8, 0)) {
+					owner->SetHighColor(hot);
+					fPillText = SnakeSelector::TextOn(hot);
+					fPillDrawn = true;
+				}
+			}
 		}
 
 		if (isRevertable)
@@ -342,7 +362,9 @@ SettingsItem::DrawItem(BView* owner, BRect rect, bool drawEverything)
 		else
 			owner->SetFont(be_plain_font);
 
-		if (isSelected)
+		if (isSelected && fPillDrawn)
+			owner->SetHighColor(fPillText);
+		else if (isSelected)
 			owner->SetHighColor(ui_color(B_LIST_SELECTED_ITEM_TEXT_COLOR));
 		else
 			owner->SetHighColor(ui_color(B_LIST_ITEM_TEXT_COLOR));

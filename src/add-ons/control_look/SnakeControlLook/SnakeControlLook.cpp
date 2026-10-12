@@ -92,12 +92,16 @@ static bool sTrail = true;
 static bool sFlat = true;
 static bool sArrows = false;
 static bool sLook = true;
+static bool sRound = false;
+static bool sSysDeskbar = false;
+static bool sSysTracker = false;
 static bigtime_t sLastCheck = -kCheckInterval;
 
 
 // Tracker's settings file is plain text, one "Name value" per line.
 static void
-ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat, bool& arrows, bool& look)
+ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat, bool& arrows, bool& look, bool& round, bool& sysDeskbar,
+	bool& sysTracker)
 {
 	BPath path;
 	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) != B_OK
@@ -118,6 +122,14 @@ ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat, bool& arrows, bo
 		} else if (strncmp(line, "SnakeArrows ", 12) == 0) {
 			arrows = strncmp(line + 12, "off", 3) != 0 && strncmp(line + 12, "0", 1) != 0
 				&& strncmp(line + 12, "false", 5) != 0;
+		} else if (strncmp(line, "SnakeRoundCorners ", 18) == 0) {
+			round = strncmp(line + 18, "on", 2) == 0 || strncmp(line + 18, "1", 1) == 0 || strncmp(line + 18, "true", 4) == 0;
+		} else if (strncmp(line, "SnakeSystemColorsDeskbar ", 25) == 0) {
+			sysDeskbar = strncmp(line + 25, "on", 2) == 0 || strncmp(line + 25, "1", 1) == 0
+				|| strncmp(line + 25, "true", 4) == 0;
+		} else if (strncmp(line, "SnakeSystemColorsTracker ", 25) == 0) {
+			sysTracker = strncmp(line + 25, "on", 2) == 0 || strncmp(line + 25, "1", 1) == 0
+				|| strncmp(line + 25, "true", 4) == 0;
 		} else if (strncmp(line, "SnakeLook ", 10) == 0) {
 			look = strncmp(line + 10, "off", 3) != 0 && strncmp(line + 10, "0", 1) != 0
 				&& strncmp(line + 10, "false", 5) != 0;
@@ -143,8 +155,8 @@ RefreshSettings()
 	bool trail = true;
 	bool flat = true;
 	bool arrows = false;
-	bool look = true;
-	ReadTrackerSettings(accent, trail, flat, arrows, look);
+	bool look = true, round = false, sysDeskbar = false, sysTracker = false;
+	ReadTrackerSettings(accent, trail, flat, arrows, look, round, sysDeskbar, sysTracker);
 
 	BPath path;
 	if (be_roster != NULL && be_roster->IsRunning(kHDesktopSignature)
@@ -170,12 +182,61 @@ RefreshSettings()
 	sFlat = flat;
 	sArrows = arrows;
 	sLook = look;
+	sRound = round;
+	sSysDeskbar = sysDeskbar;
+	sSysTracker = sysTracker;
+}
+
+
+// Which of Tracker and the Deskbar this program is (0 for any other program).
+static int
+SnakeProgram()
+{
+	static int program = -1;
+	if (program < 0) {
+		app_info info;
+		program = 0;
+		if (be_app != NULL && be_app->GetAppInfo(&info) == B_OK) {
+			if (strcmp(info.signature, "application/x-vnd.Be-TSKB") == 0)
+				program = 1;
+			else if (strcmp(info.signature, "application/x-vnd.Be-TRAK") == 0)
+				program = 2;
+		}
+	}
+	return program;
+}
+
+
+// Whether this program (Tracker or the Deskbar) takes Haiku's own colors (the Appearance preferences) in place of the
+// SnakeTracker color.
+static bool
+SystemColors()
+{
+	const int program = SnakeProgram();
+	if (program == 0)
+		return false;
+	RefreshSettings();
+	BAutolock lock(SettingsLock());
+	return program == 1 ? sSysDeskbar : sSysTracker;
+}
+
+
+static bool
+RoundCorners()
+{
+	if (SnakeProgram() == 0)
+		return false;
+	RefreshSettings();
+	BAutolock lock(SettingsLock());
+	return sRound;
 }
 
 
 static rgb_color
 Accent()
 {
+	if (SystemColors())
+		return ui_color(B_MENU_SELECTION_BACKGROUND_COLOR);
 	RefreshSettings();
 	BAutolock lock(SettingsLock());
 	return sAccent;
@@ -227,7 +288,7 @@ TrailEnabled()
 {
 	RefreshSettings();
 	BAutolock lock(SettingsLock());
-	return sTrail && sLook;
+	return sTrail;
 }
 
 
@@ -1223,6 +1284,13 @@ Luminance(const rgb_color& c)
 static void
 PillColors(rgb_color* fill, rgb_color* hot, rgb_color* textOnFill)
 {
+	if (SystemColors()) {
+		// Haiku's own: the menu's background, and the selection's
+		*fill = ui_color(B_MENU_BACKGROUND_COLOR);
+		*hot = ui_color(B_MENU_SELECTION_BACKGROUND_COLOR);
+		*textOnFill = ui_color(B_MENU_ITEM_TEXT_COLOR);
+		return;
+	}
 	const rgb_color white = make_color(255, 255, 255);
 	const bool darkTheme = Luminance(ui_color(B_MENU_BACKGROUND_COLOR)) < 128.0f;
 	*fill = MixColors(Accent(), white, darkTheme ? 0.62f : 0.42f);
@@ -1250,13 +1318,21 @@ PillMenu(BMenu* menu)
 	BMenu* root = RootMenu(menu);
 	// a popup menu, or the Deskbar's own menu
 	// (or the Deskbar's list of programs, when it is a menu, or the window menu of a program in it)
+	// (or a menu under the menu bar of one of Tracker's windows: File, Window, ...)
+	const bool underBar = SnakeProgram() == 2 && root->Supermenu() != NULL
+		&& dynamic_cast<BMenuBar*>(root->Supermenu()) != NULL;
 	if (dynamic_cast<BPopUpMenu*>(root) == NULL && strstr(typeid(*root).name(), "TDeskbarMenu") == NULL
-		&& strstr(typeid(*root).name(), "TWindowMenu") == NULL && strstr(typeid(*root).name(), "TTeamMenu") == NULL)
+		&& strstr(typeid(*root).name(), "TWindowMenu") == NULL && strstr(typeid(*root).name(), "TTeamMenu") == NULL
+		&& !underBar)
 		return false;
 
 	BAutolock lock(BackdropLock());
 	BackdropState& state = Backdrop();
-	if (state.tiles.empty())
+	// (the pictures of the screen are for the rounded corners; square, nothing is captured and nothing is needed)
+	const bool needPictures = RoundCorners();
+	if (needPictures && state.tiles.empty())
+		return false;
+	if (state.eligible == NULL)
 		return false;
 	// A picture is taken for one menu chain: it is claimed by the first menu drawn after it (which must be soon after it
 	// was taken, so a picture left over from an old chain is never picked up by a later menu), and is good for as long as
@@ -1275,6 +1351,8 @@ PillMenu(BMenu* menu)
 	const BRect bounds = menu->Bounds();
 	const BPoint origin = menu->ConvertToScreen(bounds.LeftTop());
 	const BRect menuRect(origin.x, origin.y, origin.x + bounds.Width(), origin.y + bounds.Height());
+	if (!needPictures)
+		return true;
 	for (size_t i = 0; i < state.tiles.size(); i++) {
 		if ((state.tiles[i].rect & menuRect).IsValid())
 			return true;
@@ -1320,6 +1398,9 @@ BottomOverParent(BMenu* menu)
 static void
 SquareCorners(BMenu* menu, bool* tl, bool* tr, bool* br, bool* bl)
 {
+	*tl = *tr = *br = *bl = true;
+	if (!RoundCorners())
+		return;
 	*tl = *tr = *br = *bl = false;
 	const int side = ParentSide(menu);
 	const bool squareBottom = side != 0 && BottomOverParent(menu);
@@ -1385,17 +1466,24 @@ DrawPillBase(BMenu* menu)
 	menu->SetDrawingMode(B_OP_ALPHA);
 	menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
 	menu->SetHighColor(fill);
-	menu->FillRoundRect(bounds, radius, radius);
-	bool sqTL, sqTR, sqBR, sqBL;
-	SquareCorners(menu, &sqTL, &sqTR, &sqBR, &sqBL);
-	if (sqTL)
-		menu->FillRect(BRect(bounds.left, bounds.top, bounds.left + radius, bounds.top + radius));
-	if (sqTR)
-		menu->FillRect(BRect(bounds.right - radius, bounds.top, bounds.right, bounds.top + radius));
-	if (sqBL)
-		menu->FillRect(BRect(bounds.left, bounds.bottom - radius, bounds.left + radius, bounds.bottom));
-	if (sqBR)
-		menu->FillRect(BRect(bounds.right - radius, bounds.bottom - radius, bounds.right, bounds.bottom));
+	if (RoundCorners()) {
+		// rounded: the window system's black outline cannot follow it and shows as a square frame round the pill
+		menu->FillRoundRect(bounds, radius, radius);
+		bool sqTL, sqTR, sqBR, sqBL;
+		SquareCorners(menu, &sqTL, &sqTR, &sqBR, &sqBL);
+		if (sqTL)
+			menu->FillRect(BRect(bounds.left, bounds.top, bounds.left + radius, bounds.top + radius));
+		if (sqTR)
+			menu->FillRect(BRect(bounds.right - radius, bounds.top, bounds.right, bounds.top + radius));
+		if (sqBL)
+			menu->FillRect(BRect(bounds.left, bounds.bottom - radius, bounds.left + radius, bounds.bottom));
+		if (sqBR)
+			menu->FillRect(BRect(bounds.right - radius, bounds.bottom - radius, bounds.right, bounds.bottom));
+	} else {
+		// the menu's own corners are square: the window system's border runs round them as a straight line; only the trail
+		// and the lit rows are rounded
+		menu->FillRect(bounds);
+	}
 	menu->PopState();
 }
 
@@ -1558,7 +1646,7 @@ snake_pill_colors(rgb_color* fill, rgb_color* hot, rgb_color* box, rgb_color* te
 	if (hot != NULL)
 		*hot = h;
 	if (box != NULL)
-		*box = MixColors(Accent(), make_color(0, 0, 0), 0.38f);
+		*box = MixColors(Accent(), make_color(0, 0, 0), SystemColors() ? 0.2f : 0.38f);
 	if (text != NULL)
 		*text = t;
 	if (boxText != NULL)
@@ -2655,10 +2743,7 @@ public:
 	virtual	void DrawMenuBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
-		if (!CustomLook()) {
-			HaikuControlLook::DrawMenuBackground(view, rect, updateRect, base, flags, borders);
-			return;
-		}
+		// (with the custom look off the menu is stock Haiku's, with the snake trail over it when that is on)
 		BMenu* menu = dynamic_cast<BMenu*>(view);
 		if (menu != NULL && PillMenu(menu)) {
 			DrawPillBase(menu);
@@ -3572,7 +3657,7 @@ public:
 	virtual	void DrawMenuItemBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
-		if ((flags & B_ACTIVATED) == 0 || !CustomLook()) {
+		if ((flags & B_ACTIVATED) == 0) {
 			HaikuControlLook::DrawMenuItemBackground(view, rect, updateRect, base, flags, borders);
 			return;
 		}

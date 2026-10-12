@@ -50,11 +50,6 @@ SnakeMenuItem::Draw()
 	if (menu == NULL)
 		return;
 
-	// the look is a preference: off, the item is drawn the way Haiku draws it
-	if (!SnakeSelector::CustomLook()) {
-		BMenuItem::Draw();
-		return;
-	}
 
 	BRect frame = Frame();
 	const bool active = IsSelected() && (IsEnabled() || Submenu() != NULL);

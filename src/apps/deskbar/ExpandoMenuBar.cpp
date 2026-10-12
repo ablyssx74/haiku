@@ -66,6 +66,7 @@ All rights reserved.
 #include "ShowHideMenuItem.h"
 #include "StatusView.h"
 #include "TeamMenu.h"
+#include "SnakeToolTip.h"
 #include "TeamMenuItem.h"
 #include "WindowMenu.h"
 #include "WindowMenuItem.h"
@@ -367,7 +368,10 @@ TExpandoMenuBar::MouseMoved(BPoint where, uint32 code, const BMessage* message)
 				if ((static_cast<TBarApp*>(be_app)->Settings()->hideLabels
 						&& teamItem != NULL)
 					|| strcasecmp(item->TruncatedLabel(), item->Label()) > 0) {
-					SetToolTip(item->Label());
+					if (fBarView != NULL && fBarView->PillLook())
+						SetToolTip(new SnakeToolTip(item->Label()));
+					else
+						SetToolTip(item->Label());
 				} else
 					SetToolTip((const char*)NULL);
 
@@ -869,6 +873,12 @@ TExpandoMenuBar::DrawBackground(BRect updateRect)
 			BRect tail = ItemAt(last)->Frame();
 			BRect area(head.left + 8, head.bottom - 8, head.right - 8,
 				tail.bottom - 2);
+			// a soft shadow under the box: two fainter copies, a pixel and two pixels lower
+			SetHighColor(0, 0, 0, 30);
+			FillRoundRect(area.OffsetByCopy(0, 2), 8, 8);
+			SetHighColor(0, 0, 0, 48);
+			FillRoundRect(area.OffsetByCopy(0, 1), 8, 8);
+			SetHighColor(box);
 			FillRoundRect(area, 8, 8);
 		}
 		SetDrawingMode(B_OP_COPY);

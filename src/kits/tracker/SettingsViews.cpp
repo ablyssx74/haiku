@@ -36,6 +36,13 @@ All rights reserved.
 #include "SettingsViews.h"
 
 #include <Box.h>
+#include <OS.h>
+#include <Path.h>
+#include <Entry.h>
+#include <Roster.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <unistd.h>
 #include <Button.h>
 #include <Catalog.h>
 #include <CheckBox.h>
@@ -417,7 +424,7 @@ SnakeColorSwatch::SnakeColorSwatch(const char* name)
 	fColor(kDefaultSnakeAccent)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
-	const float size = ceilf(be_plain_font->Size() * 1.4f);
+	const float size = ceilf(be_plain_font->Size() * 2.4f);
 	SetExplicitMinSize(BSize(size, size));
 	SetExplicitMaxSize(BSize(size, size));
 	SetExplicitPreferredSize(BSize(size, size));
@@ -458,12 +465,6 @@ WindowsSettingsView::WindowsSettingsView()
 	fHideDotFilesCheckBox(NULL),
 	fTypeAheadFilteringCheckBox(NULL),
 	fGenerateImageThumbnailsCheckBox(NULL),
-	fSnakeTrailCheckBox(NULL),
-	fSnakeFlatCheckBox(NULL),
-	fSnakeLookCheckBox(NULL),
-	fSnakeArrowsCheckBox(NULL),
-	fSnakeAccentControl(NULL),
-	fSnakeAccentSwatch(NULL),
 	fShowFullPathInTitleBar(kDefaultShowFullPathInTitleBar),
 	fSingleWindowBrowse(kDefaultSingleWindowBrowse),
 	fShowNavigator(kDefaultShowNavigator),
@@ -471,12 +472,7 @@ WindowsSettingsView::WindowsSettingsView()
 	fSortFolderNamesFirst(kDefaultSortFolderNamesFirst),
 	fHideDotFiles(kDefaultHideDotFiles),
 	fTypeAheadFiltering(kDefaultTypeAheadFiltering),
-	fGenerateImageThumbnails(kDefaultGenerateImageThumbnails),
-	fSnakeTrail(kDefaultSnakeTrail),
-	fSnakeFlat(kDefaultSnakeFlat),
-	fSnakeLook(kDefaultSnakeLook),
-	fSnakeArrows(kDefaultSnakeArrows),
-	fSnakeAccent(kDefaultSnakeAccent)
+	fGenerateImageThumbnails(kDefaultGenerateImageThumbnails)
 {
 	fShowFullPathInTitleBarCheckBox = new BCheckBox("",
 		B_TRANSLATE("Show folder location in title tab"),
@@ -510,27 +506,6 @@ WindowsSettingsView::WindowsSettingsView()
 		B_TRANSLATE("Generate image thumbnails"),
 		new BMessage(kGenerateImageThumbnailsChanged));
 
-	fSnakeTrailCheckBox = new BCheckBox("",
-		B_TRANSLATE("Snake trail in folder menus"),
-		new BMessage(kSnakeTrailChanged));
-
-	fSnakeFlatCheckBox = new BCheckBox("",
-		B_TRANSLATE("Flat menu selector"),
-		new BMessage(kSnakeFlatChanged));
-
-	fSnakeLookCheckBox = new BCheckBox("",
-		B_TRANSLATE("Snake look for Tracker and Deskbar"),
-		new BMessage(kSnakeLookChanged));
-
-	fSnakeArrowsCheckBox = new BCheckBox("",
-		B_TRANSLATE("Scroll bar arrows"),
-		new BMessage(kSnakeArrowsChanged));
-
-	fSnakeAccentControl = new BColorControl(BPoint(0, 0), B_CELLS_32x8, 4,
-		"snake_accent", new BMessage(kSnakeAccentChanged));
-
-	fSnakeAccentSwatch = new SnakeColorSwatch("snake_accent_swatch");
-
 	const float spacing = be_control_look->DefaultItemSpacing();
 
 	BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
@@ -549,19 +524,6 @@ WindowsSettingsView::WindowsSettingsView()
 			.Add(fTypeAheadFilteringCheckBox)
 			.Add(fGenerateImageThumbnailsCheckBox)
 			.End()
-		.AddGroup(B_VERTICAL, 0)
-			.Add(fSnakeLookCheckBox)
-			.Add(fSnakeTrailCheckBox)
-			.Add(fSnakeFlatCheckBox)
-			.Add(fSnakeArrowsCheckBox)
-			.AddGroup(B_HORIZONTAL, spacing / 2)
-				.Add(new BStringView("", B_TRANSLATE("SnakeTracker color:")))
-				.Add(fSnakeAccentSwatch)
-				.AddGlue()
-				.End()
-			.Add(fSnakeAccentControl)
-			.SetInsets(0, spacing, 0, 0)
-			.End()
 		.AddGlue()
 		.SetInsets(spacing);
 }
@@ -578,11 +540,6 @@ WindowsSettingsView::AttachedToWindow()
 	fHideDotFilesCheckBox->SetTarget(this);
 	fTypeAheadFilteringCheckBox->SetTarget(this);
 	fGenerateImageThumbnailsCheckBox->SetTarget(this);
-	fSnakeTrailCheckBox->SetTarget(this);
-	fSnakeFlatCheckBox->SetTarget(this);
-	fSnakeLookCheckBox->SetTarget(this);
-	fSnakeArrowsCheckBox->SetTarget(this);
-	fSnakeAccentControl->SetTarget(this);
 }
 
 
@@ -685,42 +642,6 @@ WindowsSettingsView::MessageReceived(BMessage* message)
 			break;
 		}
 
-		case kSnakeTrailChanged:
-		{
-			settings.SetSnakeTrail(fSnakeTrailCheckBox->Value() == 1);
-			Window()->PostMessage(kSettingsContentsModified);
-			break;
-		}
-
-		case kSnakeFlatChanged:
-		{
-			settings.SetSnakeFlat(fSnakeFlatCheckBox->Value() == 1);
-			Window()->PostMessage(kSettingsContentsModified);
-			break;
-		}
-
-		case kSnakeLookChanged:
-		{
-			settings.SetSnakeLook(fSnakeLookCheckBox->Value() == 1);
-			Window()->PostMessage(kSettingsContentsModified);
-			break;
-		}
-
-		case kSnakeArrowsChanged:
-		{
-			settings.SetSnakeArrows(fSnakeArrowsCheckBox->Value() == 1);
-			Window()->PostMessage(kSettingsContentsModified);
-			break;
-		}
-
-		case kSnakeAccentChanged:
-		{
-			settings.SetSnakeAccent(fSnakeAccentControl->ValueAsColor());
-			fSnakeAccentSwatch->SetColor(fSnakeAccentControl->ValueAsColor());
-			Window()->PostMessage(kSettingsContentsModified);
-			break;
-		}
-
 		default:
 			_inherited::MessageReceived(message);
 			break;
@@ -782,11 +703,6 @@ WindowsSettingsView::SetDefaults()
 			"GenerateImageThumbnails", kDefaultGenerateImageThumbnails);
 	}
 
-	settings.SetSnakeTrail(kDefaultSnakeTrail);
-	settings.SetSnakeFlat(kDefaultSnakeFlat);
-	settings.SetSnakeLook(kDefaultSnakeLook);
-	settings.SetSnakeArrows(kDefaultSnakeArrows);
-	settings.SetSnakeAccent(kDefaultSnakeAccent);
 
 	ShowCurrentSettings();
 }
@@ -804,12 +720,7 @@ WindowsSettingsView::IsDefaultable() const
 		|| settings.SortFolderNamesFirst() != kDefaultSortFolderNamesFirst
 		|| settings.HideDotFiles() != kDefaultHideDotFiles
 		|| settings.TypeAheadFiltering() != kDefaultTypeAheadFiltering
-		|| settings.GenerateImageThumbnails() != kDefaultGenerateImageThumbnails
-		|| settings.SnakeTrail() != kDefaultSnakeTrail
-		|| settings.SnakeFlat() != kDefaultSnakeFlat
-		|| settings.SnakeLook() != kDefaultSnakeLook
-		|| settings.SnakeArrows() != kDefaultSnakeArrows
-		|| _ColorValue(settings.SnakeAccent()) != _ColorValue(kDefaultSnakeAccent);
+		|| settings.GenerateImageThumbnails() != kDefaultGenerateImageThumbnails;
 }
 
 
@@ -867,11 +778,6 @@ WindowsSettingsView::Revert()
 			"GenerateImageThumbnails", fGenerateImageThumbnails);
 	}
 
-	settings.SetSnakeTrail(fSnakeTrail);
-	settings.SetSnakeFlat(fSnakeFlat);
-	settings.SetSnakeLook(fSnakeLook);
-	settings.SetSnakeArrows(fSnakeArrows);
-	settings.SetSnakeAccent(fSnakeAccent);
 
 	ShowCurrentSettings();
 }
@@ -894,12 +800,6 @@ WindowsSettingsView::ShowCurrentSettings()
 	fTypeAheadFilteringCheckBox->SetValue(settings.TypeAheadFiltering());
 	fGenerateImageThumbnailsCheckBox->SetValue(
 		settings.GenerateImageThumbnails());
-	fSnakeTrailCheckBox->SetValue(settings.SnakeTrail());
-	fSnakeFlatCheckBox->SetValue(settings.SnakeFlat());
-	fSnakeLookCheckBox->SetValue(settings.SnakeLook());
-	fSnakeArrowsCheckBox->SetValue(settings.SnakeArrows());
-	fSnakeAccentControl->SetValue(settings.SnakeAccent());
-	fSnakeAccentSwatch->SetColor(settings.SnakeAccent());
 }
 
 
@@ -916,11 +816,6 @@ WindowsSettingsView::RecordRevertSettings()
 	fHideDotFiles = settings.HideDotFiles();
 	fTypeAheadFiltering = settings.TypeAheadFiltering();
 	fGenerateImageThumbnails = settings.GenerateImageThumbnails();
-	fSnakeTrail = settings.SnakeTrail();
-	fSnakeFlat = settings.SnakeFlat();
-	fSnakeLook = settings.SnakeLook();
-	fSnakeArrows = settings.SnakeArrows();
-	fSnakeAccent = settings.SnakeAccent();
 }
 
 
@@ -936,11 +831,302 @@ WindowsSettingsView::IsRevertable() const
 		|| fSortFolderNamesFirst != settings.SortFolderNamesFirst()
 		|| fHideDotFiles != settings.HideDotFiles()
 		|| fTypeAheadFiltering != settings.TypeAheadFiltering()
-		|| fGenerateImageThumbnails != settings.GenerateImageThumbnails()
-		|| fSnakeTrail != settings.SnakeTrail()
+		|| fGenerateImageThumbnails != settings.GenerateImageThumbnails();
+}
+
+
+// #pragma mark - SnakeSettingsView
+
+
+// A "[?]" that says what an option does when the pointer rests on it.
+static BStringView*
+HelpMark(const char* text)
+{
+	BStringView* mark = new BStringView("", "[?]");
+	mark->SetToolTip(text);
+	return mark;
+}
+
+
+// Restarts Tracker and the Deskbar (these builds): a helper that outlives them starts both again, then the Deskbar is told to
+// quit and Tracker ends itself.
+static void
+RestartSnakeTracker()
+{
+	app_info info;
+	if (be_app == NULL || be_app->GetAppInfo(&info) != B_OK)
+		return;
+	BPath tracker(&info.ref);
+	BPath folder;
+	if (tracker.GetParent(&folder) != B_OK)
+		return;
+	BPath deskbar(folder.Path(), "Deskbar");
+
+	BString command;
+	command << "(sleep 2; '" << deskbar.Path() << "' >/dev/null 2>&1 & '" << tracker.Path()
+		<< "' >/dev/null 2>&1 &) >/dev/null 2>&1 &";
+	system(command.String());
+
+	BMessenger deskbarTeam("application/x-vnd.Be-TSKB");
+	if (deskbarTeam.IsValid()) {
+		team_id team = deskbarTeam.Team();
+		deskbarTeam.SendMessage(B_QUIT_REQUESTED);
+		snooze(300000);
+		kill_team(team);
+	}
+	kill_team(be_app->Team());
+}
+
+
+SnakeSettingsView::SnakeSettingsView()
+	:
+	SettingsView("SnakeSettingsView"),
+	fSnakeLookCheckBox(NULL),
+	fSnakeTrailCheckBox(NULL),
+	fSnakeFlatCheckBox(NULL),
+	fSnakeArrowsCheckBox(NULL),
+	fSnakeRoundCheckBox(NULL),
+	fSnakeSysDeskbarCheckBox(NULL),
+	fSnakeSysTrackerCheckBox(NULL),
+	fSnakeAccentControl(NULL),
+	fSnakeAccentSwatch(NULL),
+	fRestartButton(NULL),
+	fSnakeLook(kDefaultSnakeLook),
+	fSnakeTrail(kDefaultSnakeTrail),
+	fSnakeFlat(kDefaultSnakeFlat),
+	fSnakeArrows(kDefaultSnakeArrows),
+	fSnakeRound(kDefaultSnakeRoundCorners),
+	fSnakeSysDeskbar(kDefaultSnakeSystemColorsDeskbar),
+	fSnakeSysTracker(kDefaultSnakeSystemColorsTracker),
+	fSnakeAccent(kDefaultSnakeAccent)
+{
+	fSnakeLookCheckBox = new BCheckBox("",
+		B_TRANSLATE("Snake look for Tracker and Deskbar"), new BMessage(kSnakeLookChanged));
+	fSnakeTrailCheckBox = new BCheckBox("",
+		B_TRANSLATE("Snake trail in folder menus"), new BMessage(kSnakeTrailChanged));
+	fSnakeFlatCheckBox = new BCheckBox("",
+		B_TRANSLATE("Flat menu selector"), new BMessage(kSnakeFlatChanged));
+	fSnakeArrowsCheckBox = new BCheckBox("",
+		B_TRANSLATE("Scroll bar arrows"), new BMessage(kSnakeArrowsChanged));
+	fSnakeRoundCheckBox = new BCheckBox("",
+		B_TRANSLATE("Enable rounded corners on Tracker"), new BMessage(kSnakeRoundChanged));
+	fSnakeSysDeskbarCheckBox = new BCheckBox("",
+		B_TRANSLATE("Use system colors for Deskbar"), new BMessage(kSnakeSysDeskbarChanged));
+	fSnakeSysTrackerCheckBox = new BCheckBox("",
+		B_TRANSLATE("Use system colors for Tracker"), new BMessage(kSnakeSysTrackerChanged));
+
+	fSnakeAccentControl = new BColorControl(BPoint(0, 0), B_CELLS_32x8, 4,
+		"snake_accent", new BMessage(kSnakeAccentChanged));
+	fSnakeAccentSwatch = new SnakeColorSwatch("snake_accent_swatch");
+
+	fRestartButton = new BButton("", B_TRANSLATE("Restart\nSnakeTracker"),
+		new BMessage(kSnakeRestart));
+
+	const float spacing = be_control_look->DefaultItemSpacing();
+
+	BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
+		.AddGroup(B_VERTICAL, 0)
+			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeLookCheckBox)
+				.Add(HelpMark(B_TRANSLATE("Draws Tracker's and the Deskbar's menus, the Deskbar's\npanel and the menu bar titles in the SnakeTracker pill look.\nOff, they are drawn the way Haiku draws them; the snake trail\nand the buttons, scroll bars and the like stay.")))
+				.AddGlue().End()
+			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeTrailCheckBox)
+				.Add(HelpMark(B_TRANSLATE("The highlight stays joined through every open submenu\nof a folder menu, like a snake.")))
+				.AddGlue().End()
+			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeFlatCheckBox)
+				.Add(HelpMark(B_TRANSLATE("Draws the menu selector in one flat color. Off, it has\na light top edge and a dark bottom edge.")))
+				.AddGlue().End()
+			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeArrowsCheckBox)
+				.Add(HelpMark(B_TRANSLATE("Shows the arrow buttons at the ends of scroll bars.")))
+				.AddGlue().End()
+			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeRoundCheckBox)
+				.Add(HelpMark(B_TRANSLATE("Rounds the corners of Tracker's menus.\nHaiku draws a black outline round every menu window\nand it cannot be rounded, so with rounded corners the\noutline shows as a square frame round the menu.\nOff, the corners are square and the outline fits.")))
+				.AddGlue().End()
+			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeSysDeskbarCheckBox)
+				.Add(HelpMark(B_TRANSLATE("On: the Deskbar uses the colors of Haiku's Appearance\nsettings (the menu background and selection colors).\nOff: it uses the SnakeTracker color.")))
+				.AddGlue().End()
+			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeSysTrackerCheckBox)
+				.Add(HelpMark(B_TRANSLATE("On: Tracker uses the colors of Haiku's Appearance\nsettings (the menu background and selection colors).\nOff: it uses the SnakeTracker color.")))
+				.AddGlue().End()
+			.AddGroup(B_HORIZONTAL, spacing / 2)
+				.Add(new BStringView("", B_TRANSLATE("SnakeTracker color:")))
+				.Add(fSnakeAccentSwatch)
+				.AddGlue()
+				.End()
+			.Add(fSnakeAccentControl)
+			.End()
+		.AddStrut(spacing)
+		.AddGroup(B_HORIZONTAL, spacing / 2)
+			.Add(fRestartButton)
+			.Add(HelpMark(B_TRANSLATE("Restarts Tracker and the Deskbar so that every setting\ntakes effect. Open folder windows close and open again.")))
+			.AddGlue()
+			.End()
+		.AddGlue()
+		.SetInsets(spacing);
+}
+
+
+void
+SnakeSettingsView::AttachedToWindow()
+{
+	fSnakeLookCheckBox->SetTarget(this);
+	fSnakeTrailCheckBox->SetTarget(this);
+	fSnakeFlatCheckBox->SetTarget(this);
+	fSnakeArrowsCheckBox->SetTarget(this);
+	fSnakeRoundCheckBox->SetTarget(this);
+	fSnakeSysDeskbarCheckBox->SetTarget(this);
+	fSnakeSysTrackerCheckBox->SetTarget(this);
+	fSnakeAccentControl->SetTarget(this);
+	fRestartButton->SetTarget(this);
+}
+
+
+void
+SnakeSettingsView::MessageReceived(BMessage* message)
+{
+	TrackerSettings settings;
+
+	switch (message->what) {
+		case kSnakeTrailChanged:
+			settings.SetSnakeTrail(fSnakeTrailCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+
+		case kSnakeFlatChanged:
+			settings.SetSnakeFlat(fSnakeFlatCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+
+		case kSnakeLookChanged:
+			settings.SetSnakeLook(fSnakeLookCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+
+		case kSnakeArrowsChanged:
+			settings.SetSnakeArrows(fSnakeArrowsCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+
+		case kSnakeRoundChanged:
+			settings.SetSnakeRoundCorners(fSnakeRoundCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+
+		case kSnakeSysDeskbarChanged:
+			settings.SetSnakeSystemColorsDeskbar(fSnakeSysDeskbarCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+
+		case kSnakeSysTrackerChanged:
+			settings.SetSnakeSystemColorsTracker(fSnakeSysTrackerCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+
+		case kSnakeAccentChanged:
+			settings.SetSnakeAccent(fSnakeAccentControl->ValueAsColor());
+			fSnakeAccentSwatch->SetColor(fSnakeAccentControl->ValueAsColor());
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+
+		case kSnakeRestart:
+			RestartSnakeTracker();
+			break;
+
+		default:
+			_inherited::MessageReceived(message);
+			break;
+	}
+}
+
+
+void
+SnakeSettingsView::SetDefaults()
+{
+	TrackerSettings settings;
+	settings.SetSnakeTrail(kDefaultSnakeTrail);
+	settings.SetSnakeFlat(kDefaultSnakeFlat);
+	settings.SetSnakeLook(kDefaultSnakeLook);
+	settings.SetSnakeArrows(kDefaultSnakeArrows);
+	settings.SetSnakeRoundCorners(kDefaultSnakeRoundCorners);
+	settings.SetSnakeSystemColorsDeskbar(kDefaultSnakeSystemColorsDeskbar);
+	settings.SetSnakeSystemColorsTracker(kDefaultSnakeSystemColorsTracker);
+	settings.SetSnakeAccent(kDefaultSnakeAccent);
+	ShowCurrentSettings();
+}
+
+
+bool
+SnakeSettingsView::IsDefaultable() const
+{
+	TrackerSettings settings;
+	return settings.SnakeTrail() != kDefaultSnakeTrail
+		|| settings.SnakeFlat() != kDefaultSnakeFlat
+		|| settings.SnakeLook() != kDefaultSnakeLook
+		|| settings.SnakeArrows() != kDefaultSnakeArrows
+		|| settings.SnakeRoundCorners() != kDefaultSnakeRoundCorners
+		|| settings.SnakeSystemColorsDeskbar() != kDefaultSnakeSystemColorsDeskbar
+		|| settings.SnakeSystemColorsTracker() != kDefaultSnakeSystemColorsTracker
+		|| _ColorValue(settings.SnakeAccent()) != _ColorValue(kDefaultSnakeAccent);
+}
+
+
+void
+SnakeSettingsView::Revert()
+{
+	TrackerSettings settings;
+	settings.SetSnakeTrail(fSnakeTrail);
+	settings.SetSnakeFlat(fSnakeFlat);
+	settings.SetSnakeLook(fSnakeLook);
+	settings.SetSnakeArrows(fSnakeArrows);
+	settings.SetSnakeRoundCorners(fSnakeRound);
+	settings.SetSnakeSystemColorsDeskbar(fSnakeSysDeskbar);
+	settings.SetSnakeSystemColorsTracker(fSnakeSysTracker);
+	settings.SetSnakeAccent(fSnakeAccent);
+	ShowCurrentSettings();
+}
+
+
+void
+SnakeSettingsView::ShowCurrentSettings()
+{
+	TrackerSettings settings;
+	fSnakeTrailCheckBox->SetValue(settings.SnakeTrail());
+	fSnakeFlatCheckBox->SetValue(settings.SnakeFlat());
+	fSnakeLookCheckBox->SetValue(settings.SnakeLook());
+	fSnakeArrowsCheckBox->SetValue(settings.SnakeArrows());
+	fSnakeRoundCheckBox->SetValue(settings.SnakeRoundCorners());
+	fSnakeSysDeskbarCheckBox->SetValue(settings.SnakeSystemColorsDeskbar());
+	fSnakeSysTrackerCheckBox->SetValue(settings.SnakeSystemColorsTracker());
+	fSnakeAccentControl->SetValue(settings.SnakeAccent());
+	fSnakeAccentSwatch->SetColor(settings.SnakeAccent());
+}
+
+
+void
+SnakeSettingsView::RecordRevertSettings()
+{
+	TrackerSettings settings;
+	fSnakeTrail = settings.SnakeTrail();
+	fSnakeFlat = settings.SnakeFlat();
+	fSnakeLook = settings.SnakeLook();
+	fSnakeArrows = settings.SnakeArrows();
+	fSnakeRound = settings.SnakeRoundCorners();
+	fSnakeSysDeskbar = settings.SnakeSystemColorsDeskbar();
+	fSnakeSysTracker = settings.SnakeSystemColorsTracker();
+	fSnakeAccent = settings.SnakeAccent();
+}
+
+
+bool
+SnakeSettingsView::IsRevertable() const
+{
+	TrackerSettings settings;
+	return fSnakeTrail != settings.SnakeTrail()
 		|| fSnakeFlat != settings.SnakeFlat()
 		|| fSnakeLook != settings.SnakeLook()
 		|| fSnakeArrows != settings.SnakeArrows()
+		|| fSnakeRound != settings.SnakeRoundCorners()
+		|| fSnakeSysDeskbar != settings.SnakeSystemColorsDeskbar()
+		|| fSnakeSysTracker != settings.SnakeSystemColorsTracker()
 		|| _ColorValue(fSnakeAccent) != _ColorValue(settings.SnakeAccent());
 }
 

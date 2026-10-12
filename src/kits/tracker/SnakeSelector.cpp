@@ -23,6 +23,7 @@
 #include <FindDirectory.h>
 #include <Message.h>
 #include <Path.h>
+#include <Application.h>
 #include <Roster.h>
 #include <stdio.h>
 #include <string.h>
@@ -127,6 +128,16 @@ RefreshSettings()
 		}
 	}
 
+	// Tracker and the Deskbar can take Haiku's own selection color in place of the SnakeTracker color
+	{
+		app_info info;
+		if (be_app != NULL && be_app->GetAppInfo(&info) == B_OK) {
+			const bool deskbar = strcmp(info.signature, "application/x-vnd.Be-TSKB") == 0;
+			if (deskbar ? tracker.SnakeSystemColorsDeskbar() : tracker.SnakeSystemColorsTracker())
+				accent = ui_color(B_MENU_SELECTION_BACKGROUND_COLOR);
+		}
+	}
+
 	sAccent = accent;
 	sTrail = trail;
 	sFlat = flat;
@@ -156,7 +167,7 @@ TrailEnabled()
 {
 	RefreshSettings();
 	BAutolock lock(SettingsLock());
-	return sTrail && CustomLook();
+	return sTrail;
 }
 
 
@@ -295,7 +306,7 @@ static bool MenuDrawsTrailUncached(BMenu* menu);
 bool
 MenuDrawsTrail(BMenu* menu)
 {
-	if (menu == NULL || !CustomLook())
+	if (menu == NULL)
 		return false;
 	const int32 count = menu->CountItems();
 	{
@@ -915,6 +926,10 @@ InvalidateParent(BMenu* parent)
 void
 AttachLink(BMenu* submenu)
 {
+	// a menu under the menu bar of a window starts a chain of menus of its own
+	if (dynamic_cast<BMenuBar*>(submenu->Supermenu()) != NULL)
+		BeginMenuChain();
+
 	CaptureSubmenuTile(submenu);	// (the pill look: the screen behind it, before it is shown)
 
 	BMenu* parent = submenu->Supermenu();
@@ -973,14 +988,14 @@ ControlLookDraws()
 bool
 MenuPaintsSelector(BMenu* menu)
 {
-	return menu != NULL && CustomLook() && (ControlLookDraws() || MenuDrawsTrail(menu));
+	return menu != NULL && (ControlLookDraws() || MenuDrawsTrail(menu));
 }
 
 
 void
 DrawTrail(BMenu* menu)
 {
-	if (ControlLookDraws() || !CustomLook())
+	if (ControlLookDraws())
 		return;
 
 	ParentLink link;
@@ -1399,7 +1414,16 @@ PredictRootRect(BMenu* menu, BPoint where)
 	float top = std::min(where.y, frame.bottom + 1 - height);
 	left = std::max(left, frame.left);
 	top = std::max(top, frame.top);
-	return BRect(left - 8, top - 8, left + width + 8, top + height + 8);
+	BRect rect(left - 8, top - 8, left + width + 48, top + height + 48);
+	// A menu that hangs off another one's window (the Deskbar's window menus) is put on the other side of it when there is no
+	// room: that place is included. (The size a menu asks for before it is attached is a little short of what it gets: more
+	// room right and below.)
+	BMenu* super = menu != NULL ? menu->Supermenu() : NULL;
+	if (super != NULL && super->Window() != NULL) {
+		const BRect parent = super->Window()->Frame();
+		rect = rect | BRect(parent.left - width - 8, top - 8, parent.left + 48, top + height + 48);
+	}
+	return rect & frame;
 }
 
 

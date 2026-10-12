@@ -144,6 +144,10 @@ const uint32 kGenerateImageThumbnailsChanged = 'GITc';
 const uint32 kSnakeTrailChanged = 'SnkT';
 const uint32 kSnakeFlatChanged = 'SnkF';
 const uint32 kSnakeLookChanged = 'SnkL';
+const uint32 kSnakeRoundChanged = 'SnC1';
+const uint32 kSnakeSysDeskbarChanged = 'SnC2';
+const uint32 kSnakeSysTrackerChanged = 'SnC3';
+const uint32 kSnakeRestart = 'SnC4';
 const uint32 kSnakeArrowsChanged = 'SnkR';
 const uint32 kSnakeAccentChanged = 'SnkA';
 

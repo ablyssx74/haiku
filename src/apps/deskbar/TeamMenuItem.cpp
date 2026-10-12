@@ -35,6 +35,7 @@ All rights reserved.
 
 
 #include "TeamMenuItem.h"
+#include "SnakeSelector.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -246,21 +247,46 @@ TTeamMenuItem::Draw()
 		fBarView->PillColors(NULL, &hot, NULL, NULL, NULL);
 		bool lit = _IsSelected() && (!fBarView->Dragging()
 			|| fBarView->AppCanHandleTypes(Signature()));
-		rgb_color top = tint_color(hot, lit ? 0.80f : 0.92f);
-		rgb_color bottom = hot;
-		if (lit)
-			bottom = tint_color(hot, 0.95f);
 		BRect pill(frame.left + 3, frame.top + 2, frame.right - 3,
 			frame.bottom - 2);
-		BGradientLinear gradient;
-		gradient.SetStart(pill.LeftTop());
-		gradient.SetEnd(pill.LeftBottom());
-		gradient.AddColor(top, 0);
-		gradient.AddColor(bottom, 255);
-		menu->SetDrawingMode(B_OP_ALPHA);
-		menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
 		float radius = floorf(pill.Height() / 2);
-		menu->FillRoundRect(pill, radius, radius, gradient);
+		// the pill is a raised round bar, like the trail's; under the pointer it is a little lighter
+		// (the right end is flat: the shading is drawn on a bar that runs on past it, and clipped, and the end is the plain
+		// colour; shaded, the end showed as a dark crescent)
+		{
+			BRegion clip(BRect(pill.left, pill.top, pill.right - radius, pill.bottom));
+			menu->ConstrainClippingRegion(&clip);
+			BRect longer(pill.left, pill.top, pill.right + 2 * radius, pill.bottom);
+			SnakeSelector::DrawRaised(menu, longer, radius, 1 | 8, 0);
+			BRegion endClip(BRect(pill.right - radius, pill.top, pill.right, pill.bottom));
+			menu->ConstrainClippingRegion(&endClip);
+			menu->SetDrawingMode(B_OP_ALPHA);
+			menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+			menu->SetHighColor(hot);
+			menu->FillRoundRect(pill, radius, radius);
+			menu->ConstrainClippingRegion(NULL);
+		}
+		{
+			// the same fade as the leaf's block: the left 30% keeps its colour, then it melts into the panel's
+			rgb_color fill;
+			fBarView->PillColors(&fill, NULL, NULL, NULL, NULL);
+			BGradientLinear fade;
+			fade.SetStart(BPoint(pill.left + pill.Width() * 0.3f, 0));
+			fade.SetEnd(BPoint(pill.right, 0));
+			fill.alpha = 0;
+			fade.AddColor(fill, 0);
+			fill.alpha = 153;
+			fade.AddColor(fill, 255);
+			menu->SetDrawingMode(B_OP_ALPHA);
+			menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+			menu->FillRoundRect(pill, radius, radius, fade);
+		}
+		if (lit) {
+			menu->SetDrawingMode(B_OP_ALPHA);
+			menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+			menu->SetHighColor(255, 255, 255, 46);
+			menu->FillRoundRect(pill.InsetByCopy(1, 1), radius - 1, radius - 1);
+		}
 		menu->SetDrawingMode(B_OP_COPY);
 
 		menu->MovePenTo(ContentLocation());

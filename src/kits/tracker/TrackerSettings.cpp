@@ -80,6 +80,9 @@ private:
 	BooleanValueSetting* fSnakeTrail;
 	BooleanValueSetting* fSnakeFlat;
 	BooleanValueSetting* fSnakeLook;
+	BooleanValueSetting* fSnakeRoundCorners;
+	BooleanValueSetting* fSnakeSystemColorsDeskbar;
+	BooleanValueSetting* fSnakeSystemColorsTracker;
 	BooleanValueSetting* fSnakeArrows;
 	BooleanValueSetting* fSnakeSidePanel;
 	BooleanValueSetting* fSnakeSidePanelTrash;
@@ -149,6 +152,9 @@ TTrackerState::TTrackerState()
 	fSnakeTrail(NULL),
 	fSnakeFlat(NULL),
 	fSnakeLook(NULL),
+	fSnakeRoundCorners(NULL),
+	fSnakeSystemColorsDeskbar(NULL),
+	fSnakeSystemColorsTracker(NULL),
 	fSnakeArrows(NULL),
 	fSnakeSidePanel(NULL),
 	fSnakeSidePanelTrash(NULL),
@@ -186,6 +192,9 @@ TTrackerState::TTrackerState(const TTrackerState&)
 	fSnakeTrail(NULL),
 	fSnakeFlat(NULL),
 	fSnakeLook(NULL),
+	fSnakeRoundCorners(NULL),
+	fSnakeSystemColorsDeskbar(NULL),
+	fSnakeSystemColorsTracker(NULL),
 	fSnakeArrows(NULL),
 	fSnakeSidePanel(NULL),
 	fSnakeSidePanelTrash(NULL),
@@ -259,6 +268,9 @@ TTrackerState::LoadSettingsIfNeeded()
 	Add(fSnakeTrail = new BooleanValueSetting("SnakeTrail", kDefaultSnakeTrail));
 	Add(fSnakeFlat = new BooleanValueSetting("SnakeFlat", kDefaultSnakeFlat));
 	Add(fSnakeLook = new BooleanValueSetting("SnakeLook", kDefaultSnakeLook));
+	Add(fSnakeRoundCorners = new BooleanValueSetting("SnakeRoundCorners", kDefaultSnakeRoundCorners));
+	Add(fSnakeSystemColorsDeskbar = new BooleanValueSetting("SnakeSystemColorsDeskbar", kDefaultSnakeSystemColorsDeskbar));
+	Add(fSnakeSystemColorsTracker = new BooleanValueSetting("SnakeSystemColorsTracker", kDefaultSnakeSystemColorsTracker));
 	Add(fSnakeArrows = new BooleanValueSetting("SnakeArrows", kDefaultSnakeArrows));
 	Add(fSnakeSidePanel = new BooleanValueSetting("SnakeSidePanel", kDefaultSnakeSidePanel));
 	Add(fSnakeSidePanelTrash = new BooleanValueSetting("SnakeSidePanelTrash", kDefaultSnakeSidePanelTrash));
@@ -534,6 +546,48 @@ void
 TrackerSettings::SetSnakeLook(bool look)
 {
 	gTrackerState.fSnakeLook->SetValue(look);
+}
+
+
+bool
+TrackerSettings::SnakeRoundCorners()
+{
+	return gTrackerState.fSnakeRoundCorners->Value();
+}
+
+
+void
+TrackerSettings::SetSnakeRoundCorners(bool value)
+{
+	gTrackerState.fSnakeRoundCorners->SetValue(value);
+}
+
+
+bool
+TrackerSettings::SnakeSystemColorsDeskbar()
+{
+	return gTrackerState.fSnakeSystemColorsDeskbar->Value();
+}
+
+
+void
+TrackerSettings::SetSnakeSystemColorsDeskbar(bool value)
+{
+	gTrackerState.fSnakeSystemColorsDeskbar->SetValue(value);
+}
+
+
+bool
+TrackerSettings::SnakeSystemColorsTracker()
+{
+	return gTrackerState.fSnakeSystemColorsTracker->Value();
+}
+
+
+void
+TrackerSettings::SetSnakeSystemColorsTracker(bool value)
+{
+	gTrackerState.fSnakeSystemColorsTracker->SetValue(value);
 }
 
 

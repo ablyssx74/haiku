@@ -138,12 +138,6 @@ private:
 	BCheckBox* fHideDotFilesCheckBox;
 	BCheckBox* fTypeAheadFilteringCheckBox;
 	BCheckBox* fGenerateImageThumbnailsCheckBox;
-	BCheckBox* fSnakeTrailCheckBox;
-	BCheckBox* fSnakeFlatCheckBox;
-	BCheckBox* fSnakeLookCheckBox;
-	BCheckBox* fSnakeArrowsCheckBox;
-	BColorControl* fSnakeAccentControl;
-	SnakeColorSwatch* fSnakeAccentSwatch;
 
 	bool fShowFullPathInTitleBar;
 	bool fSingleWindowBrowse;
@@ -153,10 +147,44 @@ private:
 	bool fHideDotFiles;
 	bool fTypeAheadFiltering;
 	bool fGenerateImageThumbnails;
+
+	typedef SettingsView _inherited;
+};
+
+
+class SnakeSettingsView : public SettingsView {
+public:
+	SnakeSettingsView();
+
+	virtual void MessageReceived(BMessage* message);
+	virtual void AttachedToWindow();
+
+	virtual void SetDefaults();
+	virtual bool IsDefaultable() const;
+	virtual void Revert();
+	virtual void ShowCurrentSettings();
+	virtual void RecordRevertSettings();
+	virtual bool IsRevertable() const;
+
+private:
+	BCheckBox* fSnakeLookCheckBox;
+	BCheckBox* fSnakeTrailCheckBox;
+	BCheckBox* fSnakeFlatCheckBox;
+	BCheckBox* fSnakeArrowsCheckBox;
+	BCheckBox* fSnakeRoundCheckBox;
+	BCheckBox* fSnakeSysDeskbarCheckBox;
+	BCheckBox* fSnakeSysTrackerCheckBox;
+	BColorControl* fSnakeAccentControl;
+	SnakeColorSwatch* fSnakeAccentSwatch;
+	BButton* fRestartButton;
+
+	bool fSnakeLook;
 	bool fSnakeTrail;
 	bool fSnakeFlat;
-	bool fSnakeLook;
 	bool fSnakeArrows;
+	bool fSnakeRound;
+	bool fSnakeSysDeskbar;
+	bool fSnakeSysTracker;
 	rgb_color fSnakeAccent;
 
 	typedef SettingsView _inherited;

@@ -102,6 +102,12 @@ public:
 	bool SnakeLook();
 	void SetSnakeFlat(bool flat);
 	void SetSnakeLook(bool look);
+	bool SnakeRoundCorners();
+	void SetSnakeRoundCorners(bool value);
+	bool SnakeSystemColorsDeskbar();
+	void SetSnakeSystemColorsDeskbar(bool value);
+	bool SnakeSystemColorsTracker();
+	void SetSnakeSystemColorsTracker(bool value);
 	bool SnakeArrows();
 	void SetSnakeArrows(bool arrows);
 	bool SnakeSidePanel();

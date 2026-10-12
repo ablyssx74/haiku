@@ -1,8 +1,18 @@
-# snaketracker 1.0.39
+# snaketracker 1.0.40
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **A SnakeTracker pane in Tracker preferences.** All of SnakeTracker's options moved from the Windows pane to a pane of their own, which has a **[?]** beside each option that explains it when the pointer rests on it. New in it:
+  - **Enable rounded corners on Tracker** (off by default). The menus' own corners are square now, so Haiku's black window outline fits round them; with this on they are rounded and the outline shows as a square frame round the menu.
+  - **Use system colors for Deskbar** and **Use system colors for Tracker.** On, that program takes the colors of Haiku's Appearance preferences (menu background and selection) in place of the SnakeTracker color.
+  - A larger color square, and a **Restart SnakeTracker** button that restarts Tracker and the Deskbar so every setting takes effect.
+  - The selected pane in the preferences window's list is a raised pill in the SnakeTracker color.
+- **The snake trail stays when the custom look is off.** With **Snake look for Tracker and Deskbar** off, the menus keep Haiku's background and still show the connected trail.
+- **Menus are square, with the lit rows and the trail rounded and raised.** The File and Window menus of Tracker's windows have the snake look too.
+- **The Deskbar's app list is raised.** Each app's header is a raised pill that fades into the panel like the leaf's block, with a soft shadow under the box of windows, and the tab tool tips are in the pill look. The window menu of an app opens in the snake look also when its windows are listed in the Deskbar.
+
+Since 1.0.39 (if you skipped it):
 - **A preference to turn off the custom look of Tracker and the Deskbar.** In Tracker preferences > Windows, **Snake look for Tracker and Deskbar** (on by default). Turn it off and Tracker's and the Deskbar's menus, the Deskbar's panel and the menu bar titles are drawn the way Haiku draws them, while the buttons, scroll bars, check boxes and the rest of the Snake control look stay. hDesktop follows the preference too: with it off, the dock's Tracker menu is the plain menu. The menus change at once; the Deskbar's panel after it is restarted.
 - **Right-clicking a folder no longer flashes the stock menu first.** The "Move to Trash" item was a stock item, which made the whole menu ineligible for the pill look until it was drawn again; it is a Snake item now.
 - **Big folders are quicker to browse.** A folder with hundreds of entries (`/bin`) made every redraw of its menu work on every pixel of it, and ask about every item again. A redraw now touches only the lit row and its surroundings, the answers about a menu's items are remembered, and moving the pointer redraws only the rows that change.
@@ -102,4 +112,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.39-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.39-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.40-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.40-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
