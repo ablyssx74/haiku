@@ -140,6 +140,7 @@ private:
 	BCheckBox* fGenerateImageThumbnailsCheckBox;
 	BCheckBox* fSnakeTrailCheckBox;
 	BCheckBox* fSnakeFlatCheckBox;
+	BCheckBox* fSnakeLookCheckBox;
 	BCheckBox* fSnakeArrowsCheckBox;
 	BColorControl* fSnakeAccentControl;
 	SnakeColorSwatch* fSnakeAccentSwatch;
@@ -154,6 +155,7 @@ private:
 	bool fGenerateImageThumbnails;
 	bool fSnakeTrail;
 	bool fSnakeFlat;
+	bool fSnakeLook;
 	bool fSnakeArrows;
 	rgb_color fSnakeAccent;
 

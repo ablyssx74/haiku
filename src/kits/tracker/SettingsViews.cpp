@@ -460,6 +460,7 @@ WindowsSettingsView::WindowsSettingsView()
 	fGenerateImageThumbnailsCheckBox(NULL),
 	fSnakeTrailCheckBox(NULL),
 	fSnakeFlatCheckBox(NULL),
+	fSnakeLookCheckBox(NULL),
 	fSnakeArrowsCheckBox(NULL),
 	fSnakeAccentControl(NULL),
 	fSnakeAccentSwatch(NULL),
@@ -473,6 +474,7 @@ WindowsSettingsView::WindowsSettingsView()
 	fGenerateImageThumbnails(kDefaultGenerateImageThumbnails),
 	fSnakeTrail(kDefaultSnakeTrail),
 	fSnakeFlat(kDefaultSnakeFlat),
+	fSnakeLook(kDefaultSnakeLook),
 	fSnakeArrows(kDefaultSnakeArrows),
 	fSnakeAccent(kDefaultSnakeAccent)
 {
@@ -516,6 +518,10 @@ WindowsSettingsView::WindowsSettingsView()
 		B_TRANSLATE("Flat menu selector"),
 		new BMessage(kSnakeFlatChanged));
 
+	fSnakeLookCheckBox = new BCheckBox("",
+		B_TRANSLATE("Snake look for Tracker and Deskbar"),
+		new BMessage(kSnakeLookChanged));
+
 	fSnakeArrowsCheckBox = new BCheckBox("",
 		B_TRANSLATE("Scroll bar arrows"),
 		new BMessage(kSnakeArrowsChanged));
@@ -544,6 +550,7 @@ WindowsSettingsView::WindowsSettingsView()
 			.Add(fGenerateImageThumbnailsCheckBox)
 			.End()
 		.AddGroup(B_VERTICAL, 0)
+			.Add(fSnakeLookCheckBox)
 			.Add(fSnakeTrailCheckBox)
 			.Add(fSnakeFlatCheckBox)
 			.Add(fSnakeArrowsCheckBox)
@@ -573,6 +580,7 @@ WindowsSettingsView::AttachedToWindow()
 	fGenerateImageThumbnailsCheckBox->SetTarget(this);
 	fSnakeTrailCheckBox->SetTarget(this);
 	fSnakeFlatCheckBox->SetTarget(this);
+	fSnakeLookCheckBox->SetTarget(this);
 	fSnakeArrowsCheckBox->SetTarget(this);
 	fSnakeAccentControl->SetTarget(this);
 }
@@ -691,6 +699,13 @@ WindowsSettingsView::MessageReceived(BMessage* message)
 			break;
 		}
 
+		case kSnakeLookChanged:
+		{
+			settings.SetSnakeLook(fSnakeLookCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+		}
+
 		case kSnakeArrowsChanged:
 		{
 			settings.SetSnakeArrows(fSnakeArrowsCheckBox->Value() == 1);
@@ -769,6 +784,7 @@ WindowsSettingsView::SetDefaults()
 
 	settings.SetSnakeTrail(kDefaultSnakeTrail);
 	settings.SetSnakeFlat(kDefaultSnakeFlat);
+	settings.SetSnakeLook(kDefaultSnakeLook);
 	settings.SetSnakeArrows(kDefaultSnakeArrows);
 	settings.SetSnakeAccent(kDefaultSnakeAccent);
 
@@ -791,6 +807,7 @@ WindowsSettingsView::IsDefaultable() const
 		|| settings.GenerateImageThumbnails() != kDefaultGenerateImageThumbnails
 		|| settings.SnakeTrail() != kDefaultSnakeTrail
 		|| settings.SnakeFlat() != kDefaultSnakeFlat
+		|| settings.SnakeLook() != kDefaultSnakeLook
 		|| settings.SnakeArrows() != kDefaultSnakeArrows
 		|| _ColorValue(settings.SnakeAccent()) != _ColorValue(kDefaultSnakeAccent);
 }
@@ -852,6 +869,7 @@ WindowsSettingsView::Revert()
 
 	settings.SetSnakeTrail(fSnakeTrail);
 	settings.SetSnakeFlat(fSnakeFlat);
+	settings.SetSnakeLook(fSnakeLook);
 	settings.SetSnakeArrows(fSnakeArrows);
 	settings.SetSnakeAccent(fSnakeAccent);
 
@@ -878,6 +896,7 @@ WindowsSettingsView::ShowCurrentSettings()
 		settings.GenerateImageThumbnails());
 	fSnakeTrailCheckBox->SetValue(settings.SnakeTrail());
 	fSnakeFlatCheckBox->SetValue(settings.SnakeFlat());
+	fSnakeLookCheckBox->SetValue(settings.SnakeLook());
 	fSnakeArrowsCheckBox->SetValue(settings.SnakeArrows());
 	fSnakeAccentControl->SetValue(settings.SnakeAccent());
 	fSnakeAccentSwatch->SetColor(settings.SnakeAccent());
@@ -899,6 +918,7 @@ WindowsSettingsView::RecordRevertSettings()
 	fGenerateImageThumbnails = settings.GenerateImageThumbnails();
 	fSnakeTrail = settings.SnakeTrail();
 	fSnakeFlat = settings.SnakeFlat();
+	fSnakeLook = settings.SnakeLook();
 	fSnakeArrows = settings.SnakeArrows();
 	fSnakeAccent = settings.SnakeAccent();
 }
@@ -919,6 +939,7 @@ WindowsSettingsView::IsRevertable() const
 		|| fGenerateImageThumbnails != settings.GenerateImageThumbnails()
 		|| fSnakeTrail != settings.SnakeTrail()
 		|| fSnakeFlat != settings.SnakeFlat()
+		|| fSnakeLook != settings.SnakeLook()
 		|| fSnakeArrows != settings.SnakeArrows()
 		|| _ColorValue(fSnakeAccent) != _ColorValue(settings.SnakeAccent());
 }

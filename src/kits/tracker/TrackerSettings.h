@@ -99,7 +99,9 @@ public:
 	bool SnakeTrail();
 	void SetSnakeTrail(bool enabled);
 	bool SnakeFlat();
+	bool SnakeLook();
 	void SetSnakeFlat(bool flat);
+	void SetSnakeLook(bool look);
 	bool SnakeArrows();
 	void SetSnakeArrows(bool arrows);
 	bool SnakeSidePanel();

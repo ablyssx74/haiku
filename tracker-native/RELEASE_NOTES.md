@@ -1,8 +1,13 @@
-# snaketracker 1.0.38
+# snaketracker 1.0.39
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **A preference to turn off the custom look of Tracker and the Deskbar.** In Tracker preferences > Windows, **Snake look for Tracker and Deskbar** (on by default). Turn it off and Tracker's and the Deskbar's menus, the Deskbar's panel and the menu bar titles are drawn the way Haiku draws them, while the buttons, scroll bars, check boxes and the rest of the Snake control look stay. hDesktop follows the preference too: with it off, the dock's Tracker menu is the plain menu. The menus change at once; the Deskbar's panel after it is restarted.
+- **Right-clicking a folder no longer flashes the stock menu first.** The "Move to Trash" item was a stock item, which made the whole menu ineligible for the pill look until it was drawn again; it is a Snake item now.
+- **Big folders are quicker to browse.** A folder with hundreds of entries (`/bin`) made every redraw of its menu work on every pixel of it, and ask about every item again. A redraw now touches only the lit row and its surroundings, the answers about a menu's items are remembered, and moving the pointer redraws only the rows that change.
+
+Since 1.0.38 (if you skipped it):
 - **Menus open without the delay on slow graphics hardware.** The pill menus need the picture of the screen behind them (a window is a rectangle, so the round corners show what lies under the menu). It was taken of the whole screen each time a menu chain opened, which took close to a second on some hardware. Each menu level now captures only the part of the screen it covers, just before it opens, so the cost is a small fraction of that and does not grow with the screen's size.
 
 Since 1.0.37 (if you skipped it):
@@ -97,4 +102,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.38-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.38-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.39-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.39-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.

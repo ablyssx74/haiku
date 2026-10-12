@@ -27,6 +27,7 @@ static const bool kDefaultTypeAheadFiltering = false;
 static const bool kDefaultGenerateImageThumbnails = true;
 static const bool kDefaultSnakeTrail = true;
 static const bool kDefaultSnakeFlat = true;
+static const bool kDefaultSnakeLook = true;
 static const bool kDefaultSnakeArrows = false;
 static const bool kDefaultSnakeSidePanel = true;
 static const bool kDefaultSnakeSidePanelTrash = true;

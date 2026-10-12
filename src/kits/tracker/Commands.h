@@ -143,6 +143,7 @@ const uint32 kTypeAheadFilteringChanged = 'Tafc';
 const uint32 kGenerateImageThumbnailsChanged = 'GITc';
 const uint32 kSnakeTrailChanged = 'SnkT';
 const uint32 kSnakeFlatChanged = 'SnkF';
+const uint32 kSnakeLookChanged = 'SnkL';
 const uint32 kSnakeArrowsChanged = 'SnkR';
 const uint32 kSnakeAccentChanged = 'SnkA';
 

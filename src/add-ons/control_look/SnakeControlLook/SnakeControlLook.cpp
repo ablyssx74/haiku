@@ -91,12 +91,13 @@ static rgb_color sAccent = {70, 110, 200, 255};
 static bool sTrail = true;
 static bool sFlat = true;
 static bool sArrows = false;
+static bool sLook = true;
 static bigtime_t sLastCheck = -kCheckInterval;
 
 
 // Tracker's settings file is plain text, one "Name value" per line.
 static void
-ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat, bool& arrows)
+ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat, bool& arrows, bool& look)
 {
 	BPath path;
 	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) != B_OK
@@ -117,6 +118,9 @@ ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat, bool& arrows)
 		} else if (strncmp(line, "SnakeArrows ", 12) == 0) {
 			arrows = strncmp(line + 12, "off", 3) != 0 && strncmp(line + 12, "0", 1) != 0
 				&& strncmp(line + 12, "false", 5) != 0;
+		} else if (strncmp(line, "SnakeLook ", 10) == 0) {
+			look = strncmp(line + 10, "off", 3) != 0 && strncmp(line + 10, "0", 1) != 0
+				&& strncmp(line + 10, "false", 5) != 0;
 		} else if (strncmp(line, "SnakeTrail ", 11) == 0) {
 			trail = strncmp(line + 11, "off", 3) != 0 && strncmp(line + 11, "0", 1) != 0
 				&& strncmp(line + 11, "false", 5) != 0;
@@ -139,7 +143,8 @@ RefreshSettings()
 	bool trail = true;
 	bool flat = true;
 	bool arrows = false;
-	ReadTrackerSettings(accent, trail, flat, arrows);
+	bool look = true;
+	ReadTrackerSettings(accent, trail, flat, arrows, look);
 
 	BPath path;
 	if (be_roster != NULL && be_roster->IsRunning(kHDesktopSignature)
@@ -164,6 +169,7 @@ RefreshSettings()
 	sTrail = trail;
 	sFlat = flat;
 	sArrows = arrows;
+	sLook = look;
 }
 
 
@@ -185,6 +191,28 @@ ShowArrows()
 }
 
 
+// Whether Tracker's, the Deskbar's and the menus' own look is on (the Tracker preference "Snake look for Tracker and
+// Deskbar"); off, they are drawn the way Haiku draws them, and only the buttons, scroll bars and the like are the Snake
+// control look's.
+static bool
+CustomLook()
+{
+	// (the setting is Tracker's and the Deskbar's: other programs keep what the control look gives their menus)
+	static int tracker = -1;
+	if (tracker < 0) {
+		app_info info;
+		tracker = be_app != NULL && be_app->GetAppInfo(&info) == B_OK
+			&& (strcmp(info.signature, "application/x-vnd.Be-TSKB") == 0
+				|| strcmp(info.signature, "application/x-vnd.Be-TRAK") == 0) ? 1 : 0;
+	}
+	if (tracker == 0)
+		return true;
+	RefreshSettings();
+	BAutolock lock(SettingsLock());
+	return sLook;
+}
+
+
 static bool
 FlatFill()
 {
@@ -199,7 +227,7 @@ TrailEnabled()
 {
 	RefreshSettings();
 	BAutolock lock(SettingsLock());
-	return sTrail;
+	return sTrail && sLook;
 }
 
 
@@ -1115,6 +1143,16 @@ States()
 }
 
 
+// Where the lit shapes of a menu were drawn last (view coordinates): when the selection changes, those and the new ones are
+// redrawn, and nothing else of a long menu.
+static std::map<BMenu*, BRect>&
+LitBoxes()
+{
+	static std::map<BMenu*, BRect>* boxes = new std::map<BMenu*, BRect>();
+	return *boxes;
+}
+
+
 // #pragma mark - the pill look
 
 // Tracker takes a picture of the screen just before it opens one of its popup menus and hands it over
@@ -1136,6 +1174,9 @@ struct BackdropState {
 	bigtime_t	time;
 	BMenu*		root;		// the menu this chain was begun for (set when it is first drawn)
 	bool		(*eligible)(BMenu*);	// Tracker's own test of whether a menu holds nothing but its items
+	// The answer of that test for each menu, with the number of items it was given for: a long folder menu is asked about for
+	// each item it draws, and the test looks at every item.
+	std::map<BMenu*, std::pair<int32, bool> >	eligibility;
 };
 
 static BLocker&
@@ -1155,6 +1196,20 @@ Backdrop()
 
 
 static const bigtime_t kBackdropValid = 60000000;	// a minute
+
+
+// Whether the menu holds only items that draw themselves in the pill look (remembered while it holds as many).
+static bool
+Eligible(BackdropState& state, BMenu* menu)
+{
+	const int32 count = menu->CountItems();
+	std::map<BMenu*, std::pair<int32, bool> >::iterator it = state.eligibility.find(menu);
+	if (it != state.eligibility.end() && it->second.first == count)
+		return it->second.second;
+	const bool ok = state.eligible(menu);
+	state.eligibility[menu] = std::make_pair(count, ok);
+	return ok;
+}
 
 
 static float
@@ -1190,7 +1245,7 @@ RootMenu(BMenu* menu)
 static bool
 PillMenu(BMenu* menu)
 {
-	if (menu == NULL || menu->Window() == NULL || dynamic_cast<BMenuBar*>(menu) != NULL)
+	if (menu == NULL || menu->Window() == NULL || dynamic_cast<BMenuBar*>(menu) != NULL || !CustomLook())
 		return false;
 	BMenu* root = RootMenu(menu);
 	// a popup menu, or the Deskbar's own menu
@@ -1209,7 +1264,7 @@ PillMenu(BMenu* menu)
 	if (state.root == NULL && system_time() - state.time > kBackdropValid)
 		return false;
 	// the menu must hold nothing but Tracker's own items (and separators): they draw their text in the pill's colours
-	if (state.eligible == NULL || !state.eligible(menu))
+	if (state.eligible == NULL || !Eligible(state, menu))
 		return false;
 	if (state.root == NULL)
 		state.root = root;
@@ -1433,9 +1488,18 @@ snake_begin_menu_chain(bool (*eligible)(BMenu*))
 	for (size_t i = 0; i < state.tiles.size(); i++)
 		delete state.tiles[i].bitmap;
 	state.tiles.clear();
+	state.eligibility.clear();
 	state.eligible = eligible;
 	state.time = system_time();
 	state.root = NULL;
+}
+
+
+// ...asks whether the Snake look of Tracker, the Deskbar and the menus is on...
+extern "C" _EXPORT bool
+snake_custom_look()
+{
+	return CustomLook();
 }
 
 
@@ -1452,7 +1516,7 @@ snake_wants_tile(BMenu* menu)
 		return false;
 	BAutolock lock(BackdropLock());
 	BackdropState& state = Backdrop();
-	if (state.eligible == NULL || !state.eligible(menu))
+	if (state.eligible == NULL || !Eligible(state, menu))
 		return false;
 	if (state.root == NULL)
 		return system_time() - state.time <= kBackdropValid;
@@ -1854,6 +1918,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		PlaceBridge(menu, BRect(x, link.rowTop + 1, x, link.rowBottom - 2), link.parentTop, link.parentBottom, Accent());
 	}
 
+	bool litChanged = false;
 	{
 		DrawState state;
 		state.selected = selected;
@@ -1866,8 +1931,10 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 			changed = States()[menu] != state;
 			States()[menu] = state;
 		}
-		if (changed && !updateRect.Contains(bounds))
+		// (the pill look redraws only where the lit shapes were and are now: see below)
+		if (changed && !pill && !updateRect.Contains(bounds))
 			menu->Invalidate();
+		litChanged = changed;
 	}
 
 	std::vector<Piece> pieces;
@@ -2104,30 +2171,54 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 	if (pieces.empty())
 		return;
 
-	std::vector<float> cover((size_t)w * h, 0.0f);
+	// The coverage map of the lit shapes. In the pill look it is only the box round them (a long folder menu is a lot of
+	// pixels and the lit row a small part of them); the bevelled look has all of the menu.
+	int cx0 = 0, cy0 = 0, cw = w, ch = h;
+	if (pill) {
+		float fx0 = (float)w, fy0 = (float)h, fx1 = 0, fy1 = 0;
+		for (size_t k = 0; k < pieces.size(); k++) {
+			fx0 = std::min(fx0, pieces[k].x);
+			fy0 = std::min(fy0, pieces[k].y);
+			fx1 = std::max(fx1, pieces[k].x + pieces[k].w);
+			fy1 = std::max(fy1, pieces[k].y + pieces[k].h);
+		}
+		for (size_t k = 0; k < fillets.size(); k++) {
+			fx0 = std::min(fx0, std::min(fillets[k].x, fillets[k].x + fillets[k].dx * filletR));
+			fy0 = std::min(fy0, std::min(fillets[k].y, fillets[k].y + fillets[k].dy * filletR));
+			fx1 = std::max(fx1, std::max(fillets[k].x, fillets[k].x + fillets[k].dx * filletR));
+			fy1 = std::max(fy1, std::max(fillets[k].y, fillets[k].y + fillets[k].dy * filletR));
+		}
+		const int margin = 10;
+		cx0 = std::max(0, (int)floorf(fx0) - margin);
+		cy0 = std::max(0, (int)floorf(fy0) - margin);
+		const int cx1 = std::min(w - 1, (int)ceilf(fx1) + margin), cy1 = std::min(h - 1, (int)ceilf(fy1) + margin);
+		cw = std::max(0, cx1 - cx0 + 1);
+		ch = std::max(0, cy1 - cy0 + 1);
+	}
+	std::vector<float> cover((size_t)cw * ch, 0.0f);
 	for (size_t k = 0; k < pieces.size(); k++) {
 		const Piece& p = pieces[k];
-		int x0 = std::max(0, (int)floorf(p.x) - 1), x1 = std::min(w - 1, (int)ceilf(p.x + p.w) + 1);
-		int y0 = std::max(0, (int)floorf(p.y) - 1), y1 = std::min(h - 1, (int)ceilf(p.y + p.h) + 1);
+		int x0 = std::max(cx0, (int)floorf(p.x) - 1), x1 = std::min(cx0 + cw - 1, (int)ceilf(p.x + p.w) + 1);
+		int y0 = std::max(cy0, (int)floorf(p.y) - 1), y1 = std::min(cy0 + ch - 1, (int)ceilf(p.y + p.h) + 1);
 		for (int y = y0; y <= y1; ++y) {
 			for (int x = x0; x <= x1; ++x) {
 				float c = RoundRectCoverage(x + 0.5f, y + 0.5f, p.x, p.y, p.w, p.h, p.tl, p.tr,
 					p.br, p.bl);
-				float& dst = cover[(size_t)y * w + x];
+				float& dst = cover[(size_t)(y - cy0) * cw + (x - cx0)];
 				dst = std::max(dst, c);
 			}
 		}
 	}
 	for (size_t k = 0; k < fillets.size(); k++) {
 		const Fillet& f = fillets[k];
-		int x0 = std::max(0, (int)floorf(std::min(f.x, f.x + f.dx * filletR)) - 1);
-		int x1 = std::min(w - 1, (int)ceilf(std::max(f.x, f.x + f.dx * filletR)) + 1);
-		int y0 = std::max(0, (int)floorf(std::min(f.y, f.y + f.dy * filletR)) - 1);
-		int y1 = std::min(h - 1, (int)ceilf(std::max(f.y, f.y + f.dy * filletR)) + 1);
+		int x0 = std::max(cx0, (int)floorf(std::min(f.x, f.x + f.dx * filletR)) - 1);
+		int x1 = std::min(cx0 + cw - 1, (int)ceilf(std::max(f.x, f.x + f.dx * filletR)) + 1);
+		int y0 = std::max(cy0, (int)floorf(std::min(f.y, f.y + f.dy * filletR)) - 1);
+		int y1 = std::min(cy0 + ch - 1, (int)ceilf(std::max(f.y, f.y + f.dy * filletR)) + 1);
 		for (int y = y0; y <= y1; ++y) {
 			for (int x = x0; x <= x1; ++x) {
 				float c = FilletCoverage(x + 0.5f, y + 0.5f, f.x, f.y, f.dx, f.dy, filletR);
-				float& dst = cover[(size_t)y * w + x];
+				float& dst = cover[(size_t)(y - cy0) * cw + (x - cx0)];
 				dst = std::max(dst, c);
 			}
 		}
@@ -2137,31 +2228,67 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		// flat, in the Selector Color, clipped to the pill's rounded corners, with no outline or bevel
 		bool sqTL, sqTR, sqBR, sqBL;
 		SquareCorners(menu, &sqTL, &sqTR, &sqBR, &sqBL);
-		BBitmap flat(BRect(0, 0, w - 1, h - 1), B_RGBA32);
+		// (the box round the lit shapes is the coverage map's)
+		const int bx0 = cx0, by0 = cy0, bx1 = cx0 + cw - 1, by1 = cy0 + ch - 1;
+		const bool anyLit = bx1 >= bx0 && by1 >= by0;
+		{
+			// where the shapes are now and were: if the selection changed, the two places are redrawn (not the whole menu)
+			const BRect box = anyLit ? BRect(bounds.left + bx0, bounds.top + by0, bounds.left + bx1 + 1, bounds.top + by1 + 1)
+				: BRect();
+			BRect previous;
+			{
+				BAutolock lock(LinkLock());
+				std::map<BMenu*, BRect>::iterator it = LitBoxes().find(menu);
+				if (it != LitBoxes().end())
+					previous = it->second;
+				LitBoxes()[menu] = box;
+			}
+			if (litChanged || previous != box) {
+				BRect redraw = box;
+				if (previous.IsValid())
+					redraw = redraw.IsValid() ? (redraw | previous) : previous;
+				if (redraw.IsValid() && !updateRect.Contains(redraw))
+					menu->Invalidate(redraw);
+			}
+		}
+		if (!anyLit)
+			return;
+		const int bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+
+		BBitmap flat(BRect(0, 0, bw - 1, bh - 1), B_RGBA32);
 		if (flat.InitCheck() != B_OK)
 			return;
 		rgb_color hot, fillUnused, textUnused;
 		PillColors(&fillUnused, &hot, &textUnused);
 		uint8* fbits = (uint8*)flat.Bits();
 		const int32 fbpr = flat.BytesPerRow();
-		std::vector<float> lit((size_t)w * h), shadow;
-		for (int y = 0; y < h; ++y) {
-			for (int x = 0; x < w; ++x) {
-				lit[(size_t)y * w + x] = cover[(size_t)y * w + x]
-					* RoundRectCoverage(x + 0.5f, y + 0.5f, 0, 0, (float)w, (float)h, sqTL ? 0.0f : pillR,
+		std::vector<float> lit((size_t)bw * bh), shadow;
+		// (the pill's own corners matter only within a corner's square; elsewhere the pill is all there)
+		const int cornerSize = (int)ceilf(pillR) + 1;
+		for (int y = 0; y < bh; ++y) {
+			const int py = by0 + y;
+			const bool cornerRow = py < cornerSize || py >= h - cornerSize;
+			for (int x = 0; x < bw; ++x) {
+				const int px = bx0 + x;
+				float inside = 1.0f;
+				if (cornerRow && (px < cornerSize || px >= w - cornerSize))
+					inside = RoundRectCoverage(px + 0.5f, py + 0.5f, 0, 0, (float)w, (float)h, sqTL ? 0.0f : pillR,
 						sqTR ? 0.0f : pillR, sqBR ? 0.0f : pillR, sqBL ? 0.0f : pillR);
+				lit[(size_t)y * bw + x] = cover[(size_t)y * cw + x] * inside;
 			}
 		}
 		// (along the Deskbar's leaf the snake runs into the leaf, flat, with no edge between the two)
 		int edgeFrom = 0;
 		if (deskbarRoot && deskbarBeside && deskbarLeaf.IsValid())
 			edgeFrom = std::max(0, (int)ceilf(menu->ConvertFromScreen(BPoint(0, deskbarLeaf.bottom + 1)).y - vt));
-		RaisedShade(lit, w, h, shadow, deskbarRoot && parentOnLeft, deskbarRoot && !parentOnLeft, edgeFrom);
-		for (int y = 0; y < h; ++y) {
+		// (the window's own edges are the shape's edges beside the Deskbar; the box's other sides lie where nothing is lit)
+		RaisedShade(lit, bw, bh, shadow, deskbarRoot && parentOnLeft && bx0 == 0,
+			deskbarRoot && !parentOnLeft && bx1 == w - 1, std::max(0, edgeFrom - by0));
+		for (int y = 0; y < bh; ++y) {
 			uint8* row = fbits + y * fbpr;
-			for (int x = 0; x < w; ++x) {
-				const float c = lit[(size_t)y * w + x];
-				const float s = shadow[(size_t)y * w + x];
+			for (int x = 0; x < bw; ++x) {
+				const float c = lit[(size_t)y * bw + x];
+				const float s = shadow[(size_t)y * bw + x];
 				uint8* px = row + x * 4;
 				px[0] = Shaded(hot.blue, s);  px[1] = Shaded(hot.green, s);  px[2] = Shaded(hot.red, s);
 				px[3] = (uint8)lroundf(c * 255.0f);
@@ -2170,7 +2297,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		menu->PushState();
 		menu->SetDrawingMode(B_OP_ALPHA);
 		menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
-		menu->DrawBitmap(&flat, bounds.LeftTop());
+		menu->DrawBitmap(&flat, bounds.LeftTop() + BPoint(bx0, by0));
 		menu->PopState();
 		return;
 	}
@@ -2528,6 +2655,10 @@ public:
 	virtual	void DrawMenuBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
+		if (!CustomLook()) {
+			HaikuControlLook::DrawMenuBackground(view, rect, updateRect, base, flags, borders);
+			return;
+		}
 		BMenu* menu = dynamic_cast<BMenu*>(view);
 		if (menu != NULL && PillMenu(menu)) {
 			DrawPillBase(menu);
@@ -3022,7 +3153,7 @@ public:
 	// Menu bars are the accent pill (a menu bar laid out in a column is not, and neither is the Deskbar's)
 	static bool PillMenuBar(BView* view)
 	{
-		if (dynamic_cast<BMenuBar*>(view) == NULL || PlainButton(view))
+		if (dynamic_cast<BMenuBar*>(view) == NULL || PlainButton(view) || !CustomLook())
 			return false;
 		const BRect bounds = view->Bounds();
 		return bounds.Height() <= 40 && bounds.Width() > bounds.Height();
@@ -3441,7 +3572,7 @@ public:
 	virtual	void DrawMenuItemBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
-		if ((flags & B_ACTIVATED) == 0) {
+		if ((flags & B_ACTIVATED) == 0 || !CustomLook()) {
 			HaikuControlLook::DrawMenuItemBackground(view, rect, updateRect, base, flags, borders);
 			return;
 		}

@@ -70,6 +70,8 @@ bool		MenuPaintsSelector(BMenu* menu);
 // CaptureSubmenuTile() for a submenu that opens beside its parent's row. CaptureMenuTile() takes a part of the screen
 // that the caller has worked out, for menus that open somewhere else. WantsMenuTile() says whether a menu is drawn in the
 // pill look (and so needs the capture at all).
+// whether the Snake look of Tracker, the Deskbar and their menus is on (the preference "Snake look for Tracker and Deskbar")
+bool		CustomLook();
 void		BeginMenuChain();
 bool		WantsMenuTile(BMenu* menu);
 void		CaptureMenuTile(BRect screenRect);

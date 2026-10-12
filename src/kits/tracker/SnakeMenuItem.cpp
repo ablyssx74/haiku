@@ -50,6 +50,12 @@ SnakeMenuItem::Draw()
 	if (menu == NULL)
 		return;
 
+	// the look is a preference: off, the item is drawn the way Haiku draws it
+	if (!SnakeSelector::CustomLook()) {
+		BMenuItem::Draw();
+		return;
+	}
+
 	BRect frame = Frame();
 	const bool active = IsSelected() && (IsEnabled() || Submenu() != NULL);
 
@@ -125,7 +131,7 @@ SnakeSeparatorItem::Draw()
 	if (menu == NULL)
 		return;
 	MenuPrivate privateAccessor(menu);
-	if (privateAccessor.Layout() == B_ITEMS_IN_ROW) {
+	if (privateAccessor.Layout() == B_ITEMS_IN_ROW || !SnakeSelector::CustomLook()) {
 		BSeparatorItem::Draw();
 		return;
 	}

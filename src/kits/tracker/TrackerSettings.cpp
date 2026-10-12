@@ -79,6 +79,7 @@ private:
 	BooleanValueSetting* fGenerateImageThumbnails;
 	BooleanValueSetting* fSnakeTrail;
 	BooleanValueSetting* fSnakeFlat;
+	BooleanValueSetting* fSnakeLook;
 	BooleanValueSetting* fSnakeArrows;
 	BooleanValueSetting* fSnakeSidePanel;
 	BooleanValueSetting* fSnakeSidePanelTrash;
@@ -147,6 +148,7 @@ TTrackerState::TTrackerState()
 	fGenerateImageThumbnails(NULL),
 	fSnakeTrail(NULL),
 	fSnakeFlat(NULL),
+	fSnakeLook(NULL),
 	fSnakeArrows(NULL),
 	fSnakeSidePanel(NULL),
 	fSnakeSidePanelTrash(NULL),
@@ -183,6 +185,7 @@ TTrackerState::TTrackerState(const TTrackerState&)
 	fGenerateImageThumbnails(NULL),
 	fSnakeTrail(NULL),
 	fSnakeFlat(NULL),
+	fSnakeLook(NULL),
 	fSnakeArrows(NULL),
 	fSnakeSidePanel(NULL),
 	fSnakeSidePanelTrash(NULL),
@@ -255,6 +258,7 @@ TTrackerState::LoadSettingsIfNeeded()
 
 	Add(fSnakeTrail = new BooleanValueSetting("SnakeTrail", kDefaultSnakeTrail));
 	Add(fSnakeFlat = new BooleanValueSetting("SnakeFlat", kDefaultSnakeFlat));
+	Add(fSnakeLook = new BooleanValueSetting("SnakeLook", kDefaultSnakeLook));
 	Add(fSnakeArrows = new BooleanValueSetting("SnakeArrows", kDefaultSnakeArrows));
 	Add(fSnakeSidePanel = new BooleanValueSetting("SnakeSidePanel", kDefaultSnakeSidePanel));
 	Add(fSnakeSidePanelTrash = new BooleanValueSetting("SnakeSidePanelTrash", kDefaultSnakeSidePanelTrash));
@@ -516,6 +520,20 @@ void
 TrackerSettings::SetSnakeTrail(bool enabled)
 {
 	gTrackerState.fSnakeTrail->SetValue(enabled);
+}
+
+
+bool
+TrackerSettings::SnakeLook()
+{
+	return gTrackerState.fSnakeLook->Value();
+}
+
+
+void
+TrackerSettings::SetSnakeLook(bool look)
+{
+	gTrackerState.fSnakeLook->SetValue(look);
 }
 
 

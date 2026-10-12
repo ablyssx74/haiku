@@ -156,7 +156,7 @@ TrailEnabled()
 {
 	RefreshSettings();
 	BAutolock lock(SettingsLock());
-	return sTrail;
+	return sTrail && CustomLook();
 }
 
 
@@ -271,11 +271,49 @@ DrawSelectionPill(BView* view, BRect frame, bool active, bool erase, const rgb_c
 // Tracker's own menu classes draw the trail from their DrawBackground(); stock menus (menu bars and
 // the like) don't. The menu must also hold nothing but snake items (and separators): a stock item
 // would get no highlight at all, as the trail menu leaves the selector to its items.
+static BLocker&
+TrailMenuLock()
+{
+	static BLocker* lock = new BLocker("snake trail menus");
+	return *lock;
+}
+
+
+// The answers of MenuDrawsTrail(), with the number of items they were worked out for: a long folder menu is asked about for
+// each item it draws, and the test looks at every item. A menu's answer is forgotten when it goes (see DetachLink()).
+static std::map<BMenu*, std::pair<int32, bool> >&
+TrailMenus()
+{
+	static std::map<BMenu*, std::pair<int32, bool> >* menus = new std::map<BMenu*, std::pair<int32, bool> >();
+	return *menus;
+}
+
+
+static bool MenuDrawsTrailUncached(BMenu* menu);
+
+
 bool
 MenuDrawsTrail(BMenu* menu)
 {
-	if (menu == NULL)
+	if (menu == NULL || !CustomLook())
 		return false;
+	const int32 count = menu->CountItems();
+	{
+		BAutolock lock(TrailMenuLock());
+		std::map<BMenu*, std::pair<int32, bool> >::iterator it = TrailMenus().find(menu);
+		if (it != TrailMenus().end() && it->second.first == count)
+			return it->second.second;
+	}
+	const bool answer = MenuDrawsTrailUncached(menu);
+	BAutolock lock(TrailMenuLock());
+	TrailMenus()[menu] = std::make_pair(count, answer);
+	return answer;
+}
+
+
+static bool
+MenuDrawsTrailUncached(BMenu* menu)
+{
 	if (dynamic_cast<BSlowMenu*>(menu) == NULL && dynamic_cast<TLiveMenu*>(menu) == NULL
 		&& dynamic_cast<TLivePopUpMenu*>(menu) == NULL && dynamic_cast<TemplatesMenu*>(menu) == NULL
 		&& dynamic_cast<MountMenu*>(menu) == NULL && dynamic_cast<SnakeMenu*>(menu) == NULL
@@ -904,6 +942,11 @@ AttachLink(BMenu* submenu)
 void
 DetachLink(BMenu* submenu)
 {
+	{
+		BAutolock lock(TrailMenuLock());
+		TrailMenus().erase(submenu);
+	}
+
 	if (submenu->Window() != NULL)
 		DropBridge(submenu->Window());
 
@@ -930,14 +973,14 @@ ControlLookDraws()
 bool
 MenuPaintsSelector(BMenu* menu)
 {
-	return menu != NULL && (ControlLookDraws() || MenuDrawsTrail(menu));
+	return menu != NULL && CustomLook() && (ControlLookDraws() || MenuDrawsTrail(menu));
 }
 
 
 void
 DrawTrail(BMenu* menu)
 {
-	if (ControlLookDraws())
+	if (ControlLookDraws() || !CustomLook())
 		return;
 
 	ParentLink link;
@@ -1240,6 +1283,7 @@ static bool sPillSymbolsLooked = false;
 static void (*sBeginChain)(bool (*)(BMenu*)) = NULL;
 static void (*sAddTile)(BBitmap*, BRect) = NULL;
 static bool (*sWantsTile)(BMenu*) = NULL;
+static bool (*sCustomLook)() = NULL;
 static bool (*sPillMenu)(BMenu*, rgb_color*, rgb_color*) = NULL;
 static bool (*sArrowHidden)(BMenu*, BMenuItem*) = NULL;
 static void (*sDrawRaised)(BView*, BRect, float, uint32, uint32, int, int) = NULL;
@@ -1277,6 +1321,7 @@ FindPillSymbols()
 		get_image_symbol(info.id, "snake_begin_menu_chain", B_SYMBOL_TYPE_TEXT, (void**)&sBeginChain);
 		get_image_symbol(info.id, "snake_add_menu_tile", B_SYMBOL_TYPE_TEXT, (void**)&sAddTile);
 		get_image_symbol(info.id, "snake_wants_tile", B_SYMBOL_TYPE_TEXT, (void**)&sWantsTile);
+		get_image_symbol(info.id, "snake_custom_look", B_SYMBOL_TYPE_TEXT, (void**)&sCustomLook);
 		get_image_symbol(info.id, "snake_pill_menu", B_SYMBOL_TYPE_TEXT, (void**)&sPillMenu);
 		get_image_symbol(info.id, "snake_arrow_hidden", B_SYMBOL_TYPE_TEXT, (void**)&sArrowHidden);
 		get_image_symbol(info.id, "snake_draw_raised", B_SYMBOL_TYPE_TEXT, (void**)&sDrawRaised);
@@ -1286,9 +1331,21 @@ FindPillSymbols()
 }
 
 
+bool
+CustomLook()
+{
+	// the Snake look of Tracker, the Deskbar and their menus is a preference (Windows > "Snake look for Tracker and Deskbar"):
+	// the control look knows it (it reads the preference's file every so often, in every program)
+	FindPillSymbols();
+	return sCustomLook == NULL || sCustomLook();
+}
+
+
 void
 BeginMenuChain()
 {
+	if (!CustomLook())
+		return;
 	FindPillSymbols();
 	if (sBeginChain == NULL || sPillMenu == NULL || sAddTile == NULL)
 		return;
@@ -1299,6 +1356,8 @@ BeginMenuChain()
 bool
 WantsMenuTile(BMenu* menu)
 {
+	if (!CustomLook())
+		return false;
 	FindPillSymbols();
 	return sWantsTile != NULL && sAddTile != NULL && sWantsTile(menu);
 }
@@ -1395,6 +1454,8 @@ CaptureSubmenuTile(BMenu* submenu)
 bool
 PillMenu(BMenu* menu, rgb_color* fill, rgb_color* text)
 {
+	if (!CustomLook())
+		return false;
 	FindPillSymbols();
 	return sPillMenu != NULL && menu != NULL && sPillMenu(menu, fill, text);
 }
@@ -1403,6 +1464,8 @@ PillMenu(BMenu* menu, rgb_color* fill, rgb_color* text)
 bool
 PillColors(rgb_color* fill, rgb_color* hot, rgb_color* box, rgb_color* text, rgb_color* boxText)
 {
+	if (!CustomLook())
+		return false;
 	FindPillSymbols();
 	if (sPillColors == NULL)
 		return false;
@@ -1414,6 +1477,8 @@ PillColors(rgb_color* fill, rgb_color* hot, rgb_color* box, rgb_color* text, rgb
 bool
 DrawRaised(BView* view, BRect rect, float radius, uint32 round, uint32 closed, int openFrom, int openTo)
 {
+	if (!CustomLook())
+		return false;
 	FindPillSymbols();
 	if (sDrawRaised == NULL)
 		return false;

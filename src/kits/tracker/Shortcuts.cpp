@@ -497,7 +497,7 @@ TShortcuts::MoveToLabel()
 BMenuItem*
 TShortcuts::MoveToTrashItem()
 {
-	BMenuItem* item = new(std::nothrow) BMenuItem(MoveToTrashLabel(),
+	BMenuItem* item = new(std::nothrow) SnakeMenuItem(MoveToTrashLabel(),
 		new BMessage(kMoveSelectionToTrash), B_DELETE, B_NO_COMMAND_KEY);
 	if (item == NULL)
 		return NULL;
