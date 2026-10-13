@@ -232,6 +232,14 @@ public:
 		Invalidate();
 	}
 
+	// the selected line's pill is paler in a window that is not the active one: it is drawn again when that changes (only
+	// the part of the line that was uncovered or touched was, and the rest kept the other colour)
+	virtual void WindowActivated(bool active)
+	{
+		BOutlineListView::WindowActivated(active);
+		Invalidate();
+	}
+
 	void Populate()
 	{
 		// the favourites: the folders kept here, the user's own; every folder opens into its subfolders
