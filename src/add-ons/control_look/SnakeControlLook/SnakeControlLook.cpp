@@ -64,6 +64,9 @@ namespace BPrivate {
 static const bool kBulge = true;	// a tab of the selector outside the menu's outer edge, in an overlay window
 static const int kBulgeW = 3;
 static const int kVBulgeW = 4;		// the same, and the column of window border between the two menus
+static const bool kShiftSideways = false;	// whether a submenu is slid over its parent (off: it opens beside it, only lifted into line with its row)
+static const bool kCoverBorder = true;	// whether the window border along the trail between menus is covered
+static const float kOverlap = 9.0f;	// how far a submenu is slid over its parent, when it is (kShiftSideways)
 static const bool kVBulge = true;	// the vertical part of the trail also bulges, into the parent menu
 static const float kBarW = 7.0f;		// the elbow bar down a submenu's edge
 static const float kSelR = 4.0f;		// corner radius of a selector row
@@ -447,6 +450,17 @@ TrailBars()
 }
 
 
+// The submenus whose parent has been asked to draw its open row again now that they are showing (the arrow of that row is
+// left out while the submenu is up, and the row was drawn before the submenu's window came up). Cleared when the arrow
+// is drawn again, when the submenu is gone.
+static std::map<BMenu*, bool>&
+ArrowRedrawn()
+{
+	static std::map<BMenu*, bool>* redrawn = new std::map<BMenu*, bool>();
+	return *redrawn;
+}
+
+
 static ParentLink
 FindParentLink(BMenu* menu)
 {
@@ -479,8 +493,17 @@ FindParentLink(BMenu* menu)
 			isNew = it == Links().end() || !it->second.valid || it->second.rowTop != link.rowTop;
 			Links()[menu] = link;
 		}
+		bool arrowNow;
+		{
+			BAutolock lock(LinkLock());
+			bool& done = ArrowRedrawn()[menu];
+			arrowNow = !done;
+			done = true;
+		}
 		// the parent's row gets redrawn with the edge that joins this submenu
 		if (isNew)
+			parent->Invalidate();
+		else if (arrowNow)
 			parent->Invalidate();
 		parentWindow->Unlock();
 		return link;
@@ -488,8 +511,14 @@ FindParentLink(BMenu* menu)
 
 	BAutolock lock(LinkLock());
 	std::map<BMenu*, ParentLink>::iterator it = Links().find(menu);
-	if (it != Links().end())
-		link = it->second;
+	if (it != Links().end()) {
+		// (what was kept is only good while the parent's window is where it was: the menu is used again for later opens)
+		const BRect parentFrame = parentWindow->Frame();
+		if (fabsf(it->second.windowLeft - parentFrame.left) < 0.5f && fabsf(it->second.windowRight - parentFrame.right) < 0.5f
+			&& fabsf(it->second.parentTop - parentFrame.top) < 0.5f
+			&& fabsf(it->second.parentBottom - parentFrame.bottom) < 0.5f)
+			link = it->second;
+	}
 	return link;
 }
 
@@ -608,7 +637,8 @@ public:
 		fHorizontal(horizontal),
 		fFill(make_color(0, 0, 0, 0)),
 		fHotFrom(0),
-		fHotTo(1000000)
+		fHotTo(1000000),
+		fGeneration(0)
 	{
 		SetSizeLimits(0, width - 1, 0, 4000);
 		BView* view = new SeamView(this);
@@ -624,12 +654,14 @@ public:
 
 	// from the submenu's thread: where the seam is. The submenu redraws on every hover change, so nothing is
 	// touched unless the seam actually moved or changed colour (a needless resize or redraw flickers).
-	void Place(BRect strip, rgb_color accent, bool bulgeRight = true, bool edgeTop = true, bool edgeBottom = true,
+	// (false when the strip's window was busy and nothing was done: the caller asks for another try)
+	bool Place(BRect strip, rgb_color accent, bool bulgeRight = true, bool edgeTop = true, bool edgeBottom = true,
 		int skipFrom = -1, int skipTo = -1, bool rounded = false, rgb_color fill = make_color(0, 0, 0, 0),
 		int hotFrom = 0, int hotTo = 1000000)
 	{
 		if (LockWithTimeout(20000) != B_OK)
-			return;		// busy; the next draw places it
+			return false;		// busy; tried again shortly
+		atomic_add(&fGeneration, 1);
 		const int left = (int)strip.left, top = (int)strip.top, height = (int)strip.Height() + 1;
 		bool same = !IsHidden() && left == fLeft && top == fTop && height == fHeight
 			&& bulgeRight == fBulgeRight && edgeTop == fEdgeTop && edgeBottom == fEdgeBottom && skipFrom == fSkipFrom
@@ -650,6 +682,8 @@ public:
 			fHeight = height;
 			fLeft = left;
 			fTop = top;
+			// (what shows before the strip has painted is its colour, not black)
+			ChildAt(0)->SetViewColor(fill.alpha != 0 ? fill : accent);
 			ResizeTo(fWidth - 1, height - 1);
 			MoveTo(left, top);
 			if (IsHidden())
@@ -657,6 +691,7 @@ public:
 			ChildAt(0)->Invalidate();
 		}
 		Unlock();
+		return true;
 	}
 
 	virtual void MessageReceived(BMessage* message)
@@ -666,6 +701,8 @@ public:
 			// otherwise: the menu windows are reused, and the same bridge is shown again with the next
 			// submenu. Never wait for the submenu's window: its thread may be waiting for this one (Place()),
 			// and two threads each waiting for the other froze Tracker. If it is busy, ask again next tick.
+			if (message->what == 'Hide' && message->HasInt32("gen") && message->GetInt32("gen", 0) != atomic_get(&fGeneration))
+				return;
 			bool hide = message->what == 'Hide';
 			bool gone = false;
 			status_t status = fChild.LockTargetWithTimeout(0);
@@ -702,6 +739,15 @@ public:
 			return;
 		}
 		BWindow::MessageReceived(message);
+	}
+
+	// from any thread: hide, unless the strip is placed again before the message is handled (a hide that is slow to arrive
+	// would otherwise take down a strip that was just put up for the next menu)
+	void PostHide()
+	{
+		BMessage hide('Hide');
+		hide.AddInt32("gen", atomic_get(&fGeneration));
+		PostMessage(&hide);
 	}
 
 	rgb_color Color() const { return fAccent; }
@@ -823,6 +869,7 @@ private:
 	rgb_color		fFill;		// the colour outside the lit part, when there is one (alpha 0: none)
 	int				fHotFrom;
 	int				fHotTo;
+	int32			fGeneration;	// counts the placements: a hide asked for before one is out of date
 };
 
 
@@ -934,6 +981,11 @@ SeamLog(const char* what, BWindow* child, BRect strip, float parentTop, float pa
 }
 
 
+// The menu is drawn again in a moment when a strip over its border could not be placed (a few tries at most): without that a
+// menu stayed framed until the pointer went into it.
+static void RetryLater(BWindow* window, bool placed);
+
+
 static void
 HideBridge(BWindow* window)
 {
@@ -945,7 +997,7 @@ HideBridge(BWindow* window)
 			existing = it->second;
 	}
 	if (existing != NULL)
-		existing->PostMessage('Hide');
+		existing->PostHide();
 }
 
 
@@ -1003,7 +1055,7 @@ PlaceCover(BMenu* menu, std::map<BWindow*, SeamBridge*>& covers, BRect strip, rg
 		} else
 			cover = it->second;
 	}
-	cover->Place(strip, color);
+	RetryLater(child, cover->Place(strip, color));
 	KeepInFront(child, cover);
 }
 
@@ -1023,9 +1075,9 @@ HideCovers(BWindow* child)
 			bottom = it->second;
 	}
 	if (top != NULL)
-		top->PostMessage('Hide');
+		top->PostHide();
 	if (bottom != NULL)
-		bottom->PostMessage('Hide');
+		bottom->PostHide();
 }
 
 
@@ -1049,8 +1101,9 @@ PlaceBridge(BMenu* menu, BRect strip, float parentTop, float parentBottom, rgb_c
 				existing = it->second;
 		}
 		if (existing != NULL)
-			existing->PostMessage('Hide');
+			existing->PostHide();
 		SeamLog("rejected", child, strip, parentTop, parentBottom);
+		RetryLater(child, false);
 		return;
 	}
 
@@ -1065,7 +1118,8 @@ PlaceBridge(BMenu* menu, BRect strip, float parentTop, float parentBottom, rgb_c
 		} else
 			bridge = it->second;
 	}
-	bridge->Place(strip, color, true, true, true, -1, -1, false, fill, hotFrom, hotTo);
+	const bool placed = bridge->Place(strip, color, true, true, true, -1, -1, false, fill, hotFrom, hotTo);
+	RetryLater(child, placed);
 	KeepInFront(child, bridge);
 	SeamLog("placed", child, strip, parentTop, parentBottom);
 }
@@ -1082,7 +1136,7 @@ HideBulge(BWindow* child)
 			bulge = it->second;
 	}
 	if (bulge != NULL)
-		bulge->PostMessage('Hide');
+		bulge->PostHide();
 }
 
 
@@ -1122,7 +1176,7 @@ HideVBulge(BWindow* child)
 			bulge = it->second;
 	}
 	if (bulge != NULL)
-		bulge->PostMessage('Hide');
+		bulge->PostHide();
 }
 
 
@@ -1421,6 +1475,27 @@ SquareCorners(BMenu* menu, bool* tl, bool* tr, bool* br, bool* bl)
 			*br = !stripOnLeft;
 		}
 	}
+
+	// beside the open submenu (it is not slid over this menu): where it spans this menu's top or bottom the corner on its
+	// side is square too, so the menus run into each other and no corner of the backdrop shows between them
+	BMenuItem* open = SelectedItem(menu);
+	BMenu* submenu = open != NULL ? open->Submenu() : NULL;
+	if (submenu != NULL && submenu->Window() != NULL && !submenu->Window()->IsHidden() && menu->Window() != NULL) {
+		const BRect child = submenu->Window()->Frame(), mine = menu->Window()->Frame();
+		const bool childOnRight = child.left > mine.left;
+		if (child.top <= mine.top + 1) {
+			if (childOnRight)
+				*tr = true;
+			else
+				*tl = true;
+		}
+		if (child.bottom >= mine.bottom - 1) {
+			if (childOnRight)
+				*br = true;
+			else
+				*bl = true;
+		}
+	}
 }
 
 
@@ -1488,6 +1563,22 @@ DrawPillBase(BMenu* menu)
 }
 
 
+// The menu a menu window shows: it is a child of the window's "menu frame" view, not of the window itself.
+static BMenu*
+MenuOfWindow(BWindow* window)
+{
+	for (int32 i = 0; i < window->CountChildren(); i++) {
+		BView* child = window->ChildAt(i);
+		BMenu* menu = dynamic_cast<BMenu*>(child);
+		if (menu == NULL && child->CountChildren() > 0)
+			menu = dynamic_cast<BMenu*>(child->ChildAt(0));
+		if (menu != NULL)
+			return menu;
+	}
+	return NULL;
+}
+
+
 // In the pill look a submenu is moved over its parent, far enough to cover the arrow that marks the row it was opened
 // from, so the two windows overlap and the border between them lies under the submenu.
 static void
@@ -1496,7 +1587,7 @@ OverlapParent(BMenu* menu, const ParentLink& link)
 	BWindow* window = menu->Window();
 	if (window == NULL || !link.valid)
 		return;
-	const float overlap = 16.0f;
+	const float overlap = kOverlap;
 	const BRect frame = window->Frame();
 	// where the parent is now (it may itself have been moved since the link was recorded)
 	float parentLeft = link.windowLeft, parentRight = link.windowRight;
@@ -1510,7 +1601,7 @@ OverlapParent(BMenu* menu, const ParentLink& link)
 	const float delta = parentOnLeft ? (parentRight + 1.0f - overlap) - frame.left
 		: (parentLeft - 1.0f + overlap) - frame.right;
 	// only the small gap between the windows; anything else is some other geometry and is left alone
-	if (fabsf(delta) >= 1.0f && fabsf(delta) <= 24.0f)
+	if (kShiftSideways && fabsf(delta) >= 1.0f && fabsf(delta) <= 24.0f)
 		window->MoveBy(delta, 0);
 	// the window opens a pixel below its parent's row; it is lifted so that its first row lines up with the parent's
 	const float lift = frame.top - link.rowTop;
@@ -1531,10 +1622,8 @@ public:
 		BWindow* window = dynamic_cast<BWindow*>(Looper());
 		if (window == NULL)
 			return B_DISPATCH_MESSAGE;
-		for (int32 i = 0; i < window->CountChildren(); i++) {
-			BMenu* menu = dynamic_cast<BMenu*>(window->ChildAt(i));
-			if (menu == NULL || !PillMenu(menu))
-				continue;
+		BMenu* menu = MenuOfWindow(window);
+		if (menu != NULL && PillMenu(menu)) {
 			ParentLink link;
 			{
 				BAutolock lock(LinkLock());
@@ -1708,6 +1797,38 @@ snake_arrow_hidden(BMenu* menu, BMenuItem* item)
 {
 	if (menu == NULL || item == NULL)
 		return false;
+	// The submenu is slid over its parent by less than the width of the arrows at the parents' right edge, so those of the
+	// parent's rows that lie beside the open submenu would be half covered by it: they are not drawn. The arrows of the other
+	// rows are in the clear.
+	if (PillMenu(menu) && menu->Window() != NULL) {
+		static std::map<BMenu*, bool>* hiding = new std::map<BMenu*, bool>();
+		bool covered = false;
+		BMenuItem* open = SelectedItem(menu);
+		BMenu* submenu = open != NULL ? open->Submenu() : NULL;
+		if (submenu != NULL && submenu->Window() != NULL && !submenu->Window()->IsHidden()) {
+			const BRect childFrame = submenu->Window()->Frame();
+			if (childFrame.left > menu->Window()->Frame().left) {
+				const BRect row = menu->ConvertToScreen(item->Frame());
+				const float middle = (row.top + row.bottom) / 2;
+				covered = middle >= childFrame.top - 1 && middle <= childFrame.bottom + 1;
+			}
+		}
+		bool wasHiding;
+		{
+			BAutolock lock(LinkLock());
+			bool& flag = (*hiding)[menu];
+			wasHiding = flag;
+			if (covered)
+				flag = true;
+			else if (submenu == NULL || submenu->Window() == NULL || submenu->Window()->IsHidden())
+				flag = false;
+		}
+		// (the submenu is gone: the rows that had no arrow get it back)
+		if (!covered && wasHiding && (submenu == NULL || submenu->Window() == NULL || submenu->Window()->IsHidden()))
+			menu->Invalidate();
+		if (covered)
+			return true;
+	}
 	TrailBar bar;
 	{
 		BAutolock lock(LinkLock());
@@ -1847,10 +1968,8 @@ public:
 		BWindow* window = dynamic_cast<BWindow*>(Looper());
 		if (window == NULL)
 			return B_SKIP_MESSAGE;
-		for (int32 i = 0; i < window->CountChildren(); i++) {
-			BMenu* menu = dynamic_cast<BMenu*>(window->ChildAt(i));
-			if (menu == NULL)
-				continue;
+		BMenu* menu = MenuOfWindow(window);
+		if (menu != NULL) {
 			menu->Invalidate();
 			BMenu* parent = menu->Supermenu();
 			if (parent != NULL && parent->Window() != NULL && parent->Window()->LockWithTimeout(0) == B_OK) {
@@ -1874,6 +1993,48 @@ HasRefreshFilter(BWindow* window)
 			return true;
 	}
 	return false;
+}
+
+
+static void
+RetryLater(BWindow* window, bool placed)
+{
+	static std::map<BWindow*, int>* tries = new std::map<BWindow*, int>();
+	{
+		BAutolock lock(LinkLock());
+		int& count = (*tries)[window];
+		if (placed) {
+			count = 0;
+			return;
+		}
+		if (++count > 8)
+			return;
+	}
+	if (!HasRefreshFilter(window))
+		window->AddCommonFilter(new RefreshFilter());
+	BMessage again('SnRf');
+	new BMessageRunner(BMessenger(window), &again, 60000, 1);	// (one shot; it goes with the window)
+}
+
+
+// Whatever went wrong on the way (a strip that came up behind the menu's own border, a window that moved after it was placed),
+// the menu is looked at once more a moment after it was opened: drawn again, which puts it all right. Once per opening.
+static void
+VerifyLater(BWindow* window)
+{
+	static std::map<BWindow*, bigtime_t>* last = new std::map<BWindow*, bigtime_t>();
+	const bigtime_t now = system_time();
+	{
+		BAutolock lock(LinkLock());
+		bigtime_t& when = (*last)[window];
+		if (when != 0 && now - when < 600000)
+			return;
+		when = now;
+	}
+	if (!HasRefreshFilter(window))
+		window->AddCommonFilter(new RefreshFilter());
+	BMessage again('SnRf');
+	new BMessageRunner(BMessenger(window), &again, 250000, 1);
 }
 
 
@@ -2170,7 +2331,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 				// pill's colour, and in the trail's colour along the bar, but not along the round ends of a bar that runs
 				// past the parent's row, where the join is open anyway), and by one over the top and one over the bottom
 				// border where they cross the parent.
-				if (!deskbarRoot) {
+				if (!deskbarRoot && kCoverBorder) {
 					BRect frame = menu->Window()->Frame();
 					const float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
 					float sTop = menu->ConvertToScreen(BPoint(0, top + vt)).y;
@@ -2179,7 +2340,10 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 						sTop += pillR;
 					if (extBottom)
 						sBottom -= pillR;
-					const float y0 = std::max(frame.top - 1, link.parentTop), y1 = std::min(frame.bottom + 1, link.parentBottom);
+					// (with the submenu beside its parent, not over it, the corners of its border stay: its top and bottom lines run
+					// on into the parent's own border)
+					const float edge = kShiftSideways ? 1.0f : 0.0f;
+					const float y0 = std::max(frame.top - edge, link.parentTop), y1 = std::min(frame.bottom + edge, link.parentBottom);
 					sTop = std::max(sTop, y0);
 					sBottom = std::min(sBottom, y1);
 					if (y1 > y0 && sBottom > sTop) {
@@ -2190,10 +2354,10 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 						bridged = true;
 
 						const float lx = parentOnLeft ? frame.left - 1 : link.windowLeft;
-						if (frame.top - 1 >= link.parentTop && frame.top - 1 <= link.parentBottom)
-							PlaceCover(menu, TopCovers(), BRect(lx, frame.top - 1, lx + 16, frame.top - 1), fillColor);
-						if (frame.bottom + 1 >= link.parentTop && frame.bottom + 1 <= link.parentBottom)
-							PlaceCover(menu, BottomCovers(), BRect(lx, frame.bottom + 1, lx + 16, frame.bottom + 1), fillColor);
+						if (kShiftSideways && frame.top - 1 >= link.parentTop && frame.top - 1 <= link.parentBottom)
+							PlaceCover(menu, TopCovers(), BRect(lx, frame.top - 1, lx + kOverlap, frame.top - 1), fillColor);
+						if (kShiftSideways && frame.bottom + 1 >= link.parentTop && frame.bottom + 1 <= link.parentBottom)
+							PlaceCover(menu, BottomCovers(), BRect(lx, frame.bottom + 1, lx + kOverlap, frame.bottom + 1), fillColor);
 					}
 				}
 			} else if (parentOnLeft) {
@@ -2735,6 +2899,72 @@ DrawFieldPill(BView* view, const BRect& rect, const rgb_color& base, uint32 flag
 }
 
 
+// The scroll tabs of a menu that is taller than the screen are drawn by the system's menu window (in libbe: the menu's
+// colour darkened, and a black arrow), which this add-on can't change. A view laid over each tab draws it in the pill
+// look instead: the pill's colour, and an arrow in the trail's colour that dims when there is nothing more to scroll
+// that way. The view goes with the tab when the window drops it.
+class ScrollTabOverlay : public BView {
+public:
+	ScrollTabOverlay(BRect frame, bool upper)
+		:
+		BView(frame, "snake scroll tab", B_FOLLOW_ALL, B_WILL_DRAW),
+		fUpper(upper)
+	{
+		SetViewColor(B_TRANSPARENT_COLOR);
+	}
+
+	virtual void Draw(BRect updateRect)
+	{
+		rgb_color fill, hot, text;
+		PillColors(&fill, &hot, &text);
+
+		bool more = false;
+		BView* frameView = Window() != NULL ? Window()->FindView("menu frame") : NULL;
+		BMenu* menu = frameView != NULL ? dynamic_cast<BMenu*>(frameView->ChildAt(0)) : NULL;
+		if (menu != NULL) {
+			const float offset = menu->Bounds().top;
+			const float limit = menu->Bounds().Height() - frameView->Bounds().Height();
+			more = fUpper ? offset > 0.5f : offset < limit - 0.5f;
+		}
+
+		const BRect bounds = Bounds();
+		SetDrawingMode(B_OP_COPY);
+		SetHighColor(fill);
+		FillRect(bounds);
+
+		SetHighColor(more ? hot : MixColors(hot, fill, 0.6f));
+		SetDrawingMode(B_OP_ALPHA);
+		SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+		const float middle = floorf(bounds.Width() / 2.0f) + 0.5f;
+		const float mid = floorf(bounds.Height() / 2.0f) + 0.5f;
+		if (fUpper) {
+			FillTriangle(BPoint(middle, mid - 3.0f), BPoint(middle + 5.0f, mid + 2.5f), BPoint(middle - 5.0f, mid + 2.5f));
+		} else {
+			FillTriangle(BPoint(middle, mid + 3.0f), BPoint(middle + 5.0f, mid - 2.5f), BPoint(middle - 5.0f, mid - 2.5f));
+		}
+	}
+
+private:
+	bool	fUpper;
+};
+
+
+static void
+EnsureScrollTabs(BMenu* menu)
+{
+	BWindow* window = menu->Window();
+	if (window == NULL)
+		return;
+	for (int32 i = 0; i < window->CountChildren(); i++) {
+		BView* tab = window->ChildAt(i);
+		if (strcmp(tab->Name(), "menu scroller") != 0 || tab->CountChildren() > 0)
+			continue;
+		const bool upper = tab->Frame().top < window->Bounds().Height() / 2.0f;
+		tab->AddChild(new ScrollTabOverlay(tab->Bounds(), upper));
+	}
+}
+
+
 class SnakeControlLook : public HaikuControlLook {
 public:
 	SnakeControlLook() {}
@@ -2747,6 +2977,7 @@ public:
 		BMenu* menu = dynamic_cast<BMenu*>(view);
 		if (menu != NULL && PillMenu(menu)) {
 			DrawPillBase(menu);
+			EnsureScrollTabs(menu);
 			DrawTrail(menu, updateRect, true);
 			return;
 		}

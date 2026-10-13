@@ -1,8 +1,15 @@
-# snaketracker 1.0.40
+# snaketracker 1.0.41
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Submenus open beside their parent, not over it.** They are no longer slid 16 pixels over the parent, which removes most of the artifacts the overlap caused (the stray black vertical line among them). A submenu is lifted a pixel or two so its first row lines up with the parent's, and the parent's black border runs on into the submenu's top and bottom lines. The arrows on the parent's rows that lie beside the open submenu are not drawn (they come back when it closes), so there is no half arrow at its edge.
+- **Menus that show their frame occasionally no longer do.** The redraws that were meant to put right a menu whose border strip could not be placed never ran, because they looked for the menu in the wrong place. They run now, a menu is looked at once more a moment after it opens, a hide that arrives late can no longer take down a strip placed for the next menu, and a submenu no longer trusts a parent position saved from an earlier opening.
+- **The scroll tabs of long menus are in the snake look.** The top and bottom tabs of a menu taller than the screen are the pill's colour, with an arrow in the trail's colour that dims when there is nothing more to scroll that way.
+- **The Attributes menu of Tracker's windows is in the snake look.** It only shows in List view, and it and its file-type submenus were left out of the last update.
+- **Rounded corners:** the corner of a menu that faces an open submenu is square where the submenu reaches it, so no backdrop shows between the two; and the mouse pointer no longer leaves a white speck in the corner of a menu (some drivers draw the pointer into the screen, so it was in the captured picture).
+
+Since 1.0.40 (if you skipped it):
 - **A SnakeTracker pane in Tracker preferences.** All of SnakeTracker's options moved from the Windows pane to a pane of their own, which has a **[?]** beside each option that explains it when the pointer rests on it. New in it:
   - **Enable rounded corners on Tracker** (off by default). The menus' own corners are square now, so Haiku's black window outline fits round them; with this on they are rounded and the outline shows as a square frame round the menu.
   - **Use system colors for Deskbar** and **Use system colors for Tracker.** On, that program takes the colors of Haiku's Appearance preferences (menu background and selection) in place of the SnakeTracker color.
@@ -112,4 +119,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.40-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.40-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.41-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.41-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.

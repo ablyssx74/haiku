@@ -1772,7 +1772,7 @@ BContainerWindow::AddMenus()
 	AddWindowMenu(fWindowMenu);
 
 	// create Attributes menu, add it later
-	fAttrMenu = new BMenu(B_TRANSLATE("Attributes"));
+	fAttrMenu = new SnakeMenu(B_TRANSLATE("Attributes"));
 	NewAttributesMenu(fAttrMenu);
 
 	// create "Arrange By >" menu, add it later
@@ -3316,7 +3316,7 @@ BContainerWindow::NewAttributesMenu()
 	if (fAttrMenu != NULL)
 		delete fAttrMenu;
 
-	fAttrMenu = new BMenu(B_TRANSLATE("Attributes"));
+	fAttrMenu = new SnakeMenu(B_TRANSLATE("Attributes"));
 
 	NewAttributesMenu(fAttrMenu);
 }
@@ -3488,7 +3488,7 @@ BContainerWindow::AddMimeMenu(const BMimeType& mimeType, bool isSuperType,
 	if (isSuperType) {
 		// If it is a supertype, we create the menu anyway as it may have
 		// submenus later on.
-		mimeMenu = new BMenu(label);
+		mimeMenu = new SnakeMenu(label);
 		BFont font;
 		menu->GetFont(&font);
 		mimeMenu->SetFont(&font);
@@ -3520,7 +3520,7 @@ BContainerWindow::AddMimeMenu(const BMimeType& mimeType, bool isSuperType,
 
 		if (mimeMenu == NULL) {
 			// do a lazy allocation of the menu
-			mimeMenu = new BMenu(label);
+			mimeMenu = new SnakeMenu(label);
 			BFont font;
 			menu->GetFont(&font);
 			mimeMenu->SetFont(&font);

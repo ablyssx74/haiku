@@ -1378,6 +1378,57 @@ WantsMenuTile(BMenu* menu)
 }
 
 
+// Some drivers draw the mouse pointer into the screen itself, and it is then part of a captured picture, whatever is asked of
+// BScreen (it shows as a white speck in a rounded corner of the menu that opens at the pointer). The picture is mended
+// where the pointer is, line by line from the pixels on either side of it.
+static void
+EraseCursor(BBitmap* bitmap, const BRect& rect)
+{
+	if (bitmap->ColorSpace() != B_RGB32 && bitmap->ColorSpace() != B_RGBA32)
+		return;
+	BPoint where;
+	uint32 buttons;
+	if (get_mouse(&where, &buttons) != B_OK)
+		return;
+	int32 cursorWidth = 32, cursorHeight = 32;
+	BPoint hotSpot(0, 0);
+	BBitmap* cursor = NULL;
+	if (get_mouse_bitmap(&cursor, &hotSpot) == B_OK && cursor != NULL) {
+		cursorWidth = (int32)cursor->Bounds().Width() + 1;
+		cursorHeight = (int32)cursor->Bounds().Height() + 1;
+	}
+	delete cursor;
+
+	const int32 width = (int32)bitmap->Bounds().Width() + 1, height = (int32)bitmap->Bounds().Height() + 1;
+	const int32 left = (int32)floorf(where.x - hotSpot.x - rect.left) - 1;
+	const int32 top = (int32)floorf(where.y - hotSpot.y - rect.top) - 1;
+	const int32 right = left + cursorWidth + 1, bottom = top + cursorHeight + 1;
+	const int32 y0 = std::max(top, (int32)0), y1 = std::min(bottom, height - 1);
+	if (left > width - 1 || right < 0 || y0 > y1)
+		return;
+
+	uint8* bits = (uint8*)bitmap->Bits();
+	const int32 stride = bitmap->BytesPerRow();
+	const int32 x0 = std::max(left, (int32)0), x1 = std::min(right, width - 1);
+	for (int32 y = y0; y <= y1; y++) {
+		uint8* row = bits + y * stride;
+		const bool haveLeft = left - 1 >= 0, haveRight = right + 1 <= width - 1;
+		if (!haveLeft && !haveRight)
+			continue;
+		const uint8* from = row + (haveLeft ? left - 1 : right + 1) * 4;
+		const uint8* to = row + (haveRight ? right + 1 : left - 1) * 4;
+		uint8 a[4], b[4];
+		memcpy(a, from, 4);
+		memcpy(b, to, 4);
+		for (int32 x = x0; x <= x1; x++) {
+			const float t = right > left ? (float)(x - left) / (float)(right - left) : 0.0f;
+			for (int k = 0; k < 4; k++)
+				row[x * 4 + k] = (uint8)(a[k] + (b[k] - a[k]) * t + 0.5f);
+		}
+	}
+}
+
+
 void
 CaptureMenuTile(BRect region)
 {
@@ -1395,6 +1446,7 @@ CaptureMenuTile(BRect region)
 	BBitmap* bitmap = NULL;
 	if (screen.GetBitmap(&bitmap, false, &rect) != B_OK || bitmap == NULL)
 		return;
+	EraseCursor(bitmap, rect);
 	sAddTile(bitmap, rect);	// (it takes the picture)
 }
 
