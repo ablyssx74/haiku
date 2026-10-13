@@ -1038,7 +1038,10 @@ XfwmTheme::XfwmTheme()
 	fHasInactiveText(false),
 	fButtonOffset(0),
 	fButtonSpacing(0),
-	fButtonLayout("O|HMC")
+	fButtonLayout("O|HMC"),
+	fButtonsInTab(false),
+	fHasOffsetRight(false),
+	fButtonOffsetRight(0)
 {
 	fOutline.red = fOutline.green = fOutline.blue = 0;
 	fOutline.alpha = 255;
@@ -1334,6 +1337,11 @@ XfwmTheme::_ReadThemerc(const char* path)
 			fButtonLayout = value;
 		else if (strcmp(key, "button_offset") == 0)
 			fButtonOffset = atoi(value);
+		else if (strcmp(key, "button_offset_right") == 0) {
+			fButtonOffsetRight = atoi(value);
+			fHasOffsetRight = true;
+		} else if (strcmp(key, "buttons_in_tab") == 0)
+			fButtonsInTab = strcmp(value, "false") != 0 && strcmp(value, "0") != 0;
 		else if (strcmp(key, "button_spacing") == 0)
 			fButtonSpacing = atoi(value);
 	}

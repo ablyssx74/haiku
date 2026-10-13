@@ -110,6 +110,7 @@ private:
 			void				_IncludeTab(BRegion& region, Decorator::Tab* tab, const BarLayout& bar) const;
 			void				_IncludeRow(BRegion& region, const XfwmImage& image, int32 from, int32 end, int32 y) const;
 			int32				_IndexOf(Decorator::Tab* tab) const;
+			int32				_RoomForTabButtons(Decorator::Tab* tab) const;
 			void				_Blit(const XfwmImage& image, BPoint at);
 			void				_BlitTiled(const XfwmImage& image, BRect area, bool horizontal);
 

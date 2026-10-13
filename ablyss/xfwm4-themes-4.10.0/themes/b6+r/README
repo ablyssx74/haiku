@@ -1,0 +1,5 @@
+b6+r
+--
+
+b6 with the buttons of Haiku's own decorator: the close button at the left end of the tab and the zoom button at its right
+end (round), in place of the three at the far right of the bar. Made by decorators-native/make_b6plus.py from b6.

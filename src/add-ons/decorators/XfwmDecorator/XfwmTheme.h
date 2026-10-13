@@ -135,6 +135,10 @@ public:
 			int32				ButtonOffset() const { return fButtonOffset; }
 			int32				ButtonSpacing() const { return fButtonSpacing; }
 			const BString&		ButtonLayout() const { return fButtonLayout; }
+			// the buttons are in the tab (the close button at its left end, the others at its right end, as Haiku's own
+			// decorator has them), not at the ends of the whole bar; button_offset_right is the room at the tab's right end
+			bool				ButtonsInTab() const { return fButtonsInTab; }
+			int32				ButtonOffsetRight() const { return fHasOffsetRight ? fButtonOffsetRight : fButtonOffset; }
 
 private:
 			void				_ReadThemerc(const char* path);
@@ -181,6 +185,9 @@ private:
 			int32				fButtonOffset;
 			int32				fButtonSpacing;
 			BString				fButtonLayout;
+			bool				fButtonsInTab;
+			bool				fHasOffsetRight;
+			int32				fButtonOffsetRight;
 			BString				fName;
 };
 

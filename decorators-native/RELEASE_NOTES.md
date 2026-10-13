@@ -1,9 +1,9 @@
-# xfwm_decorators 1.0.8
+# xfwm_decorators 1.0.9
 
-Window decorators for Haiku made from xfwm4 themes. One decorator draws any xfwm4 theme, and the package carries 93 of them. Pick one in **Appearance > Decorator** (entries named "xfwm4: <theme>"), for example `xfwm4: b6`.
+Window decorators for Haiku made from xfwm4 themes. One decorator draws any xfwm4 theme, and the package carries 95 of them. Pick one in **Appearance > Decorator** (entries named "xfwm4: <theme>"), for example `xfwm4: b6`.
 
 ## Install
-Two packages are attached: `xfwm_decorators-1.0.8-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.8-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
+Two packages are attached: `xfwm_decorators-1.0.9-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.9-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
 
 ## Hover effect (on by default)
 The close, zoom and minimize buttons light up under the pointer. app_server tells a decorator nothing while the pointer only moves over it, so the effect is done from outside and is still young: fast pointer movement over the buttons has occasionally been seen to misdraw on real hardware, and in one or two themes the minimize button stopped answering after its window had been minimized and brought back. If you see either, turn it off:
@@ -16,7 +16,11 @@ xfwm-hover status
 
 It takes effect within a second, with no restart. Themes that ship hover pictures (`default-4.6`, `default-4.8`) use them; for the others the button's own picture is tinted, and the tint follows the button's shape: a round button gets a round highlight and a square one a square highlight, while a button that is only a symbol on the title bar gets the whole box. A dark button gets lighter and a light one darker; the symbol keeps its colors. (`galaxy`'s round buttons still get a square highlight: their pictures have a shadow behind them that can't be told from the button.)
 
-## Changes since 1.0.7
+## Changes since 1.0.8
+- **Two new themes, `b6+` and `b6+r`.** They are b6 with the buttons of Haiku's own decorator in the tab: the close button at the left end of the tab and the zoom button at its right end, in place of the three at the far right of the bar. The buttons are pale yellow with a golden frame, square in `b6+` and round in `b6+r`; a pressed button is darker, and a window that is not the active one has paler ones. Pick them in Appearance as **xfwm4: b6+** and **xfwm4: b6+r**.
+- **Themes can put their buttons in the tab.** A theme's `themerc` can now say `buttons_in_tab=true`: the buttons on the left of the `|` in `button_layout` go at the left end of the front tab, those on its right at the tab's right end, and the tab is made a little wider so the title does not run up to them. `button_offset` is the room at the left end and the new `button_offset_right` the room at the right end. No other theme uses it, so they are drawn as before.
+
+Changes in 1.0.8 (if you skipped it):
 - **Title text shadows.** The 41 themes that ask for a shadow behind the title text now get one. `true` and `under` draw a copy of the title one pixel down and to the right, and `frame` draws one on every side of the letters, which reads as an outline. A theme can name its own shadow colour (six do); otherwise the shadow is black behind light text and white behind dark text. Themes that ask for no shadow are unchanged.
 - **The decorator list in Appearance is in alphabetical order.** It used to come out Z to A, because a package's directory is listed in the reverse of the order its files were added. The package now adds the decorators from Z to A, which turns the list around. This relies on how packagefs lists a directory.
 - **The Deskbar's top bar no longer grows with the theme.** The Deskbar makes its Be menu bar as high as a window's title tab and asks the decorator for that height when it starts, and a theme's title artwork can be much taller than a title (35 pixels in `b6`, 42 in `kde`). The decorator now reports the height the default decorator would have for the same font. The Deskbar only reads it when it starts, so restart it, or log out and in, after you change theme.
