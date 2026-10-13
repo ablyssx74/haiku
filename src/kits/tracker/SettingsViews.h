@@ -174,6 +174,7 @@ private:
 	BCheckBox* fSnakeRoundCheckBox;
 	BCheckBox* fSnakeSysDeskbarCheckBox;
 	BCheckBox* fSnakeSysTrackerCheckBox;
+	BCheckBox* fSnakeAllAppsCheckBox;
 	BColorControl* fSnakeAccentControl;
 	SnakeColorSwatch* fSnakeAccentSwatch;
 	BButton* fRestartButton;
@@ -185,6 +186,7 @@ private:
 	bool fSnakeRound;
 	bool fSnakeSysDeskbar;
 	bool fSnakeSysTracker;
+	bool fSnakeAllApps;
 	rgb_color fSnakeAccent;
 
 	typedef SettingsView _inherited;

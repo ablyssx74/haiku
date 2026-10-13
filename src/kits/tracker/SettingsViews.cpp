@@ -888,6 +888,7 @@ SnakeSettingsView::SnakeSettingsView()
 	fSnakeRoundCheckBox(NULL),
 	fSnakeSysDeskbarCheckBox(NULL),
 	fSnakeSysTrackerCheckBox(NULL),
+	fSnakeAllAppsCheckBox(NULL),
 	fSnakeAccentControl(NULL),
 	fSnakeAccentSwatch(NULL),
 	fRestartButton(NULL),
@@ -898,6 +899,7 @@ SnakeSettingsView::SnakeSettingsView()
 	fSnakeRound(kDefaultSnakeRoundCorners),
 	fSnakeSysDeskbar(kDefaultSnakeSystemColorsDeskbar),
 	fSnakeSysTracker(kDefaultSnakeSystemColorsTracker),
+	fSnakeAllApps(kDefaultSnakeAllApps),
 	fSnakeAccent(kDefaultSnakeAccent)
 {
 	fSnakeLookCheckBox = new BCheckBox("",
@@ -914,6 +916,8 @@ SnakeSettingsView::SnakeSettingsView()
 		B_TRANSLATE("Use system colors for Deskbar"), new BMessage(kSnakeSysDeskbarChanged));
 	fSnakeSysTrackerCheckBox = new BCheckBox("",
 		B_TRANSLATE("Use system colors for Tracker"), new BMessage(kSnakeSysTrackerChanged));
+	fSnakeAllAppsCheckBox = new BCheckBox("",
+		B_TRANSLATE("Snake look in all programs"), new BMessage(kSnakeAllAppsChanged));
 
 	fSnakeAccentControl = new BColorControl(BPoint(0, 0), B_CELLS_32x8, 4,
 		"snake_accent", new BMessage(kSnakeAccentChanged));
@@ -947,6 +951,9 @@ SnakeSettingsView::SnakeSettingsView()
 			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeSysTrackerCheckBox)
 				.Add(HelpMark(B_TRANSLATE("On: Tracker uses the colors of Haiku's Appearance\nsettings (the menu background and selection colors).\nOff: it uses the SnakeTracker color.")))
 				.AddGlue().End()
+			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeAllAppsCheckBox)
+				.Add(HelpMark(B_TRANSLATE("The pill look for the menus of every program that\nuses Haiku's own menus, in Haiku's Appearance colors,\nwith square corners. Programs that draw their own menus\ndo not change. Menus pick it up as they open.")))
+				.AddGlue().End()
 			.AddGroup(B_HORIZONTAL, spacing / 2)
 				.Add(new BStringView("", B_TRANSLATE("SnakeTracker color:")))
 				.Add(fSnakeAccentSwatch)
@@ -975,6 +982,7 @@ SnakeSettingsView::AttachedToWindow()
 	fSnakeRoundCheckBox->SetTarget(this);
 	fSnakeSysDeskbarCheckBox->SetTarget(this);
 	fSnakeSysTrackerCheckBox->SetTarget(this);
+	fSnakeAllAppsCheckBox->SetTarget(this);
 	fSnakeAccentControl->SetTarget(this);
 	fRestartButton->SetTarget(this);
 }
@@ -1021,6 +1029,11 @@ SnakeSettingsView::MessageReceived(BMessage* message)
 			Window()->PostMessage(kSettingsContentsModified);
 			break;
 
+		case kSnakeAllAppsChanged:
+			settings.SetSnakeAllApps(fSnakeAllAppsCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+
 		case kSnakeAccentChanged:
 			settings.SetSnakeAccent(fSnakeAccentControl->ValueAsColor());
 			fSnakeAccentSwatch->SetColor(fSnakeAccentControl->ValueAsColor());
@@ -1049,6 +1062,7 @@ SnakeSettingsView::SetDefaults()
 	settings.SetSnakeRoundCorners(kDefaultSnakeRoundCorners);
 	settings.SetSnakeSystemColorsDeskbar(kDefaultSnakeSystemColorsDeskbar);
 	settings.SetSnakeSystemColorsTracker(kDefaultSnakeSystemColorsTracker);
+	settings.SetSnakeAllApps(kDefaultSnakeAllApps);
 	settings.SetSnakeAccent(kDefaultSnakeAccent);
 	ShowCurrentSettings();
 }
@@ -1065,6 +1079,7 @@ SnakeSettingsView::IsDefaultable() const
 		|| settings.SnakeRoundCorners() != kDefaultSnakeRoundCorners
 		|| settings.SnakeSystemColorsDeskbar() != kDefaultSnakeSystemColorsDeskbar
 		|| settings.SnakeSystemColorsTracker() != kDefaultSnakeSystemColorsTracker
+		|| settings.SnakeAllApps() != kDefaultSnakeAllApps
 		|| _ColorValue(settings.SnakeAccent()) != _ColorValue(kDefaultSnakeAccent);
 }
 
@@ -1080,6 +1095,7 @@ SnakeSettingsView::Revert()
 	settings.SetSnakeRoundCorners(fSnakeRound);
 	settings.SetSnakeSystemColorsDeskbar(fSnakeSysDeskbar);
 	settings.SetSnakeSystemColorsTracker(fSnakeSysTracker);
+	settings.SetSnakeAllApps(fSnakeAllApps);
 	settings.SetSnakeAccent(fSnakeAccent);
 	ShowCurrentSettings();
 }
@@ -1096,6 +1112,7 @@ SnakeSettingsView::ShowCurrentSettings()
 	fSnakeRoundCheckBox->SetValue(settings.SnakeRoundCorners());
 	fSnakeSysDeskbarCheckBox->SetValue(settings.SnakeSystemColorsDeskbar());
 	fSnakeSysTrackerCheckBox->SetValue(settings.SnakeSystemColorsTracker());
+	fSnakeAllAppsCheckBox->SetValue(settings.SnakeAllApps());
 	fSnakeAccentControl->SetValue(settings.SnakeAccent());
 	fSnakeAccentSwatch->SetColor(settings.SnakeAccent());
 }
@@ -1112,6 +1129,7 @@ SnakeSettingsView::RecordRevertSettings()
 	fSnakeRound = settings.SnakeRoundCorners();
 	fSnakeSysDeskbar = settings.SnakeSystemColorsDeskbar();
 	fSnakeSysTracker = settings.SnakeSystemColorsTracker();
+	fSnakeAllApps = settings.SnakeAllApps();
 	fSnakeAccent = settings.SnakeAccent();
 }
 
@@ -1127,6 +1145,7 @@ SnakeSettingsView::IsRevertable() const
 		|| fSnakeRound != settings.SnakeRoundCorners()
 		|| fSnakeSysDeskbar != settings.SnakeSystemColorsDeskbar()
 		|| fSnakeSysTracker != settings.SnakeSystemColorsTracker()
+		|| fSnakeAllApps != settings.SnakeAllApps()
 		|| _ColorValue(fSnakeAccent) != _ColorValue(settings.SnakeAccent());
 }
 

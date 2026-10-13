@@ -108,6 +108,8 @@ public:
 	void SetSnakeSystemColorsDeskbar(bool value);
 	bool SnakeSystemColorsTracker();
 	void SetSnakeSystemColorsTracker(bool value);
+	bool SnakeAllApps();
+	void SetSnakeAllApps(bool value);
 	bool SnakeArrows();
 	void SetSnakeArrows(bool arrows);
 	bool SnakeSidePanel();

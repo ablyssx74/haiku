@@ -1,8 +1,14 @@
-# snaketracker 1.0.42
+# snaketracker 1.0.43
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **The menus of every program have the snake look.** Programs that use Haiku's own menus (StyledEdit, Terminal and the like) get the pill look now: a panel in the SnakeTracker color, with the lit row raised and the snake trail joining the submenus. The menus have square corners, and menu bars and programs that draw their own menus (Qt, GTK and others) are not changed. It is on by default; turn it off with **Snake look in all programs** in Tracker preferences > SnakeTracker. A program takes the new look when it is opened.
+- **The colors follow the SnakeTracker preferences.** Other programs' menus use the SnakeTracker color, or Haiku's own colors when **Use system colors for Tracker** is on. The text of a stock menu item can't be changed, so the panel suits it: a light tint of the color on a light theme, a dark shade of it on a dark one.
+- **The menus of the Deskbar's tray icons have it too.** The popup an icon opens (the network icon, ProcessController, the clock and the like) is drawn in the pill look, without any change to those programs.
+- **ProcessController's menus have no arrows.** Every row of them opens a list, and an arrow on each only crowded the usage bars. The rows still open as before.
+
+Since 1.0.42 (if you skipped it):
 - **The side panel's selected pill is drawn whole when the window is activated.** Its colour is paler in a window that is not the active one, and only the part of the line that was uncovered was drawn again, which left the end of the pill in the other colour.
 
 Since 1.0.41 (if you skipped it):
@@ -122,4 +128,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.42-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.42-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.43-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.43-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.

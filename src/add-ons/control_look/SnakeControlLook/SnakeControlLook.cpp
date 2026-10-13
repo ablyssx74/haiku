@@ -98,13 +98,14 @@ static bool sLook = true;
 static bool sRound = false;
 static bool sSysDeskbar = false;
 static bool sSysTracker = false;
+static bool sAllApps = true;
 static bigtime_t sLastCheck = -kCheckInterval;
 
 
 // Tracker's settings file is plain text, one "Name value" per line.
 static void
 ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat, bool& arrows, bool& look, bool& round, bool& sysDeskbar,
-	bool& sysTracker)
+	bool& sysTracker, bool& allApps)
 {
 	BPath path;
 	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) != B_OK
@@ -133,6 +134,9 @@ ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat, bool& arrows, bo
 		} else if (strncmp(line, "SnakeSystemColorsTracker ", 25) == 0) {
 			sysTracker = strncmp(line + 25, "on", 2) == 0 || strncmp(line + 25, "1", 1) == 0
 				|| strncmp(line + 25, "true", 4) == 0;
+		} else if (strncmp(line, "SnakeAllApps ", 13) == 0) {
+			allApps = strncmp(line + 13, "on", 2) == 0 || strncmp(line + 13, "1", 1) == 0
+				|| strncmp(line + 13, "true", 4) == 0;
 		} else if (strncmp(line, "SnakeLook ", 10) == 0) {
 			look = strncmp(line + 10, "off", 3) != 0 && strncmp(line + 10, "0", 1) != 0
 				&& strncmp(line + 10, "false", 5) != 0;
@@ -158,8 +162,8 @@ RefreshSettings()
 	bool trail = true;
 	bool flat = true;
 	bool arrows = false;
-	bool look = true, round = false, sysDeskbar = false, sysTracker = false;
-	ReadTrackerSettings(accent, trail, flat, arrows, look, round, sysDeskbar, sysTracker);
+	bool look = true, round = false, sysDeskbar = false, sysTracker = false, allApps = true;
+	ReadTrackerSettings(accent, trail, flat, arrows, look, round, sysDeskbar, sysTracker, allApps);
 
 	BPath path;
 	if (be_roster != NULL && be_roster->IsRunning(kHDesktopSignature)
@@ -188,6 +192,7 @@ RefreshSettings()
 	sRound = round;
 	sSysDeskbar = sysDeskbar;
 	sSysTracker = sysTracker;
+	sAllApps = allApps;
 }
 
 
@@ -212,12 +217,30 @@ SnakeProgram()
 
 // Whether this program (Tracker or the Deskbar) takes Haiku's own colors (the Appearance preferences) in place of the
 // SnakeTracker color.
+// Whether the menus of the other programs (those that use Haiku's own menus) are in the pill look too (the Tracker preference
+// "Snake look in all programs"): square, in Haiku's own colors, so the stock items' text always suits the panel.
+static bool
+AllAppsLook()
+{
+	if (SnakeProgram() != 0)
+		return false;
+	RefreshSettings();
+	BAutolock lock(SettingsLock());
+	return sAllApps;
+}
+
+
 static bool
 SystemColors()
 {
 	const int program = SnakeProgram();
-	if (program == 0)
-		return false;
+	if (program == 0) {
+		// another program's menus follow Tracker's color settings
+		if (!AllAppsLook())
+			return false;
+		BAutolock lock(SettingsLock());
+		return sSysTracker;
+	}
 	RefreshSettings();
 	BAutolock lock(SettingsLock());
 	return program == 1 ? sSysDeskbar : sSysTracker;
@@ -1363,6 +1386,64 @@ RootMenu(BMenu* menu)
 }
 
 
+// Whether this menu is one of another program's own: a menu of a program other than Tracker and the Deskbar (and, in the
+// Deskbar, a popup of its own that a tray icon opened: not one of its own menus), with Haiku's stock items. They draw their
+// text in the system's menu text color, so the pill is made to suit it (see PillColors()), and the pill look is the
+// preference "Snake look in all programs".
+static bool
+StockMenu(BMenu* menu)
+{
+	const int program = SnakeProgram();
+	if (program == 2)
+		return false;
+	if (program == 0)
+		return AllAppsLook();
+	if (program != 1)
+		return false;
+	{
+		RefreshSettings();
+		BAutolock lock(SettingsLock());
+		if (!sAllApps)
+			return false;
+	}
+	BMenu* root = RootMenu(menu);
+	const char* name = typeid(*root).name();
+	return dynamic_cast<BPopUpMenu*>(root) != NULL && strstr(name, "BPrivate") == NULL && strstr(name, "TDeskbar") == NULL
+		&& strstr(name, "TWindow") == NULL && strstr(name, "TTeam") == NULL;
+}
+
+
+// The pill's colors for a menu of another program: Haiku's own when the Tracker preference says so, otherwise the
+// SnakeTracker color; the pill is light on a light theme and dark on a dark one (the stock items' text is dark on the one and
+// light on the other), and the lit row is the SnakeTracker color.
+static void
+StockPillColors(BMenu* menu, rgb_color* fill, rgb_color* hot, rgb_color* text)
+{
+	const rgb_color itemText = ui_color(B_MENU_ITEM_TEXT_COLOR);
+	if (SystemColors()) {
+		*fill = ui_color(B_MENU_BACKGROUND_COLOR);
+		*hot = ui_color(B_MENU_SELECTION_BACKGROUND_COLOR);
+		*text = itemText;
+		return;
+	}
+	const rgb_color white = make_color(255, 255, 255), black = make_color(0, 0, 0);
+	const bool lightText = Luminance(itemText) > 128.0f;
+	*fill = lightText ? MixColors(Accent(), black, 0.68f) : MixColors(Accent(), white, 0.5f);
+	*hot = MixColors(Accent(), white, lightText ? 0.18f : 0.0f);
+	*text = itemText;
+}
+
+
+static void
+PillColors(BMenu* menu, rgb_color* fill, rgb_color* hot, rgb_color* text)
+{
+	if (menu != NULL && StockMenu(menu))
+		StockPillColors(menu, fill, hot, text);
+	else
+		PillColors(fill, hot, text);
+}
+
+
 // Whether this menu level is drawn in the pill look.
 static bool
 PillMenu(BMenu* menu)
@@ -1370,6 +1451,12 @@ PillMenu(BMenu* menu)
 	if (menu == NULL || menu->Window() == NULL || dynamic_cast<BMenuBar*>(menu) != NULL || !CustomLook())
 		return false;
 	BMenu* root = RootMenu(menu);
+	if (StockMenu(menu)) {
+		// another program's menu: a popup menu, or one under a menu bar; nothing is captured (the corners are square), and its
+		// items are stock ones, which draw their text in Haiku's own menu colors
+		return dynamic_cast<BPopUpMenu*>(root) != NULL
+			|| (root->Supermenu() != NULL && dynamic_cast<BMenuBar*>(root->Supermenu()) != NULL);
+	}
 	// a popup menu, or the Deskbar's own menu
 	// (or the Deskbar's list of programs, when it is a menu, or the window menu of a program in it)
 	// (or a menu under the menu bar of one of Tracker's windows: File, Window, ...)
@@ -1519,7 +1606,7 @@ DrawPillBase(BMenu* menu)
 		radius = 3.0f;
 
 	rgb_color fill, hot, text;
-	PillColors(&fill, &hot, &text);
+	PillColors(menu, &fill, &hot, &text);
 
 	menu->PushState();
 	menu->SetDrawingMode(B_OP_COPY);
@@ -2269,7 +2356,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 	if (pill && deskbarRoot && !deskbarBeside) {
 		BRect frame = menu->Window()->Frame();
 		rgb_color fillColor, hotColor, textUnused;
-		PillColors(&fillColor, &hotColor, &textUnused);
+		PillColors(menu, &fillColor, &hotColor, &textUnused);
 		const float x0 = parentOnLeft ? frame.left : frame.right - barW + 1;
 		if (deskbarAbove)
 			PlaceCover(menu, BottomCovers(), BRect(x0, frame.bottom + 1, x0 + barW - 1, frame.bottom + 1), hotColor);
@@ -2290,7 +2377,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		}
 		if (y1 > frame.top) {
 			rgb_color fillColor, hotColor, textUnused;
-			PillColors(&fillColor, &hotColor, &textUnused);
+			PillColors(menu, &fillColor, &hotColor, &textUnused);
 			PlaceBridge(menu, BRect(x, frame.top, x, y1), frame.top, frame.bottom, hotColor);
 			bridged = true;
 		}
@@ -2348,7 +2435,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 					sBottom = std::min(sBottom, y1);
 					if (y1 > y0 && sBottom > sTop) {
 						rgb_color fillColor, hotColor, textUnused;
-						PillColors(&fillColor, &hotColor, &textUnused);
+						PillColors(menu, &fillColor, &hotColor, &textUnused);
 						PlaceBridge(menu, BRect(x, y0, x, y1), link.parentTop, link.parentBottom, hotColor, fillColor,
 							(int)(sTop - y0), (int)(sBottom - y0));
 						bridged = true;
@@ -2511,7 +2598,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		if (flat.InitCheck() != B_OK)
 			return;
 		rgb_color hot, fillUnused, textUnused;
-		PillColors(&fillUnused, &hot, &textUnused);
+		PillColors(menu, &fillUnused, &hot, &textUnused);
 		uint8* fbits = (uint8*)flat.Bits();
 		const int32 fbpr = flat.BytesPerRow();
 		std::vector<float> lit((size_t)bw * bh), shadow;
@@ -2915,12 +3002,12 @@ public:
 
 	virtual void Draw(BRect updateRect)
 	{
-		rgb_color fill, hot, text;
-		PillColors(&fill, &hot, &text);
-
-		bool more = false;
 		BView* frameView = Window() != NULL ? Window()->FindView("menu frame") : NULL;
 		BMenu* menu = frameView != NULL ? dynamic_cast<BMenu*>(frameView->ChildAt(0)) : NULL;
+		rgb_color fill, hot, text;
+		PillColors(menu, &fill, &hot, &text);
+
+		bool more = false;
 		if (menu != NULL) {
 			const float offset = menu->Bounds().top;
 			const float limit = menu->Bounds().Height() - frameView->Bounds().Height();
@@ -3885,6 +3972,27 @@ public:
 		view->PopState();
 	}
 
+	// ProcessController's menus: every row opens a list of the programs' threads, memory and the like, and an arrow on each
+	// of them only crowds the usage bars drawn in the row, so those arrows are left out (in the pill look of other programs'
+	// menus; the rows still open their submenus as before).
+	static bool BarMenu(BMenu* menu)
+	{
+		const char* name = typeid(*menu).name();
+		return strstr(name, "BarMenu") != NULL || strstr(name, "QuitMenu") != NULL || strstr(name, "PriorityMenu") != NULL
+			|| (menu->Name() != NULL && strcmp(menu->Name(), "Global Popup") == 0);
+	}
+
+	virtual	void DrawArrowShape(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base, uint32 direction,
+		uint32 flags = 0, float tint = B_DARKEN_MAX_TINT)
+	{
+		if (direction == B_RIGHT_ARROW) {
+			BMenu* menu = dynamic_cast<BMenu*>(view);
+			if (menu != NULL && menu->Window() != NULL && StockMenu(menu) && BarMenu(menu))
+				return;
+		}
+		HaikuControlLook::DrawArrowShape(view, rect, updateRect, base, direction, flags, tint);
+	}
+
 	virtual	void DrawMenuItemBackground(BView* view, BRect& rect, const BRect& updateRect,
 		const rgb_color& base, uint32 flags = 0, uint32 borders = B_ALL_BORDERS)
 	{
@@ -3911,6 +4019,14 @@ public:
 		if (menu == NULL || dynamic_cast<BMenuBar*>(menu) != NULL) {
 			if (view->Bounds().IsValid() && ShouldDraw(view, rect, updateRect))
 				DrawLoneSelector(view, rect);
+		}
+		if (menu != NULL && StockMenu(menu) && PillMenu(menu)) {
+			// the lit row of a stock item: its text suits the lit row's color
+			rgb_color f, h, t;
+			StockPillColors(menu, &f, &h, &t);
+			view->SetLowColor(h);
+			view->SetHighColor(SystemColors() ? ui_color(B_MENU_SELECTED_ITEM_TEXT_COLOR) : TextOn(h));
+			return;
 		}
 		view->SetLowColor(Accent());
 		view->SetHighColor(TextOn(Accent()));

@@ -31,6 +31,7 @@ static const bool kDefaultSnakeLook = true;
 static const bool kDefaultSnakeRoundCorners = false;
 static const bool kDefaultSnakeSystemColorsDeskbar = false;
 static const bool kDefaultSnakeSystemColorsTracker = false;
+static const bool kDefaultSnakeAllApps = true;
 static const bool kDefaultSnakeArrows = false;
 static const bool kDefaultSnakeSidePanel = true;
 static const bool kDefaultSnakeSidePanelTrash = true;
