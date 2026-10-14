@@ -446,6 +446,55 @@ LinkLock()
 }
 
 
+// A menu draws itself again for several reasons that come from its own drawing (a strip that could not be placed, a window
+// that was moved, a parent that is asked to redraw its row), and each of them can set off the next. They are meant to stop
+// once everything is where it should be, but a menu that is scrolled, or whose geometry the system keeps changing, can keep
+// the chain going and the window's thread busy for as long as the menu is up. So each kind of such work is allowed only so
+// many times a second for a window (or menu): past that it is simply not done, and the chain ends. If the file
+// ~/config/settings/snake_debug exists, the times it came to that are written to snake_debug.log.
+enum StormKind { kStormMove = 1, kStormOverlap, kStormRefresh, kStormRetry, kStormParent };
+
+static bool
+StormGuard(const void* key, int kind, int perSecond)
+{
+	static std::map<std::pair<const void*, int>, std::vector<bigtime_t> >* history
+		= new std::map<std::pair<const void*, int>, std::vector<bigtime_t> >();
+	static bigtime_t lastLogged = 0;
+	const bigtime_t now = system_time();
+	bool allowed = true, logIt = false;
+	{
+		BAutolock lock(LinkLock());
+		std::vector<bigtime_t>& times = (*history)[std::make_pair(key, kind)];
+		size_t keep = 0;
+		for (size_t i = 0; i < times.size(); i++) {
+			if (now - times[i] < 1000000)
+				times[keep++] = times[i];
+		}
+		times.resize(keep);
+		if ((int)times.size() >= perSecond) {
+			allowed = false;
+			if (now - lastLogged >= 2000000) {
+				lastLogged = now;
+				logIt = true;
+			}
+		} else
+			times.push_back(now);
+	}
+	if (logIt) {
+		BPath directory, flag, log;
+		if (find_directory(B_USER_SETTINGS_DIRECTORY, &directory) == B_OK && flag.SetTo(directory.Path(), "snake_debug") == B_OK
+			&& BEntry(flag.Path()).Exists() && log.SetTo(directory.Path(), "snake_debug.log") == B_OK) {
+			FILE* file = fopen(log.Path(), "a");
+			if (file != NULL) {
+				fprintf(file, "storm: kind %d, more than %d a second, for %p\n", kind, perSecond, key);
+				fclose(file);
+			}
+		}
+	}
+	return allowed;
+}
+
+
 static std::map<BMenu*, ParentLink>&
 Links()
 {
@@ -524,9 +573,7 @@ FindParentLink(BMenu* menu)
 			done = true;
 		}
 		// the parent's row gets redrawn with the edge that joins this submenu
-		if (isNew)
-			parent->Invalidate();
-		else if (arrowNow)
+		if ((isNew || arrowNow) && StormGuard(parent, kStormParent, 12))
 			parent->Invalidate();
 		parentWindow->Unlock();
 		return link;
@@ -1413,6 +1460,26 @@ StockMenu(BMenu* menu)
 }
 
 
+// ProcessController's menus: its rows are drawn with the system's own menu colors (the numbers' columns are filled with the menu's
+// background color, the selected row's with the selection color), and every row of them opens a list. The pill is made in those
+// colors for them, so that what the program fills in is not a box of another color in the pill, and an arrow on each row is left
+// out (it only crowds the usage bars).
+static bool
+BarMenu(BMenu* menu)
+{
+	const char* name = typeid(*menu).name();
+	if (strstr(name, "BarMenu") != NULL || strstr(name, "QuitMenu") != NULL || strstr(name, "PriorityMenu") != NULL
+		|| strstr(name, "LiveMemoryMenu") != NULL || strstr(name, "RealtimeCpuMenu") != NULL
+		|| strstr(name, "TeamThreadsMenu") != NULL) {
+		return true;
+	}
+	// (hdesktop's CPU graph menu is made like ProcessController's: its popup and its list of programs to quit)
+	const char* label = menu->Name();
+	return label != NULL && (strcmp(label, "Global Popup") == 0 || strcmp(label, "CPUGraphContext") == 0
+		|| strcmp(label, "Quit an application") == 0);
+}
+
+
 // The pill's colors for a menu of another program: Haiku's own when the Tracker preference says so, otherwise the
 // SnakeTracker color; the pill is light on a light theme and dark on a dark one (the stock items' text is dark on the one and
 // light on the other), and the lit row is the SnakeTracker color.
@@ -1420,7 +1487,7 @@ static void
 StockPillColors(BMenu* menu, rgb_color* fill, rgb_color* hot, rgb_color* text)
 {
 	const rgb_color itemText = ui_color(B_MENU_ITEM_TEXT_COLOR);
-	if (SystemColors()) {
+	if (SystemColors() || BarMenu(menu)) {
 		*fill = ui_color(B_MENU_BACKGROUND_COLOR);
 		*hot = ui_color(B_MENU_SELECTION_BACKGROUND_COLOR);
 		*text = itemText;
@@ -1674,6 +1741,9 @@ OverlapParent(BMenu* menu, const ParentLink& link)
 	BWindow* window = menu->Window();
 	if (window == NULL || !link.valid)
 		return;
+	// (a window that is moved over and over is left where it is)
+	if (!StormGuard(window, kStormMove, 60))
+		return;
 	const float overlap = kOverlap;
 	const BRect frame = window->Frame();
 	// where the parent is now (it may itself have been moved since the link was recorded)
@@ -1707,7 +1777,7 @@ public:
 	virtual filter_result Filter(BMessage* message, BHandler** target)
 	{
 		BWindow* window = dynamic_cast<BWindow*>(Looper());
-		if (window == NULL)
+		if (window == NULL || !StormGuard(window, kStormOverlap, 60))
 			return B_DISPATCH_MESSAGE;
 		BMenu* menu = MenuOfWindow(window);
 		if (menu != NULL && PillMenu(menu)) {
@@ -1971,21 +2041,46 @@ static void
 RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out, bool edgeLeft = false,
 	bool edgeRight = false, int edgeFrom = 0, bool edgeTop = false, bool edgeBottom = false, int openFrom = 0, int openTo = -1)
 {
-	out.assign((size_t)w * h, 0.0f);
-	// distance from each lit pixel to the nearest edge of the lit shape (the window's own edges are not edges)
 	const size_t n = (size_t)w * h;
+	out.assign(n, 0.0f);
+
+	// Only the lit pixels are shaded, and the shading of one looks at the heights of the ones round it (the smoothing and the
+	// slope: two pixels out at most). So the work is done only on each row's stretch of lit pixels, two more on each side, and
+	// on the rows two above and below them: a tall thin bar in a box as wide as the menu is then a few pixels a row.
+	std::vector<int> litFrom(h, w), litTo(h, -1);
+	for (int y = 0; y < h; ++y) {
+		const float* row = &lit[(size_t)y * w];
+		for (int x = 0; x < w; ++x) {
+			if (row[x] > 0.0f) {
+				litFrom[y] = std::min(litFrom[y], x);
+				litTo[y] = std::max(litTo[y], x);
+			}
+		}
+	}
+	std::vector<int> from(h, w), to(h, -1);
+	for (int y = 0; y < h; ++y) {
+		for (int yy = std::max(0, y - 2); yy <= std::min(h - 1, y + 2); ++yy) {
+			if (litTo[yy] < 0)
+				continue;
+			from[y] = std::min(from[y], std::max(0, litFrom[yy] - 2));
+			to[y] = std::max(to[y], std::min(w - 1, litTo[yy] + 2));
+		}
+	}
+
+	// distance from each lit pixel to the nearest edge of the lit shape (the window's own edges are not edges)
 	std::vector<float> d(n, 0.0f);
 	const float big = 1e4f;
 	// (an edge of the window that is the menu's own edge, against the Deskbar, counts as an edge of the shape)
-	for (size_t k = 0; k < n; ++k) {
-		const int x = (int)(k % w);
-		const int y = (int)(k / w);
-		const bool atEdge = (y >= edgeFrom && ((edgeLeft && x == 0) || (edgeRight && x == w - 1)))
-			|| ((edgeTop && y == 0) || (edgeBottom && y == h - 1)) && !(x >= openFrom && x <= openTo);
-		d[k] = lit[k] > 0.5f ? (atEdge ? 1.0f : big) : 0.0f;
+	for (int y = 0; y < h; ++y) {
+		for (int x = from[y]; x <= to[y]; ++x) {
+			const size_t k = (size_t)y * w + x;
+			const bool atEdge = (y >= edgeFrom && ((edgeLeft && x == 0) || (edgeRight && x == w - 1)))
+				|| ((edgeTop && y == 0) || (edgeBottom && y == h - 1)) && !(x >= openFrom && x <= openTo);
+			d[k] = lit[k] > 0.5f ? (atEdge ? 1.0f : big) : 0.0f;
+		}
 	}
 	for (int y = 0; y < h; ++y)
-		for (int x = 0; x < w; ++x) {
+		for (int x = from[y]; x <= to[y]; ++x) {
 			float& v = d[(size_t)y * w + x];
 			if (v == 0.0f) continue;
 			if (x > 0) v = std::min(v, d[(size_t)y * w + x - 1] + 1.0f);
@@ -1994,7 +2089,7 @@ RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out
 			if (x + 1 < w && y > 0) v = std::min(v, d[(size_t)(y - 1) * w + x + 1] + 1.4142f);
 		}
 	for (int y = h - 1; y >= 0; --y)
-		for (int x = w - 1; x >= 0; --x) {
+		for (int x = to[y]; x >= from[y]; --x) {
 			float& v = d[(size_t)y * w + x];
 			if (v == 0.0f) continue;
 			if (x + 1 < w) v = std::min(v, d[(size_t)y * w + x + 1] + 1.0f);
@@ -2005,15 +2100,17 @@ RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out
 	// the height of a round bar: a quarter circle of radius R from the edge in
 	const float R = 7.0f;
 	std::vector<float> hgt(n, 0.0f);
-	for (size_t k = 0; k < n; ++k) {
-		if (d[k] <= 0.0f) continue;
-		float t = std::min(1.0f, (d[k] - 0.5f) / R);
-		if (t < 0.0f) t = 0.0f;
-		hgt[k] = R * sqrtf(std::max(0.0f, 1.0f - (1.0f - t) * (1.0f - t)));
-	}
+	for (int y = 0; y < h; ++y)
+		for (int x = from[y]; x <= to[y]; ++x) {
+			const size_t k = (size_t)y * w + x;
+			if (d[k] <= 0.0f) continue;
+			float t = std::min(1.0f, (d[k] - 0.5f) / R);
+			if (t < 0.0f) t = 0.0f;
+			hgt[k] = R * sqrtf(std::max(0.0f, 1.0f - (1.0f - t) * (1.0f - t)));
+		}
 	std::vector<float> sm(n, 0.0f);   // a light blur takes the angles out of the distance map
 	for (int y = 0; y < h; ++y)
-		for (int x = 0; x < w; ++x) {
+		for (int x = from[y]; x <= to[y]; ++x) {
 			float sum = 0.0f;
 			int cnt = 0;
 			for (int dy = -1; dy <= 1; ++dy)
@@ -2030,7 +2127,7 @@ RaisedShade(const std::vector<float>& lit, int w, int h, std::vector<float>& out
 	const float ln = sqrtf(lx * lx + ly * ly + lz * lz);
 	const float strength = 0.55f;
 	for (int y = 0; y < h; ++y)
-		for (int x = 0; x < w; ++x) {
+		for (int x = from[y]; x <= to[y]; ++x) {
 			size_t k = (size_t)y * w + x;
 			if (lit[k] <= 0.0f) continue;
 			float gx = (HeightAt(sm, w, h, x + 1, y) - HeightAt(sm, w, h, x - 1, y)) * 0.5f;
@@ -2053,7 +2150,7 @@ public:
 	virtual filter_result Filter(BMessage* message, BHandler** target)
 	{
 		BWindow* window = dynamic_cast<BWindow*>(Looper());
-		if (window == NULL)
+		if (window == NULL || !StormGuard(window, kStormRefresh, 12))
 			return B_SKIP_MESSAGE;
 		BMenu* menu = MenuOfWindow(window);
 		if (menu != NULL) {
@@ -2083,6 +2180,25 @@ HasRefreshFilter(BWindow* window)
 }
 
 
+// The menu is drawn again in a moment. (The runner that does it is the window's only one: a new one replaces it, so they do not pile
+// up; and not more than a few a second.)
+static void
+RefreshSoon(BWindow* window, bigtime_t delay)
+{
+	static std::map<BWindow*, BMessageRunner*>* runners = new std::map<BWindow*, BMessageRunner*>();
+	if (!StormGuard(window, kStormRetry, 8))
+		return;
+	if (!HasRefreshFilter(window))
+		window->AddCommonFilter(new RefreshFilter());
+	BMessage again('SnRf');
+	BMessageRunner* runner = new BMessageRunner(BMessenger(window), &again, delay, 1);
+	BAutolock lock(LinkLock());
+	BMessageRunner*& old = (*runners)[window];
+	delete old;
+	old = runner;
+}
+
+
 static void
 RetryLater(BWindow* window, bool placed)
 {
@@ -2097,10 +2213,7 @@ RetryLater(BWindow* window, bool placed)
 		if (++count > 8)
 			return;
 	}
-	if (!HasRefreshFilter(window))
-		window->AddCommonFilter(new RefreshFilter());
-	BMessage again('SnRf');
-	new BMessageRunner(BMessenger(window), &again, 60000, 1);	// (one shot; it goes with the window)
+	RefreshSoon(window, 60000);
 }
 
 
@@ -2118,10 +2231,7 @@ VerifyLater(BWindow* window)
 			return;
 		when = now;
 	}
-	if (!HasRefreshFilter(window))
-		window->AddCommonFilter(new RefreshFilter());
-	BMessage again('SnRf');
-	new BMessageRunner(BMessenger(window), &again, 250000, 1);
+	RefreshSoon(window, 250000);
 }
 
 
@@ -2203,11 +2313,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		if (link.valid)
 			tries = 0;
 		else if (++tries <= 30) {
-			BWindow* window = menu->Window();
-			if (!HasRefreshFilter(window))
-				window->AddCommonFilter(new RefreshFilter());
-			BMessage again('SnRf');
-			new BMessageRunner(BMessenger(window), &again, 80000, 1);	// (one shot; it goes with the window)
+			RefreshSoon(menu->Window(), 80000);
 		}
 	}
 	// the trail starts at the Deskbar for its leaf menu: a parent row that sits at the menu's top
@@ -2513,6 +2619,8 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 	// The coverage map of the lit shapes. In the pill look it is only the box round them (a long folder menu is a lot of
 	// pixels and the lit row a small part of them); the bevelled look has all of the menu.
 	int cx0 = 0, cy0 = 0, cw = w, ch = h;
+	// (where the lit shapes are in the rows the window shows, whatever is drawn now; and the rows of this draw)
+	int boxY0 = 0, boxY1 = h - 1;
 	if (pill) {
 		float fx0 = (float)w, fy0 = (float)h, fx1 = 0, fy1 = 0;
 		for (size_t k = 0; k < pieces.size(); k++) {
@@ -2533,6 +2641,19 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		const int cx1 = std::min(w - 1, (int)ceilf(fx1) + margin), cy1 = std::min(h - 1, (int)ceilf(fy1) + margin);
 		cw = std::max(0, cx1 - cx0 + 1);
 		ch = std::max(0, cy1 - cy0 + 1);
+	}
+	{
+		// A menu taller than the screen is scrolled: only the rows its window shows (a margin more) are worked on. A selected
+		// row scrolled far out of view used to make the lit shapes, and so the picture made on every redraw, thousands of rows
+		// tall (the whole of a long folder menu, in the bevelled look). And of those rows only where this redraw is (a margin
+		// round it): shading a pixel needs the ones within a few pixels of it, and nothing outside what is drawn is shown.
+		const int shown = menu->Window() != NULL ? (int)menu->Window()->Bounds().Height() + 1 : h;
+		boxY0 = std::max(cy0, 0);
+		boxY1 = std::min(cy0 + ch - 1, shown + 12);
+		const int drawY0 = std::max(boxY0, (int)floorf(updateRect.top - vt) - 14);
+		const int drawY1 = std::min(boxY1, (int)ceilf(updateRect.bottom - vt) + 14);
+		cy0 = drawY0;
+		ch = std::max(0, drawY1 - drawY0 + 1);
 	}
 	std::vector<float> cover((size_t)cw * ch, 0.0f);
 	for (size_t k = 0; k < pieces.size(); k++) {
@@ -2569,10 +2690,11 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		SquareCorners(menu, &sqTL, &sqTR, &sqBR, &sqBL);
 		// (the box round the lit shapes is the coverage map's)
 		const int bx0 = cx0, by0 = cy0, bx1 = cx0 + cw - 1, by1 = cy0 + ch - 1;
-		const bool anyLit = bx1 >= bx0 && by1 >= by0;
+		const bool anyLit = bx1 >= bx0 && boxY1 >= boxY0;
+		const bool anyHere = bx1 >= bx0 && by1 >= by0;
 		{
 			// where the shapes are now and were: if the selection changed, the two places are redrawn (not the whole menu)
-			const BRect box = anyLit ? BRect(bounds.left + bx0, bounds.top + by0, bounds.left + bx1 + 1, bounds.top + by1 + 1)
+			const BRect box = anyLit ? BRect(bounds.left + bx0, bounds.top + boxY0, bounds.left + bx1 + 1, bounds.top + boxY1 + 1)
 				: BRect();
 			BRect previous;
 			{
@@ -2590,7 +2712,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 					menu->Invalidate(redraw);
 			}
 		}
-		if (!anyLit)
+		if (!anyHere)
 			return;
 		const int bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
 
@@ -2642,7 +2764,9 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 	}
 
 	// composite with the bevel: light where the pixel above is empty, dark where the one below is
-	BBitmap bitmap(BRect(0, 0, w - 1, h - 1), B_RGBA32);
+	if (ch <= 0)
+		return;
+	BBitmap bitmap(BRect(0, 0, w - 1, ch - 1), B_RGBA32);
 	if (bitmap.InitCheck() != B_OK)
 		return;
 	const bool flatFill = FlatFill();
@@ -2650,7 +2774,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 	const rgb_color outline = Mix(base, 0, 0.72f);
 	uint8* bits = (uint8*)bitmap.Bits();
 	const int32 bpr = bitmap.BytesPerRow();
-	for (int y = 0; y < h; ++y) {
+	for (int y = 0; y < ch; ++y) {
 		uint8* row = bits + y * bpr;
 		for (int x = 0; x < w; ++x) {
 			float c0 = cover[(size_t)y * w + x];
@@ -2662,7 +2786,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 				if (x > 0) ol = std::max(ol, cover[(size_t)y * w + x - 1]);
 				if (x < w - 1) ol = std::max(ol, cover[(size_t)y * w + x + 1]);
 				if (y > 0) ol = std::max(ol, cover[(size_t)(y - 1) * w + x]);
-				if (y < h - 1) ol = std::max(ol, cover[(size_t)(y + 1) * w + x]);
+				if (y < ch - 1) ol = std::max(ol, cover[(size_t)(y + 1) * w + x]);
 				ol *= (1.0f - c0);
 			}
 			if (c0 <= 0.0f) {
@@ -2675,7 +2799,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 				continue;
 			}
 			float above = y > 0 ? cover[(size_t)(y - 1) * w + x] : 0.0f;
-			float below = y < h - 1 ? cover[(size_t)(y + 1) * w + x] : 0.0f;
+			float below = y < ch - 1 ? cover[(size_t)(y + 1) * w + x] : 0.0f;
 			float a2 = c0 * above, a3 = a2 * below;
 			float cr = light.red, cg = light.green, cb = light.blue;
 			cr += (dark.red - cr) * a2;  cg += (dark.green - cg) * a2;  cb += (dark.blue - cb) * a2;
@@ -2697,7 +2821,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 	menu->PushState();
 	menu->SetDrawingMode(B_OP_ALPHA);
 	menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
-	menu->DrawBitmap(&bitmap, bounds.LeftTop());
+	menu->DrawBitmap(&bitmap, bounds.LeftTop() + BPoint(0, cy0));
 	menu->PopState();
 }
 
@@ -3975,13 +4099,6 @@ public:
 	// ProcessController's menus: every row opens a list of the programs' threads, memory and the like, and an arrow on each
 	// of them only crowds the usage bars drawn in the row, so those arrows are left out (in the pill look of other programs'
 	// menus; the rows still open their submenus as before).
-	static bool BarMenu(BMenu* menu)
-	{
-		const char* name = typeid(*menu).name();
-		return strstr(name, "BarMenu") != NULL || strstr(name, "QuitMenu") != NULL || strstr(name, "PriorityMenu") != NULL
-			|| (menu->Name() != NULL && strcmp(menu->Name(), "Global Popup") == 0);
-	}
-
 	virtual	void DrawArrowShape(BView* view, BRect& rect, const BRect& updateRect, const rgb_color& base, uint32 direction,
 		uint32 flags = 0, float tint = B_DARKEN_MAX_TINT)
 	{
@@ -4025,7 +4142,7 @@ public:
 			rgb_color f, h, t;
 			StockPillColors(menu, &f, &h, &t);
 			view->SetLowColor(h);
-			view->SetHighColor(SystemColors() ? ui_color(B_MENU_SELECTED_ITEM_TEXT_COLOR) : TextOn(h));
+			view->SetHighColor(SystemColors() || BarMenu(menu) ? ui_color(B_MENU_SELECTED_ITEM_TEXT_COLOR) : TextOn(h));
 			return;
 		}
 		view->SetLowColor(Accent());

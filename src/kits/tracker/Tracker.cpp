@@ -1679,8 +1679,10 @@ TTracker::CloseParent(node_ref parent)
 void
 TTracker::ShowSettingsWindow()
 {
-	if (fSettingsWindow == NULL) {
+	// (a settings window that was asked to quit while it was hidden is gone, and the pointer to it is no good: a new one is made)
+	if (fSettingsWindow == NULL || !fSettingsMessenger.IsValid()) {
 		fSettingsWindow = new TrackerSettingsWindow();
+		fSettingsMessenger = BMessenger(fSettingsWindow);
 		fSettingsWindow->Show();
 	} else {
 		if (fSettingsWindow->Lock()) {

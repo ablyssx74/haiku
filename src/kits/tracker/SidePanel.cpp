@@ -786,7 +786,10 @@ private:
 		menuItem->SetTarget(this);
 		menu->AddItem(menuItem);
 
-		menu->Go(ConvertToScreen(where), true, false, true);
+		// (the pill look takes a picture of the screen behind the menu before it opens, like Tracker's other pop-up menus)
+		const BPoint global = ConvertToScreen(where);
+		SnakeSelector::CaptureMenuBackdrop(menu, global);
+		menu->Go(global, true, false, true);
 	}
 
 	std::vector<BString>	fFavorites;

@@ -234,6 +234,7 @@ private:
 	WatchingInterface*		fWatchingInterface;
 
 	TrackerSettingsWindow*	fSettingsWindow;
+	BMessenger				fSettingsMessenger;
 
 	typedef BApplication _inherited;
 };
