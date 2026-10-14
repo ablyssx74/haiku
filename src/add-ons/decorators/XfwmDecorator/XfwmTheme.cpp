@@ -1147,8 +1147,10 @@ XfwmTheme::Load(const char* name)
 	for (int32 button = 0; button < kButtonCount; button++) {
 		if (!fButton[button][kStatePrelight].IsValid())
 			fButton[button][kStatePrelight].LoadBrightened(fButton[button][kStateActive], 0.4f, fTitle[2][0]);
-		// a window that isn't the active one has its own, paler buttons
-		fButton[button][kStatePrelightInactive].LoadBrightened(fButton[button][kStateInactive], 0.4f, fTitle[2][1]);
+		// a window that isn't the active one has its own, paler buttons (unless the theme has a hover picture for them:
+		// <button>-prelight-inactive)
+		if (!fButton[button][kStatePrelightInactive].IsValid())
+			fButton[button][kStatePrelightInactive].LoadBrightened(fButton[button][kStateInactive], 0.4f, fTitle[2][1]);
 	}
 
 	// everything the decorator draws must exist
