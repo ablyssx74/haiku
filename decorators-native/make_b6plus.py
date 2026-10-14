@@ -10,21 +10,26 @@ SS = 8   # samples per pixel along each side
 W, H = 12, 24
 BOX_Y = 5   # the 12 x 12 box of a button, in the 12 x 24 picture
 
-STATES = ('active', 'inactive', 'pressed')
+STATES = ('active', 'inactive', 'pressed', 'prelight')
 
 # For each button and state: the frame colour along the top and left, the one along the bottom and right, the fill of each shape
 # (top to bottom), and how much of an edge inside the frame along the top and left is lit.
 SPEC = {
     ('close', 'active'): dict(tl=(224, 171, 31), br=(241, 190, 45), fills=[((254, 253, 237), (244, 225, 128))], light=0.6),
     ('close', 'inactive'): dict(tl=(156, 154, 134), br=(156, 154, 134), fills=[((246, 244, 226), (222, 217, 184))], light=0.4),
-    ('close', 'pressed'): dict(tl=(128, 88, 0), br=(128, 88, 0), fills=[((232, 200, 64), (201, 167, 30))], light=0.0),
+    # under a click: grey-olive fills, the frame a shade darker (this was the hover look before 1.0.10)
+    ('close', 'pressed'): dict(tl=(218, 167, 30), br=(236, 186, 44), fills=[((199, 197, 186), (182, 171, 112))], light=0.0),
+    # under the pointer: darker gold (this was the pressed look before 1.0.10)
+    ('close', 'prelight'): dict(tl=(128, 88, 0), br=(128, 88, 0), fills=[((232, 200, 64), (201, 167, 30))], light=0.0),
     # (the same pale yellow as the close button's, the back one a little paler; the frame has its own two colors)
     ('zoom', 'active'): dict(tl=(190, 146, 36), br=(176, 124, 0),
                              fills=[((255, 254, 244), (250, 238, 170)), ((254, 253, 237), (244, 225, 128))], light=0.5),
     ('zoom', 'inactive'): dict(tl=(156, 154, 134), br=(156, 154, 134),
                                fills=[((250, 249, 240), (226, 222, 196)), ((246, 244, 226), (222, 217, 184))], light=0.4),
-    ('zoom', 'pressed'): dict(tl=(128, 88, 0), br=(128, 88, 0),
-                              fills=[((240, 214, 96), (213, 184, 50)), ((232, 200, 64), (201, 167, 30))], light=0.0),
+    ('zoom', 'pressed'): dict(tl=(190, 146, 36), br=(176, 124, 0),
+                              fills=[((200, 199, 190), (178, 170, 127)), ((199, 197, 183), (186, 172, 104))], light=0.0),
+    ('zoom', 'prelight'): dict(tl=(128, 88, 0), br=(128, 88, 0),
+                               fills=[((240, 214, 96), (213, 184, 50)), ((232, 200, 64), (201, 167, 30))], light=0.0),
 }
 
 
