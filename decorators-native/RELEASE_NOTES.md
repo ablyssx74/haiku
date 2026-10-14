@@ -1,9 +1,9 @@
-# xfwm_decorators 1.0.10
+# xfwm_decorators 1.0.11
 
-Window decorators for Haiku made from xfwm4 themes. One decorator draws any xfwm4 theme, and the package carries 95 of them. Pick one in **Appearance > Decorator** (entries named "xfwm4: <theme>"), for example `xfwm4: b6`.
+Window decorators for Haiku made from xfwm4 themes. One decorator draws any xfwm4 theme, and the package carries 96 of them. Pick one in **Appearance > Decorator** (entries named "xfwm4: <theme>"), for example `xfwm4: b6`.
 
 ## Install
-Two packages are attached: `xfwm_decorators-1.0.10-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.10-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
+Two packages are attached: `xfwm_decorators-1.0.11-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.11-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
 
 ## Hover effect (on by default)
 The close, zoom and minimize buttons light up under the pointer. app_server tells a decorator nothing while the pointer only moves over it, so the effect is done from outside and is still young: fast pointer movement over the buttons has occasionally been seen to misdraw on real hardware, and in one or two themes the minimize button stopped answering after its window had been minimized and brought back. If you see either, turn it off:
@@ -16,7 +16,13 @@ xfwm-hover status
 
 It takes effect within a second, with no restart. Themes that ship hover pictures (`default-4.6`, `default-4.8`) use them; for the others the button's own picture is tinted, and the tint follows the button's shape: a round button gets a round highlight and a square one a square highlight, while a button that is only a symbol on the title bar gets the whole box. A dark button gets lighter and a light one darker; the symbol keeps its colors. (`galaxy`'s round buttons still get a square highlight: their pictures have a shadow behind them that can't be told from the button.)
 
-## Changes since 1.0.9
+## Changes since 1.0.10
+- **New buttons for `b6+` and `b6+r`.** The close and zoom buttons in the tab are drawn by hand now, with more detail (a lit edge, the diagonal hatching of Haiku's close button). `b6+` has bigger square ones; the buttons of `b6+r` are a pixel higher, and the zoom button of both sits 2 pixels further in. In a window that is not the active one they are the pale yellow of its title bar.
+- **A new theme, `b5+`.** `b5` with the buttons of Haiku's own decorator in the tab: the close button at the left end and a zoom button of its own at the right end. Pick it in Appearance as **xfwm4: b5+**.
+- **`b5` follows a dark desktop.** Its frame was drawn in fixed light greys, so the borders stayed light whatever the colours were. They are named after the GTK theme's colours now, as `b6`'s are, so the frame and the tab's outline take the dark colours of your Appearance settings. On a light desktop they are a little softer than before, as in the other themes. The yellow tab keeps its own colours.
+- **The hover look of `b6+`, `b6+r` and `b5+` is softer.** A button under the pointer in the active window is 25 % less dark, and in a window that is not the active one 60 % less dark. A theme can now ship its own hover pictures for the inactive window (`close-prelight-inactive`, `maximize-prelight-inactive` and so on); the decorator used to make that look itself by darkening the pale button, and still does for every theme that has no such picture, so no other theme changes.
+
+Changes in 1.0.10 (if you skipped it):
 - **`b6+` and `b6+r`: the hover and click colors are swapped.** A button under the pointer is the darker gold that a pressed one used to be, and a button being clicked is the grey-olive one that was the hover color. The hover and click pictures are in the theme now (`close-prelight`, `maximize-prelight`, `close-pressed` and `maximize-pressed`), so it no longer depends on how the decorator brightens a button.
 
 Changes in 1.0.9 (if you skipped it):
