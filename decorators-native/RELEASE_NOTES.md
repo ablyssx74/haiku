@@ -1,9 +1,9 @@
-# xfwm_decorators 1.0.12
+# xfwm_decorators 1.0.13
 
 Window decorators for Haiku made from xfwm4 themes. One decorator draws any xfwm4 theme, and the package carries 96 of them. Pick one in **Appearance > Decorator** (entries named "xfwm4: <theme>"), for example `xfwm4: b6`.
 
 ## Install
-Two packages are attached: `xfwm_decorators-1.0.12-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.12-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
+Two packages are attached: `xfwm_decorators-1.0.13-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.13-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
 
 ## Hover effect (on by default)
 The close, zoom and minimize buttons light up under the pointer. app_server tells a decorator nothing while the pointer only moves over it, so the effect is done from outside and is still young: fast pointer movement over the buttons has occasionally been seen to misdraw on real hardware, and in one or two themes the minimize button stopped answering after its window had been minimized and brought back. If you see either, turn it off:
@@ -16,7 +16,10 @@ xfwm-hover status
 
 It takes effect within a second, with no restart. Themes that ship hover pictures (`default-4.6`, `default-4.8`) use them; for the others the button's own picture is tinted, and the tint follows the button's shape: a round button gets a round highlight and a square one a square highlight, while a button that is only a symbol on the title bar gets the whole box. A dark button gets lighter and a light one darker; the symbol keeps its colors. (`galaxy`'s round buttons still get a square highlight: their pictures have a shadow behind them that can't be told from the button.)
 
-## Changes since 1.0.11
+## Changes since 1.0.12
+- **`b5+`: the left button of a tab after the first is in its own tab.** It was drawn inside the tab before it, because the theme places it for the first tab's wide cap. It now sits 3 pixels in from the tab's left end, as in `b6+` and `b6+r`, and the tab is made wide enough that the title starts after the button and never runs over it.
+
+Changes in 1.0.12 (if you skipped it):
 - **Windows with several tabs look right in `b6`, `b6+` and `b6+r`.** The tabs of a stack have a rounded corner at each end, with a pixel of gap between them, and the bar after the last tab carries on in the colour of the title bar instead of showing a lighter block. When you switch tabs, no pieces of the old title bar are left behind in the title bar any more (this was the tearing a user reported). The left button of every tab after the first has 3 pixels more room from the tab's corner, and the title moves along with it. A theme asks for this with `haiku_stacked_tabs=true` in its `themerc`; the other themes are drawn as before.
 - **`b5` and `b5+`: the tabs that are not in front end where the front one does.** Their bottom two rows were light grey, which made a tab behind look taller than the front one; they now continue the bar. The strip of the left edge under a first tab that is not in front has the colour of the frame's left edge, where it was a pale line on a dark desktop.
 
