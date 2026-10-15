@@ -429,6 +429,35 @@ XfwmDecorator::_DoLayout()
 }
 
 
+// The picture for the end of a tab: the tabs of a stack that are not the last one end without the bar's band, and the
+// last one, when it is not the front one in an active window, has the band of the bar that goes on from it
+const XfwmImage&
+XfwmDecorator::_EndOf(int32 index, int32 count, bool active, bool stacked) const
+{
+	if (stacked && index < count - 1)
+		return fTheme->TabEnd(active);
+	if (stacked && !active && _Active(fTopTab))
+		return fTheme->TabEndOnActiveBar();
+	return fTheme->Title(3, active);
+}
+
+
+int32
+XfwmDecorator::_StackOverlap() const
+{
+	return fTheme->StackedTabs() && fTabList.CountItems() > 1 ? fTheme->StackOverlap() : 0;
+}
+
+
+// The tabs of a stack after the first have a rounded left end close to the tab before it, so their left button gets a little
+// more room from it (and the title moves along)
+int32
+XfwmDecorator::_LeftGap(int32 index) const
+{
+	return index > 0 && fTheme->ButtonsInTab() && _StackOverlap() > 0 ? 3 : 0;
+}
+
+
 // Where the tabs go. xfwm4 lays the frame out by the full size of the border pictures (a left picture 14 wide
 // is a 14 wide border, transparent part included), so the pieces are anchored to that outer frame.
 void
@@ -461,17 +490,21 @@ XfwmDecorator::_ComputeBar(BarLayout& bar) const
 	int32 sum = 0;
 	for (int32 i = 0; i < count; i++) {
 		Decorator::Tab* tab = fTabList.ItemAt(i);
-		fixed[i] = (i == 0 ? capWidth : 0) + before + after + _RoomForTabButtons(tab);
+		fixed[i] = (i == 0 ? capWidth : 0) + before + after + _RoomForTabButtons(tab) + _LeftGap(i);
 		float wanted = tab->title.Length() > 0
 			? fDrawState.Font().StringWidth(tab->title.String(), tab->title.Length()) : 0.0f;
 		natural[i] = fixed[i] + (int32)ceilf(wanted);
 		sum += natural[i];
 	}
 
+	// the tabs of a stack lie over each other's ends a little
+	const int32 overlap = _StackOverlap();
+	const int32 totalOverlap = overlap * (count - 1);
+
 	// a theme with a full width title has one tab across the whole bar: any room left is shared out
 	std::vector<int32> extra(count, 0);
-	if (fTheme->FullWidthTitle() && sum < available) {
-		int32 spare = available - sum;
+	if (fTheme->FullWidthTitle() && sum - totalOverlap < available) {
+		int32 spare = available - (sum - totalOverlap);
 		for (int32 i = 0; i < count; i++)
 			extra[i] = spare / count + (i == count - 1 ? spare % count : 0);
 	}
@@ -479,9 +512,9 @@ XfwmDecorator::_ComputeBar(BarLayout& bar) const
 	int32 x = bar.x0;
 	for (int32 i = 0; i < count; i++) {
 		int32 width = natural[i] + extra[i];
-		if (sum > available && sum > 0) {
+		if (sum - totalOverlap > available && sum > 0) {
 			// too many or too long: every tab gets a share of the room, but keeps its edges
-			width = std::max(fixed[i], (int32)((int64)available * natural[i] / sum));
+			width = std::max(fixed[i], (int32)((int64)(available + totalOverlap) * natural[i] / sum));
 		}
 		if (x + width > bar.x0 + available)
 			width = std::max(fixed[i], bar.x0 + available - x);
@@ -489,15 +522,16 @@ XfwmDecorator::_ComputeBar(BarLayout& bar) const
 		TabSlot slot;
 		slot.x = x;
 		slot.width = width;
-		slot.textLeft = x + (i == 0 ? capWidth : 0) + before;
+		slot.fillLeft = x + (i == 0 ? capWidth : 0) + before;
+		slot.textLeft = slot.fillLeft + _LeftGap(i);
 		slot.textWidth = std::max((int32)0, width - fixed[i]);
-		slot.fillLeft = slot.textLeft;
 		// (the tab's own color runs on under the room kept for the buttons, up to the picture of its end)
-		slot.fillWidth = std::max((int32)0, width - (fixed[i] - _RoomForTabButtons(fTabList.ItemAt(i))));
+		slot.fillWidth = std::max((int32)0,
+			width - (fixed[i] - _LeftGap(i) - _RoomForTabButtons(fTabList.ItemAt(i))));
 		bar.slots.push_back(slot);
-		x += width;
+		x += width - (i < count - 1 ? overlap : 0);
 	}
-	bar.restStart = x;
+	bar.restStart = bar.slots.back().x + bar.slots.back().width;
 
 	// the title text goes between the buttons, left side and right side alike
 	int32 leftEnd, rightStart;
@@ -515,12 +549,14 @@ XfwmDecorator::_ComputeBar(BarLayout& bar) const
 }
 
 
-// A theme with its buttons in the tab (buttons_in_tab) has the right ones at the tab's right end, over the picture of the end; the
-// front tab is made that much wider, less a few pixels, so that the title does not run up to them.
+// A theme with its buttons in the tab (buttons_in_tab) has the right ones at the tab's right end, over the picture of the end; each
+// tab is made that much wider, less a few pixels, so that the title does not run up to them.
 int32
 XfwmDecorator::_RoomForTabButtons(Decorator::Tab* tab) const
 {
-	if (!fTheme->ButtonsInTab() || tab == NULL || tab != fTopTab)
+	// Every tab keeps this room, the front one or not, so that a tab coming to the front changes no tab's size or place: what
+	// the bar covered before would be left behind in the parts of it that are see-through now (the corners of the tab ends)
+	if (!fTheme->ButtonsInTab() || tab == NULL)
 		return 0;
 
 	const BString layout = fTheme->ButtonLayout();
@@ -610,11 +646,14 @@ XfwmDecorator::_DoTabLayout()
 	const int32 height = std::max(fTheme->TitleHeight(), fTheme->TopLeft(true).Height());
 	fTitleBarRect.Set(bar.x0, bar.y, bar.right + 1, bar.y + height - 1);
 
+	const int32 overlap = _StackOverlap();
 	for (int32 i = 0; i < fTabList.CountItems(); i++) {
 		Decorator::Tab* tab = fTabList.ItemAt(i);
 		const TabSlot& slot = bar.slots[i];
 
-		tab->tabRect.Set(slot.x, bar.y, slot.x + slot.width - 1, bar.y + fTheme->TitleHeight() - 1);
+		// (a tab is what shows of it: the next one lies over its end)
+		const int32 right = slot.x + slot.width - 1 - (i < fTabList.CountItems() - 1 ? overlap : 0);
+		tab->tabRect.Set(slot.x, bar.y, right, bar.y + fTheme->TitleHeight() - 1);
 		tab->textOffset = 0;
 		tab->tabOffset = (uint32)std::max((int32)0, slot.x - (int32)fLeftBorder.left);
 		tab->minTabSize = 0;
@@ -711,7 +750,7 @@ XfwmDecorator::_LayoutButtons(Decorator::Tab* tab, const BarLayout& bar)
 			right[i].rect->Set(rx - width, bar.y + opaque.top, rx - 1, bar.y + opaque.bottom);
 			rx -= width + spacing;
 		}
-		int32 lx = slot.x + (index == 0 ? fTheme->TopLeft(active).Width() : 0) + offset;
+		int32 lx = slot.x + (index == 0 ? fTheme->TopLeft(active).Width() : 0) + offset + _LeftGap(index);
 		for (int32 i = 0; i < leftCount; i++) {
 			const XfwmImage& image = fTheme->Button(left[i].button, active ? kStateActive : kStateInactive);
 			BRect opaque = image.OpaqueBounds();
@@ -835,17 +874,23 @@ XfwmDecorator::_IncludeTab(BRegion& region, Decorator::Tab* tab, const BarLayout
 
 	const TabSlot& slot = bar.slots[index];
 	const bool active = _Active(tab);
+	const bool stacked = _StackOverlap() > 0;
 	int32 x = slot.x;
 	if (index == 0) {
 		fTheme->TopLeft(active).IncludeIn(region, x, bar.y);
 		x += fTheme->TopLeft(active).Width();
 	}
-	fTheme->Title(0, active).IncludeIn(region, x, bar.y);
-	x += fTheme->Title(0, active).Width();
-	fTheme->Title(1, active).IncludeIn(region, x, bar.y);
+	if (stacked && index > 0) {
+		fTheme->TabLeft(active).IncludeIn(region, x, bar.y);
+	} else {
+		fTheme->Title(0, active).IncludeIn(region, x, bar.y);
+		x += fTheme->Title(0, active).Width();
+		fTheme->Title(1, active).IncludeIn(region, x, bar.y);
+	}
 
 	_IncludeRow(region, fTheme->Title(2, active), slot.fillLeft, slot.fillLeft + slot.fillWidth, bar.y);
-	fTheme->Title(3, active).IncludeIn(region, slot.x + slot.width - fTheme->Title(3, active).Width(), bar.y);
+	const XfwmImage& end = _EndOf(index, (int32)bar.slots.size(), active, stacked);
+	end.IncludeIn(region, slot.x + slot.width - end.Width(), bar.y);
 }
 
 
@@ -1165,21 +1210,28 @@ XfwmDecorator::_DrawTab(Decorator::Tab* tab, BRect invalid)
 	fDrawingEngine->SetDrawingMode(B_OP_ALPHA, oldMode);
 	fDrawingEngine->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
 
+	// the tabs of a stack have a rounded corner at each end, and a pixel between them
+	const bool stacked = _StackOverlap() > 0;
 	int32 x = slot.x;
 	if (index == 0) {
 		_Blit(fTheme->TopLeft(active), BPoint(x, bar.y));
 		x += fTheme->TopLeft(active).Width();
 	}
-	_Blit(fTheme->Title(0, active), BPoint(x, bar.y));
-	x += fTheme->Title(0, active).Width();
-	_Blit(fTheme->Title(1, active), BPoint(x, bar.y));
+	if (stacked && index > 0) {
+		_Blit(fTheme->TabLeft(active), BPoint(x, bar.y));
+	} else {
+		_Blit(fTheme->Title(0, active), BPoint(x, bar.y));
+		x += fTheme->Title(0, active).Width();
+		_Blit(fTheme->Title(1, active), BPoint(x, bar.y));
+	}
 
 	const XfwmImage& middle = fTheme->Title(2, active);
 	if (slot.fillWidth > 0) {
 		_BlitTiled(middle, BRect(slot.fillLeft, bar.y, slot.fillLeft + slot.fillWidth - 1,
 			bar.y + middle.Height() - 1), true);
 	}
-	_Blit(fTheme->Title(3, active), BPoint(slot.x + slot.width - fTheme->Title(3, active).Width(), bar.y));
+	const XfwmImage& end = _EndOf(index, (int32)bar.slots.size(), active, stacked);
+	_Blit(end, BPoint(slot.x + slot.width - end.Width(), bar.y));
 
 	fDrawingEngine->SetDrawingMode(oldMode);
 

@@ -111,6 +111,11 @@ private:
 			void				_IncludeRow(BRegion& region, const XfwmImage& image, int32 from, int32 end, int32 y) const;
 			int32				_IndexOf(Decorator::Tab* tab) const;
 			int32				_RoomForTabButtons(Decorator::Tab* tab) const;
+			// how far a tab lies over the end of the one before it: the tabs of a stack in a theme that has
+			// stacked tabs, one pixel apart (see XfwmTheme::StackedTabs()); else 0
+			int32				_StackOverlap() const;
+			int32				_LeftGap(int32 index) const;
+			const XfwmImage&	_EndOf(int32 index, int32 count, bool active, bool stacked) const;
 			void				_Blit(const XfwmImage& image, BPoint at);
 			void				_BlitTiled(const XfwmImage& image, BRect area, bool horizontal);
 

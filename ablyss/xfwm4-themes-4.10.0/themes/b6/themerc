@@ -9,3 +9,4 @@ button_spacing=0
 button_layout=|SHMC
 active_text_color=#000000
 inactive_text_color=#000000
+haiku_stacked_tabs=true

@@ -29,6 +29,10 @@ public:
 			// button the theme has no such picture for
 			bool				LoadBrightened(const XfwmImage& source, float amount, const XfwmImage& bar);
 			bool				IsValid() const { return fBitmap != NULL; }
+			// the pixels (BGRA, row after row), and a picture made from such pixels
+			bool				CopyBgra(std::vector<uint8>& bgra) const;
+			bool				LoadFromBgra(int32 width, int32 height, const std::vector<uint8>& bgra)
+									{ return _Adopt(width, height, bgra); }
 
 			ServerBitmap*		Bitmap() const { return fBitmap; }
 			int32				Width() const { return fWidth; }
@@ -138,10 +142,25 @@ public:
 			// the buttons are in the tab (the close button at its left end, the others at its right end, as Haiku's own
 			// decorator has them), not at the ends of the whole bar; button_offset_right is the room at the tab's right end
 			bool				ButtonsInTab() const { return fButtonsInTab; }
+
+			// Tabs of a window stack with their own rounded left corner, and a gap of one pixel between them
+			// (haiku_stacked_tabs in the themerc): TabLeft() replaces the first two title pictures of a tab that
+			// is not the first, TabEnd() the end of a tab that is not the last (the end without the bar's band);
+			// each tab then lies StackOverlap() pixels over the end of the one before.
+			bool				StackedTabs() const
+									{ return fStackedTabs && fTabLeft[0].IsValid() && fTabEnd[0].IsValid(); }
+			const XfwmImage&	TabLeft(bool active) const { return fTabLeft[active ? 0 : 1]; }
+			const XfwmImage&	TabEnd(bool active) const { return fTabEnd[active ? 0 : 1]; }
+			int32				StackOverlap() const { return fStackOverlap; }
+			// the end of the last tab when it is not the front one but the window is the active one: the tab's own
+			// colours, and the band of the active bar (which goes on to its right)
+			const XfwmImage&	TabEndOnActiveBar() const { return fTabEndOnActiveBar; }
 			int32				ButtonOffsetRight() const { return fHasOffsetRight ? fButtonOffsetRight : fButtonOffset; }
 
 private:
 			void				_ReadThemerc(const char* path);
+			// builds TabLeft() and TabEnd() from the title pictures
+			void				_BuildStackedTabs();
 			// the title text colour for a theme that names none: light on a dark bar, dark on a light one
 			rgb_color			_ReadableOn(const XfwmImage& bar, bool active) const;
 			bool				_FindFolder(const char* name, BString& path) const;
@@ -186,6 +205,11 @@ private:
 			int32				fButtonSpacing;
 			BString				fButtonLayout;
 			bool				fButtonsInTab;
+			bool				fStackedTabs;
+			int32				fStackOverlap;
+			XfwmImage			fTabLeft[2];
+			XfwmImage			fTabEnd[2];
+			XfwmImage			fTabEndOnActiveBar;
 			bool				fHasOffsetRight;
 			int32				fButtonOffsetRight;
 			BString				fName;

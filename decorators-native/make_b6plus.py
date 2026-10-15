@@ -190,6 +190,7 @@ button_offset_right=%(right)d
 button_spacing=0
 button_layout=C|M
 buttons_in_tab=true
+haiku_stacked_tabs=%(stacked)s
 active_text_color=#000000
 inactive_text_color=#000000
 """
@@ -205,13 +206,13 @@ end (%s), in place of the buttons of the bar. Made by decorators-native/make_b6p
 # values. The glyphs' bottoms are on the same row, as they were before the pictures had more detail.
 VARIANTS = {
     'b6+': dict(base='b6', shape='square', inactive_ramp=INACTIVE_YELLOW, close=('close_square', 3), zoom=('zoom_square', 5),
-                themerc=dict(voffset=-2, shadow_x=-10, shadow_y=-10, left=0, right=8)),
+                themerc=dict(voffset=-2, shadow_x=-10, shadow_y=-10, left=0, right=8, stacked='true')),
     # (the round close button is one pixel further in than the square one; both are a pixel higher than in b6+)
     'b6+r': dict(base='b6', shape='round', inactive_ramp=INACTIVE_YELLOW, close=('close_round', 4), zoom=('zoom_round', 4),
-                 themerc=dict(voffset=-2, shadow_x=-10, shadow_y=-10, left=1, right=11)),
+                 themerc=dict(voffset=-2, shadow_x=-10, shadow_y=-10, left=1, right=11, stacked='true')),
     # (b5's tab has a wide cap at its left end, which the buttons are placed after: the close button goes back into it)
     'b5+': dict(base='b5', shape='square', close=('close_square', 4), zoom=('zoom_b5', 5),
-                themerc=dict(voffset=0, shadow_x=0, shadow_y=-18, left=-17, right=5)),
+                themerc=dict(voffset=0, shadow_x=0, shadow_y=-18, left=-17, right=5, stacked='false')),
 }
 
 

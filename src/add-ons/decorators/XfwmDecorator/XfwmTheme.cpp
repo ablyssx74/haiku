@@ -1040,6 +1040,8 @@ XfwmTheme::XfwmTheme()
 	fButtonSpacing(0),
 	fButtonLayout("O|HMC"),
 	fButtonsInTab(false),
+	fStackedTabs(false),
+	fStackOverlap(0),
 	fHasOffsetRight(false),
 	fButtonOffsetRight(0)
 {
@@ -1208,8 +1210,137 @@ XfwmTheme::Load(const char* name)
 	if (!fHasInactiveText)
 		fInactiveText = _ReadableOn(fTitle[2][1], false);
 
+	_BuildStackedTabs();
+
 	fValid = true;
 	return true;
+}
+
+
+// CopyBgra: the picture's pixels, a row after the other
+bool
+XfwmImage::CopyBgra(std::vector<uint8>& bgra) const
+{
+	if (fBitmap == NULL)
+		return false;
+	bgra.assign((size_t)fWidth * fHeight * 4, 0);
+	for (int32 y = 0; y < fHeight; y++)
+		memcpy(&bgra[(size_t)y * fWidth * 4], fBitmap->Bits() + y * fBitmap->BytesPerRow(), fWidth * 4);
+	return true;
+}
+
+
+// An opaque pixel that is dark (an outline) in a picture of the given width
+static bool
+_IsDarkPixel(const std::vector<uint8>& pixels, int32 width, int32 x, int32 y)
+{
+	const uint8* p = &pixels[((size_t)y * width + x) * 4];
+	if (p[3] < 128)
+		return false;
+	return (p[2] * 299 + p[1] * 587 + p[0] * 114) / 1000 < 70;
+}
+
+
+// The pictures for the tabs of a window stack. The theme's tab ends in a rounded corner and the bar's band (title-4:
+// the corner, the tab's edge, and to the right of that the band that goes on to the right of the last tab), and its
+// beginning is a plain piece. The end of a tab that is not the last is the same without the band, and the beginning
+// of one that is not the first is the corner turned round: so the tabs are alike at both ends, and the see-through
+// corners and the pixel between two tabs show what is behind the window.
+void
+XfwmTheme::_BuildStackedTabs()
+{
+	fStackOverlap = 0;
+	if (!fStackedTabs)
+		return;
+
+	const int32 kGap = 1;
+	std::vector<uint8> ends[2];
+	int32 endWidth = 0, endHeight = 0, border = 0;
+	for (int32 state = 0; state < 2; state++) {
+		const XfwmImage& end = fTitle[3][state];
+		const XfwmImage& first = fTitle[0][state];
+		const XfwmImage& second = fTitle[1][state];
+		if (!end.IsValid() || !first.IsValid() || !second.IsValid()
+			|| first.Height() != end.Height() || second.Height() != end.Height()) {
+			fStackedTabs = false;
+			return;
+		}
+
+		std::vector<uint8> E, P0, P1;
+		end.CopyBgra(E);
+		first.CopyBgra(P0);
+		second.CopyBgra(P1);
+		const int32 W = end.Width(), H = end.Height();
+		const int32 W0 = first.Width(), W1 = second.Width();
+
+		// the lines at the bottom of the bar (the first row after the top that is dark all along)
+		int32 frameTop = H;
+		for (int32 y = 1; y < H && frameTop == H; y++) {
+			bool all = true;
+			for (int32 x = 0; x < W0 && all; x++)
+				all = _IsDarkPixel(P0, W0, x, y);
+			if (all)
+				frameTop = y;
+		}
+
+		// the end without the band: in each row of the tab, up to and with its outline (a row that is outline
+		// all the way to the right is the top of the band: one pixel of it is the tab's own)
+		std::vector<uint8> R = E;
+		border = 0;
+		for (int32 y = 0; y < frameTop; y++) {
+			int32 x0 = -1;
+			for (int32 x = 0; x < W && x0 < 0; x++) {
+				if (_IsDarkPixel(E, W, x, y))
+					x0 = x;
+			}
+			if (x0 < 0)
+				continue;
+			int32 run = 0;
+			while (x0 + run < W && _IsDarkPixel(E, W, x0 + run, y))
+				run++;
+			if (x0 + run >= W && run > 1)
+				run = 1;
+			for (int32 x = x0 + run; x < W; x++)
+				memset(&R[((size_t)y * W + x) * 4], 0, 4);
+			border = std::max(border, x0 + run - 1);
+		}
+
+		// the beginning: the corner turned round over the plain pieces
+		const int32 L = W0 + W1;
+		std::vector<uint8> left((size_t)L * H * 4, 0);
+		for (int32 y = 0; y < H; y++) {
+			for (int32 x = 0; x < L; x++) {
+				const uint8* source;
+				if (y < frameTop && x <= border)
+					source = &R[((size_t)y * W + (border - x)) * 4];
+				else if (x < W0)
+					source = &P0[((size_t)y * W0 + x) * 4];
+				else
+					source = &P1[((size_t)y * W1 + (x - W0)) * 4];
+				memcpy(&left[((size_t)y * L + x) * 4], source, 4);
+			}
+		}
+
+		if (!fTabEnd[state].LoadFromBgra(W, H, R) || !fTabLeft[state].LoadFromBgra(L, H, left)) {
+			fStackedTabs = false;
+			return;
+		}
+		if (state == 0)
+			fStackOverlap = std::max((int32)0, W - border - kGap - 1);
+		ends[state] = E;
+		endWidth = W;
+		endHeight = H;
+	}
+
+	// the last tab of an active window's stack that is not the front one: its band is the active one, as the bar's
+	// that goes on from it is, or a lighter block shows where the two meet
+	std::vector<uint8> mixed = ends[1];
+	for (int32 y = 0; y < endHeight; y++) {
+		for (int32 x = border + 1; x < endWidth; x++)
+			memcpy(&mixed[((size_t)y * endWidth + x) * 4], &ends[0][((size_t)y * endWidth + x) * 4], 4);
+	}
+	if (!fTabEndOnActiveBar.LoadFromBgra(endWidth, endHeight, mixed))
+		fStackedTabs = false;
 }
 
 
@@ -1344,6 +1475,8 @@ XfwmTheme::_ReadThemerc(const char* path)
 			fHasOffsetRight = true;
 		} else if (strcmp(key, "buttons_in_tab") == 0)
 			fButtonsInTab = strcmp(value, "false") != 0 && strcmp(value, "0") != 0;
+		else if (strcmp(key, "haiku_stacked_tabs") == 0)
+			fStackedTabs = strcmp(value, "false") != 0 && strcmp(value, "0") != 0;
 		else if (strcmp(key, "button_spacing") == 0)
 			fButtonSpacing = atoi(value);
 	}

@@ -9,5 +9,6 @@ button_offset_right=8
 button_spacing=0
 button_layout=C|M
 buttons_in_tab=true
+haiku_stacked_tabs=true
 active_text_color=#000000
 inactive_text_color=#000000
