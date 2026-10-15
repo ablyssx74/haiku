@@ -115,6 +115,7 @@ private:
 			// stacked tabs, one pixel apart (see XfwmTheme::StackedTabs()); else 0
 			int32				_StackOverlap() const;
 			int32				_LeftGap(int32 index) const;
+			int32				_TabTextStart(Decorator::Tab* tab, int32 index) const;
 			const XfwmImage&	_EndOf(int32 index, int32 count, bool active, bool stacked) const;
 			void				_Blit(const XfwmImage& image, BPoint at);
 			void				_BlitTiled(const XfwmImage& image, BRect area, bool horizontal);

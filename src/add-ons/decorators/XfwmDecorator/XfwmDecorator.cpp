@@ -449,12 +449,40 @@ XfwmDecorator::_StackOverlap() const
 }
 
 
-// The tabs of a stack after the first have a rounded left end close to the tab before it, so their left button gets a little
-// more room from it (and the title moves along)
+// A tab after the first has its left end close to the tab before it, so its left button gets a little room from that
+// (and the title moves along)
 int32
 XfwmDecorator::_LeftGap(int32 index) const
 {
-	return index > 0 && fTheme->ButtonsInTab() && _StackOverlap() > 0 ? 3 : 0;
+	return index > 0 && fTheme->ButtonsInTab() ? 3 : 0;
+}
+
+
+// How far from the tab's left end its title starts, when it is not the first tab: past the left buttons, which sit
+// _LeftGap() in from the end, and at least where the pictures of the end leave room.
+int32
+XfwmDecorator::_TabTextStart(Decorator::Tab* tab, int32 index) const
+{
+	const int32 before = fTheme->Title(0, true).Width() + fTheme->Title(1, true).Width();
+	const int32 gap = _LeftGap(index);
+	int32 start = before + gap;
+
+	const BString layout = fTheme->ButtonLayout();
+	int32 divider = layout.FindFirst('|');
+	if (!fTheme->ButtonsInTab() || divider < 0 || tab == NULL)
+		return start;
+	int32 count = 0;
+	for (int32 i = 0; i < divider; i++) {
+		if ((layout[i] == 'C' && (tab->flags & B_NOT_CLOSABLE) == 0)
+			|| (layout[i] == 'M' && (tab->flags & B_NOT_ZOOMABLE) == 0)
+			|| (layout[i] == 'H' && (tab->flags & B_NOT_MINIMIZABLE) == 0))
+			count++;
+	}
+	if (count == 0)
+		return start;
+	const int32 buttonsEnd = std::max((int32)0, fTheme->ButtonOffset()) + gap
+		+ count * (fTheme->ButtonWidth() + fTheme->ButtonSpacing()) - fTheme->ButtonSpacing();
+	return std::max(start, buttonsEnd + 2);
 }
 
 
@@ -490,7 +518,8 @@ XfwmDecorator::_ComputeBar(BarLayout& bar) const
 	int32 sum = 0;
 	for (int32 i = 0; i < count; i++) {
 		Decorator::Tab* tab = fTabList.ItemAt(i);
-		fixed[i] = (i == 0 ? capWidth : 0) + before + after + _RoomForTabButtons(tab) + _LeftGap(i);
+		fixed[i] = (i == 0 ? capWidth : 0) + before + after + _RoomForTabButtons(tab)
+			+ (i == 0 ? 0 : _TabTextStart(tab, i) - before);
 		float wanted = tab->title.Length() > 0
 			? fDrawState.Font().StringWidth(tab->title.String(), tab->title.Length()) : 0.0f;
 		natural[i] = fixed[i] + (int32)ceilf(wanted);
@@ -523,11 +552,10 @@ XfwmDecorator::_ComputeBar(BarLayout& bar) const
 		slot.x = x;
 		slot.width = width;
 		slot.fillLeft = x + (i == 0 ? capWidth : 0) + before;
-		slot.textLeft = slot.fillLeft + _LeftGap(i);
+		slot.textLeft = i == 0 ? slot.fillLeft : x + _TabTextStart(fTabList.ItemAt(i), i);
 		slot.textWidth = std::max((int32)0, width - fixed[i]);
 		// (the tab's own color runs on under the room kept for the buttons, up to the picture of its end)
-		slot.fillWidth = std::max((int32)0,
-			width - (fixed[i] - _LeftGap(i) - _RoomForTabButtons(fTabList.ItemAt(i))));
+		slot.fillWidth = std::max((int32)0, width - ((i == 0 ? capWidth : 0) + before + after));
 		bar.slots.push_back(slot);
 		x += width - (i < count - 1 ? overlap : 0);
 	}
@@ -750,7 +778,8 @@ XfwmDecorator::_LayoutButtons(Decorator::Tab* tab, const BarLayout& bar)
 			right[i].rect->Set(rx - width, bar.y + opaque.top, rx - 1, bar.y + opaque.bottom);
 			rx -= width + spacing;
 		}
-		int32 lx = slot.x + (index == 0 ? fTheme->TopLeft(active).Width() : 0) + offset + _LeftGap(index);
+		int32 lx = index == 0 ? slot.x + fTheme->TopLeft(active).Width() + offset
+			: slot.x + std::max((int32)0, offset) + _LeftGap(index);
 		for (int32 i = 0; i < leftCount; i++) {
 			const XfwmImage& image = fTheme->Button(left[i].button, active ? kStateActive : kStateInactive);
 			BRect opaque = image.OpaqueBounds();
