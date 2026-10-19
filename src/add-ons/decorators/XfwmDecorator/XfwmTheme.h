@@ -114,6 +114,7 @@ public:
 			rgb_color			OutlineColor() const { return fOutline; }
 			// the colour of the border's body (for filling in the document window's resize knob)
 			rgb_color			FillColor() const { return fFill; }
+			rgb_color			ResizeKnobColor() const { return fResizeKnob; }
 
 			// measurements, taken from the pictures
 			int32				BorderWidth() const { return fBorderWidth; }
@@ -179,6 +180,7 @@ private:
 			XfwmImage			fTopRightCorner[2];
 			rgb_color			fOutline;
 			rgb_color			fFill;
+			rgb_color			fResizeKnob;
 			XfwmImage			fButton[kButtonCount][kStateCount];
 
 			int32				fBorderWidth;

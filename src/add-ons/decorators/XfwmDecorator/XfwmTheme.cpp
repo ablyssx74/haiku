@@ -55,6 +55,96 @@ MixToward(rgb_color c, uint8 target, float amount)
 }
 
 
+// The title color of the theme (the fallback color of its "active_color_1" and "inactive_color_1"), which the highlight,
+// shadow and mid tones of the title bar are derived from.
+struct TitleBase {
+	TitleBase() { has[0] = has[1] = false; }
+	bool		has[2];
+	rgb_color	color[2];
+};
+
+static TitleBase sTitleBase;
+
+
+// GTK's shade(): the lightness and the saturation of the color scaled by a factor (the way GTK 2 makes light and dark out of a
+// background color, which xfwm4 takes the title bar's tones from).
+static rgb_color
+ShadeColor(rgb_color c, float factor)
+{
+	float r = c.red / 255.0f, g = c.green / 255.0f, b = c.blue / 255.0f;
+	const float high = std::max(r, std::max(g, b)), low = std::min(r, std::min(g, b));
+	float lightness = (high + low) / 2.0f, saturation = 0, hue = 0;
+	const float delta = high - low;
+	if (delta > 0.00001f) {
+		saturation = lightness <= 0.5f ? delta / (high + low) : delta / (2.0f - high - low);
+		if (r == high)
+			hue = (g - b) / delta;
+		else if (g == high)
+			hue = 2.0f + (b - r) / delta;
+		else
+			hue = 4.0f + (r - g) / delta;
+		hue *= 60.0f;
+		if (hue < 0)
+			hue += 360.0f;
+	}
+	lightness = std::min(1.0f, std::max(0.0f, lightness * factor));
+	saturation = std::min(1.0f, std::max(0.0f, saturation * factor));
+
+	const float m2 = lightness <= 0.5f ? lightness * (1.0f + saturation) : lightness + saturation - lightness * saturation;
+	const float m1 = 2.0f * lightness - m2;
+	float channel[3];
+	const float offsets[3] = {120.0f, 0.0f, -120.0f};
+	for (int i = 0; i < 3; i++) {
+		float h = hue + offsets[i];
+		if (h > 360.0f)
+			h -= 360.0f;
+		if (h < 0.0f)
+			h += 360.0f;
+		float value;
+		if (saturation <= 0.00001f)
+			value = lightness;
+		else if (h < 60.0f)
+			value = m1 + (m2 - m1) * h / 60.0f;
+		else if (h < 180.0f)
+			value = m2;
+		else if (h < 240.0f)
+			value = m1 + (m2 - m1) * (240.0f - h) / 60.0f;
+		else
+			value = m1;
+		channel[i] = value;
+	}
+	return make_color((uint8)(channel[0] * 255.0f + 0.5f), (uint8)(channel[1] * 255.0f + 0.5f),
+		(uint8)(channel[2] * 255.0f + 0.5f));
+}
+
+
+// The fallback color a picture names "<state>_color_1" (the line `"X<tab>c #RRGGBB s active_color_1"`), if it does.
+static bool
+ReadTitleColor(const char* path, const char* symbol, rgb_color& color)
+{
+	FILE* file = fopen(path, "r");
+	if (file == NULL)
+		return false;
+	char line[512];
+	bool found = false;
+	while (!found && fgets(line, sizeof(line), file) != NULL) {
+		const char* at = strstr(line, symbol);
+		if (at == NULL)
+			continue;
+		const char* hash = strstr(line, "c #");
+		if (hash == NULL || hash > at)
+			continue;
+		unsigned int red, green, blue;
+		if (sscanf(hash + 3, "%2x%2x%2x", &red, &green, &blue) == 3) {
+			color = make_color((uint8)red, (uint8)green, (uint8)blue);
+			found = true;
+		}
+	}
+	fclose(file);
+	return found;
+}
+
+
 // "active_color_2", "inactive_shadow_1" ...: a colour out of the palette, when the name is one of those
 static bool
 SymbolicColor(const std::string& name, uint8& red, uint8& green, uint8& blue)
@@ -75,8 +165,23 @@ SymbolicColor(const std::string& name, uint8& red, uint8& green, uint8& blue)
 	std::string kind = rest.substr(0, under);
 	bool first = rest[under + 1] == '1';
 
-	// only the border family (_2) follows the desktop; the title bar family (_1) keeps the theme's own colours
-	if (first)
+	// The title bar family (_1) keeps the theme's own title color, and its highlight, shadow and mid tones are made from it, as
+	// xfwm4 has them (they come from the desktop theme's selection color there): a highlight that is not a bare white.
+	if (first) {
+		const int which = active ? 0 : 1;
+		if (!sTitleBase.has[which] || (kind != "hilight" && kind != "shadow" && kind != "mid"))
+			return false;
+		const rgb_color base = sTitleBase.color[which];
+		const rgb_color light = ShadeColor(base, 1.3f), dark = ShadeColor(base, 0.7f);
+		rgb_color result = kind == "hilight" ? light : (kind == "shadow" ? dark
+			: make_color((light.red + dark.red) / 2, (light.green + dark.green) / 2, (light.blue + dark.blue) / 2));
+		red = result.red;
+		green = result.green;
+		blue = result.blue;
+		return true;
+	}
+	// only the border family (_2) follows the desktop
+	if (!sPalette.set)
 		return false;
 	rgb_color base = active ? sPalette.panel : MixToward(sPalette.panel, 0, 0.1f);
 	if (kind == "color")
@@ -97,6 +202,125 @@ SymbolicColor(const std::string& name, uint8& red, uint8& green, uint8& blue)
 	green = base.green;
 	blue = base.blue;
 	return true;
+}
+
+
+
+// ---------------------------------------------------------------------------------------------------------------
+// Borders of a theme with fixed colors on a dark (or light) desktop
+// ---------------------------------------------------------------------------------------------------------------
+
+static float
+Luma(float red, float green, float blue)
+{
+	return (0.299f * red + 0.587f * green + 0.114f * blue) / 255.0f;
+}
+
+
+// Whether a picture's colors are named after the desktop's ("s active_color_2"): those follow its colors already.
+static bool
+UsesSymbolicColors(const char* path)
+{
+	FILE* file = fopen(path, "r");
+	if (file == NULL)
+		return false;
+	char line[512];
+	bool found = false;
+	while (!found && fgets(line, sizeof(line), file) != NULL) {
+		// (only the border family, "..._2", follows the desktop; the title bar family, "..._1", keeps the theme's colors)
+		if ((strstr(line, " s active_") != NULL || strstr(line, " s inactive_") != NULL) && strstr(line, "_2\"") != NULL)
+			found = true;
+	}
+	fclose(file);
+	return found;
+}
+
+
+// What the border pictures are mostly like: the median brightness of their opaque pixels (the outline does not count for
+// much, as it is a thin line) and their mean saturation.
+static bool
+BorderStats(XfwmImage* const* images, size_t count, float& medianLuma, float& meanSaturation, float& accent)
+{
+	const int kBins = 64;
+	int histogram[kBins];
+	memset(histogram, 0, sizeof(histogram));
+	double saturation = 0;
+	long total = 0, accented = 0;
+	for (size_t n = 0; n < count; n++) {
+		std::vector<uint8> pixels;
+		if (!images[n]->IsValid() || !images[n]->CopyBgra(pixels))
+			continue;
+		for (size_t i = 0; i + 3 < pixels.size(); i += 4) {
+			if (pixels[i + 3] == 0)
+				continue;
+			const float blue = pixels[i], green = pixels[i + 1], red = pixels[i + 2];
+			float luma = Luma(red, green, blue);
+			int bin = (int)(luma * (kBins - 1) + 0.5f);
+			histogram[std::max(0, std::min(kBins - 1, bin))]++;
+			const float high = std::max(red, std::max(green, blue)), low = std::min(red, std::min(green, blue));
+			const float sat = high > 1.0f ? (high - low) / high : 0.0f;
+			saturation += sat;
+			if (sat > 0.6f && luma > 0.15f)
+				accented++;
+			total++;
+		}
+	}
+	if (total == 0)
+		return false;
+	long seen = 0;
+	int median = 0;
+	for (int bin = 0; bin < kBins; bin++) {
+		seen += histogram[bin];
+		if (seen * 2 >= total) {
+			median = bin;
+			break;
+		}
+	}
+	medianLuma = (float)median / (kBins - 1);
+	meanSaturation = (float)(saturation / total);
+	accent = (float)accented / total;
+	return true;
+}
+
+
+// The colors of a border picture are moved so that its body has the panel's brightness, with the highlights and shadows
+// where they were relative to it (a little softer), the hue of the picture kept, and a grey one drawn toward the panel's
+// color. A picture's black outline stays dark on a dark desktop.
+static void
+AdaptToDesktop(XfwmImage& image, float bodyLuma, rgb_color panel)
+{
+	std::vector<uint8> pixels;
+	if (!image.IsValid() || !image.CopyBgra(pixels))
+		return;
+	const float panelLuma = std::max(0.05f, Luma(panel.red, panel.green, panel.blue));
+	for (size_t i = 0; i + 3 < pixels.size(); i += 4) {
+		if (pixels[i + 3] == 0)
+			continue;
+		float blue = pixels[i], green = pixels[i + 1], red = pixels[i + 2];
+		const float luma = Luma(red, green, blue);
+		float target = panelLuma + (luma - bodyLuma) * 0.8f;
+		target = std::max(0.0f, std::min(1.0f, target));
+		if (luma < 0.01f) {
+			red = green = blue = target * 255.0f;
+		} else {
+			const float scale = target / luma;
+			red *= scale;
+			green *= scale;
+			blue *= scale;
+		}
+		// a grey picture takes on the panel's hue
+		const float high = std::max(red, std::max(green, blue)), low = std::min(red, std::min(green, blue));
+		const float saturation = high > 1.0f ? (high - low) / high : 0.0f;
+		const float weight = std::max(0.0f, 1.0f - saturation * 4.0f) * 0.5f;
+		const float panelScale = target / panelLuma;
+		red = red * (1.0f - weight) + panel.red * panelScale * weight;
+		green = green * (1.0f - weight) + panel.green * panelScale * weight;
+		blue = blue * (1.0f - weight) + panel.blue * panelScale * weight;
+		pixels[i + 2] = (uint8)std::max(0.0f, std::min(255.0f, red));
+		pixels[i + 1] = (uint8)std::max(0.0f, std::min(255.0f, green));
+		pixels[i] = (uint8)std::max(0.0f, std::min(255.0f, blue));
+	}
+	image.LoadFromBgra(image.Width(), image.Height(), pixels);
 }
 
 
@@ -760,7 +984,7 @@ XfwmImage::Load(const char* path)
 					color.red = text->red;
 					color.green = text->green;
 					color.blue = text->blue;
-				} else if (sPalette.set)
+				} else
 					SymbolicColor(symbol, color.red, color.green, color.blue);
 				break;
 			}
@@ -1048,6 +1272,7 @@ XfwmTheme::XfwmTheme()
 	fOutline.red = fOutline.green = fOutline.blue = 0;
 	fOutline.alpha = 255;
 	fFill = fOutline;
+	fResizeKnob = fOutline;
 	fActiveText.red = fActiveText.green = fActiveText.blue = 0;
 	fActiveText.alpha = 255;
 	fInactiveText = fActiveText;
@@ -1104,6 +1329,17 @@ XfwmTheme::Load(const char* name)
 	sThemeText.active = fActiveText;
 	sThemeText.inactive = fInactiveText;
 
+	{
+		// the title color of the theme, from its main title picture
+		const char* const names[2] = {"title-3-active.xpm", "title-3-inactive.xpm"};
+		const char* const symbols[2] = {"s active_color_1", "s inactive_color_1"};
+		for (int32 state = 0; state < 2; state++) {
+			BString path(folder);
+			path << "/" << names[state];
+			sTitleBase.has[state] = ReadTitleColor(path.String(), symbols[state], sTitleBase.color[state]);
+		}
+	}
+
 	struct Piece {
 		XfwmImage*	image;
 		const char*	file;
@@ -1126,6 +1362,35 @@ XfwmTheme::Load(const char* name)
 				BString active(folder);
 				active << "/" << parts[i].base << "-active.xpm";
 				parts[i].image->Load(active.String());
+			}
+		}
+	}
+
+
+	// A theme with fixed border colors keeps them on any desktop, which is a light frame on a dark desktop and a dark one on a
+	// light desktop. The pictures of the sides and the bottom are moved to the desktop's brightness (the symbolic colors of the
+	// other themes follow it already). The title bar keeps the theme's own colors.
+	if (sPalette.set) {
+		BString leftPath(folder);
+		leftPath << "/left-active.xpm";
+		if (!UsesSymbolicColors(leftPath.String())) {
+			for (int32 state = 0; state < 2; state++) {
+				XfwmImage* sides[] = {&fLeft[state], &fRight[state], &fBottom[state], &fBottomLeft[state],
+					&fBottomRight[state]};
+				float body, saturation, accent;
+				if (!BorderStats(sides, sizeof(sides) / sizeof(sides[0]), body, saturation, accent))
+					continue;
+				rgb_color panel = state == 0 ? sPalette.panel : MixToward(sPalette.panel, 0, 0.1f);
+				const float panelLuma = Luma(panel.red, panel.green, panel.blue);
+				// a light frame on a dark desktop is darkened; a dark one on a light desktop is lightened, unless it is a strongly
+				// colored one (a blue or a green theme keeps its colors)
+				// (a theme with a bright accent color, such as the cyan line of crux, would have it turned garish)
+				const bool adapt = sPalette.dark ? body > 0.4f && body > panelLuma + 0.2f
+					: body < 0.35f && body < panelLuma - 0.2f && saturation < 0.35f && accent < 0.02f;
+				if (!adapt)
+					continue;
+				for (size_t i = 0; i < sizeof(sides) / sizeof(sides[0]); i++)
+					AdaptToDesktop(*sides[i], body, panel);
 			}
 		}
 	}
@@ -1203,6 +1468,17 @@ XfwmTheme::Load(const char* name)
 		fFill.green = pixel[1];
 		fFill.red = pixel[2];
 		fFill.alpha = 255;
+	}
+
+	// The resize knob in a document window's corner is filled with the border's body color, which is black in a good many
+	// themes (the pixel that is next to the window is their outline). A black square stands out beside the scroll bars, so
+	// it takes the color of the scroll bars' track instead (the panel color a little darker, as the control look has it),
+	// which follows the colors of the desktop, as the theme is loaded again when they change.
+	fResizeKnob = fFill;
+	if (Luma(fFill.red, fFill.green, fFill.blue) < 0.15f) {
+		rgb_color panel = sPalette.set ? sPalette.panel : make_color(216, 216, 216);
+		const float track = 2.0f - 1.075f;
+		fResizeKnob = make_color((uint8)(panel.red * track), (uint8)(panel.green * track), (uint8)(panel.blue * track));
 	}
 
 	if (!fHasActiveText)

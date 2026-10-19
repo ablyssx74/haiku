@@ -1077,13 +1077,18 @@ XfwmDecorator::_RightArea(bool active) const
 }
 
 
+// The strip between the two corner pictures, as in xfwm4: the corners have the shape of their own (a rounded one is see-through
+// where the strip would show), and the border is not wider than the sides, which a strip from the border width could be.
 BRect
 XfwmDecorator::_BottomArea(bool active) const
 {
 	const XfwmImage& bottom = fTheme->Bottom(active);
-	const int32 bw = fTheme->BorderWidth();
+	const XfwmImage& bottomLeft = fTheme->BottomLeft(active);
+	const XfwmImage& bottomRight = fTheme->BottomRight(active);
 	float y = fFrame.bottom + 1 - bottom.OpaqueBounds().top;
-	return BRect(fFrame.left - bw, y, fFrame.right + bw, y + bottom.Height() - 1);
+	float left = fFrame.left - fTheme->Left(active).Width() + bottomLeft.Width();
+	float right = fFrame.right + fTheme->Right(active).Width() - bottomRight.Width();
+	return BRect(left, y, right, y + bottom.Height() - 1);
 }
 
 
@@ -1091,9 +1096,10 @@ BRect
 XfwmDecorator::_TopFrameArea(bool active) const
 {
 	const XfwmImage& topFrame = fTheme->TopFrame(active);
-	const int32 bw = fTheme->BorderWidth();
 	float y = fFrame.top - topFrame.Height();
-	return BRect(fFrame.left - bw, y, fFrame.right + bw, y + topFrame.Height() - 1);
+	float left = fFrame.left - fTheme->Left(active).Width() + fTheme->TopLeftCorner(active).Width();
+	float right = fFrame.right + fTheme->Right(active).Width() - fTheme->TopRightCorner(active).Width();
+	return BRect(left, y, right, y + topFrame.Height() - 1);
 }
 
 
@@ -1191,7 +1197,7 @@ XfwmDecorator::_DrawFrame(BRect invalid)
 		// the resize knob inside the frame's bottom right corner
 		float knob = fResizeKnobSize - fBorderWidth;
 		fDrawingEngine->FillRect(BRect(fFrame.right - knob, fFrame.bottom - knob, fFrame.right, fFrame.bottom),
-			fTheme->FillColor());
+			fTheme->ResizeKnobColor());
 	}
 
 	const XfwmImage& bottomLeft = fTheme->BottomLeft(active);
