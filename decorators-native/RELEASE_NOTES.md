@@ -1,9 +1,9 @@
-# xfwm_decorators 1.0.13
+# xfwm_decorators 1.0.14
 
 Window decorators for Haiku made from xfwm4 themes. One decorator draws any xfwm4 theme, and the package carries 96 of them. Pick one in **Appearance > Decorator** (entries named "xfwm4: <theme>"), for example `xfwm4: b6`.
 
 ## Install
-Two packages are attached: `xfwm_decorators-1.0.13-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.13-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
+Two packages are attached: `xfwm_decorators-1.0.14-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.14-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
 
 ## Hover effect (on by default)
 The close, zoom and minimize buttons light up under the pointer. app_server tells a decorator nothing while the pointer only moves over it, so the effect is done from outside and is still young: fast pointer movement over the buttons has occasionally been seen to misdraw on real hardware, and in one or two themes the minimize button stopped answering after its window had been minimized and brought back. If you see either, turn it off:
@@ -16,7 +16,13 @@ xfwm-hover status
 
 It takes effect within a second, with no restart. Themes that ship hover pictures (`default-4.6`, `default-4.8`) use them; for the others the button's own picture is tinted, and the tint follows the button's shape: a round button gets a round highlight and a square one a square highlight, while a button that is only a symbol on the title bar gets the whole box. A dark button gets lighter and a light one darker; the symbol keeps its colors. (`galaxy`'s round buttons still get a square highlight: their pictures have a shadow behind them that can't be told from the button.)
 
-## Changes since 1.0.12
+## Changes since 1.0.13
+- **Bottom corners are right in 39 themes.** The bar along the bottom was drawn across a width taken from the border width, and before the corner pictures. In `adept`, `bbs`, `kde`, `next`, `metabox`, `totem`, `keramik`, `kindaker` and others that made the bar stick out past the side borders at both corners, and in themes with rounded corners (`b6`, `curve`, `default-4.0`, `blackwall`, `exocet` and more) the square end of the bar showed through the rounded corner as a lone pixel. The bar now runs between the two corner pictures, as in xfwm4, so the corners have the shape their themes give them. The top border of a modal window is laid out the same way.
+- **Borders follow a dark or a light desktop in the themes with fixed colors.** 60 themes already took the colors of their borders from Appearance. The other 36 kept theirs, which left a light frame on a dark desktop. Their side and bottom pictures are now moved to the brightness of the panel color, with the highlights and shadows kept relative to it and the hue of the picture kept (a dark frame on a light desktop is lightened the same way). A strongly colored theme (`biz`, `gaudy`, `piranha`, `redmondxp` and the like) keeps its colors. The title bar and the buttons are not changed, and the theme is drawn again when the colors are changed in Appearance.
+- **The resize knob in the corner of a document window matches the scroll bars.** It was filled with the color of the border's innermost pixel, which is black in a good many themes and stood out beside the scroll bars, most on a light desktop. When that color is nearly black it is the color of the scroll bars' track now (the panel color a little darker), and it follows Appearance.
+- **The highlight, shadow and mid tones of the title bar come from its color.** In 56 themes the title bar is made of the colors that xfwm4 takes from the desktop theme's selection color: a base color, with a lighter highlight, a darker shadow and a mid tone made from it. The port kept the numbers written in the pictures, so `alternate` had a bare white line along the top of its blue tab and a fixed blue line at its right end. They are made from the title color now (a lightness and saturation shade of 1.3 and 0.7, as GTK 2 does), so the white line is a light tint of the blue. The title color itself is still the theme's own.
+
+Changes in 1.0.13 (if you skipped it):
 - **`b5+`: the left button of a tab after the first is in its own tab.** It was drawn inside the tab before it, because the theme places it for the first tab's wide cap. It now sits 3 pixels in from the tab's left end, as in `b6+` and `b6+r`, and the tab is made wide enough that the title starts after the button and never runs over it.
 
 Changes in 1.0.12 (if you skipped it):

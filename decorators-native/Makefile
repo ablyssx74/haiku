@@ -67,7 +67,7 @@ deactivate: $(OUT)/setdecor
 # A package with the add-on for every theme:
 #   make package    -> out/xfwm_decorators-$(PKG_VERSION)-1-$(ARCH).hpkg
 # /boot/system/add-ons/decorators/Xfwm-<theme> and /boot/system/data/xfwm4-themes/<theme>/
-PKG_VERSION := 1.0.13
+PKG_VERSION := 1.0.14
 PKG := $(OUT)/package
 # The add-ons are put in the package last, from Z to A: packagefs lists a directory in the reverse of the
 # order the package has its entries in, so this makes Appearance's decorator menu come out alphabetical.
