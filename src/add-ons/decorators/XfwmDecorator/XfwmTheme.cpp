@@ -1108,8 +1108,73 @@ XfwmImage::LoadFlipped(const XfwmImage& source)
 // pixel in the same row is background. If what is left is a dense shape (a ball, a raised square) only that shape
 // changes, so the effect is as round or as square as the button. If it is sparse (a glyph on the bar) the whole
 // rectangle changes, as a box.
+//
+// The picture of a button in a window that is not the active one is pale: much of the ball is close to the
+// colour of the inactive bar, so the shape cannot be told from the background there, and the whole rectangle
+// would be lit as a box. The picture of the same button in the active window (shapeSource, of the same size, on its
+// own bar, shapeBar) has the same outline and shows it clearly: when that is a shape, it is the one used.
+
+// Finds the pixels of \a source that are the button, against \a bar: how much each is (1: certainly, 0: background),
+// and whether they make a shape (a ball, a raised square) rather than a glyph on the bar.
+static bool
+FindButtonFace(const XfwmImage& source, const XfwmImage& bar, std::vector<float>& face)
+{
+	const int32 width = source.Width(), height = source.Height();
+	face.assign((size_t)width * height, 0.0f);
+	if (!bar.IsValid())
+		return false;
+	const ServerBitmap* bits = source.Bitmap();
+	const ServerBitmap* barBits = bar.Bitmap();
+	int32 faceCount = 0, opaqueCount = 0, minX = width, minY = height, maxX = -1, maxY = -1;
+	for (int32 y = 0; y < height; y++) {
+		const uint8* in = bits->Bits() + y * bits->BytesPerRow();
+		const int32 barRow = std::min(y, bar.Height() - 1);
+		const uint8* barRowBits = barBits->Bits() + barRow * barBits->BytesPerRow();
+		for (int32 x = 0; x < width; x++) {
+			if (in[x * 4 + 3] < 128)
+				continue;
+			opaqueCount++;
+			const uint8* behind = barRowBits + (x % bar.Width()) * 4;
+			float distance;
+			if (behind[3] < 128) {
+				distance = 255.0f;
+			} else {
+				distance = std::max(std::max(fabsf((float)in[x * 4 + 0] - behind[0]),
+					fabsf((float)in[x * 4 + 1] - behind[1])), fabsf((float)in[x * 4 + 2] - behind[2]));
+			}
+			// the background of a button picture is not always exactly the bar's: the ends of the row are the
+			// background too, where they agree with each other
+			const uint8* first = in;
+			const uint8* last = in + (width - 1) * 4;
+			if (first[3] >= 128 && last[3] >= 128
+				&& std::max(std::max(abs(first[0] - last[0]), abs(first[1] - last[1])), abs(first[2] - last[2]))
+					< 24) {
+				float ends = std::max(std::max(fabsf((float)in[x * 4 + 0] - first[0]),
+					fabsf((float)in[x * 4 + 1] - first[1])), fabsf((float)in[x * 4 + 2] - first[2]));
+				distance = std::min(distance, ends);
+			}
+			float weight = std::min(1.0f, std::max(0.0f, (distance - 14.0f) / 36.0f));
+			face[(size_t)y * width + x] = weight;
+			if (weight > 0.5f) {
+				faceCount++;
+				minX = std::min(minX, x);
+				maxX = std::max(maxX, x);
+				minY = std::min(minY, y);
+				maxY = std::max(maxY, y);
+			}
+		}
+	}
+	if (faceCount <= 0)
+		return false;
+	float area = (float)(maxX - minX + 1) * (maxY - minY + 1);
+	// a shape: dense in its box, and a real part of the picture (a glyph on the bar is neither)
+	return faceCount / area >= 0.45f && faceCount >= 0.3f * opaqueCount && faceCount >= 20;
+}
+
+
 bool
-XfwmImage::LoadBrightened(const XfwmImage& source, float amount, const XfwmImage& bar)
+XfwmImage::LoadBrightened(const XfwmImage& source, float amount, const XfwmImage& bar, const XfwmImage* shapeSource,
+	const XfwmImage* shapeBar)
 {
 	if (!source.IsValid())
 		return false;
@@ -1123,55 +1188,15 @@ XfwmImage::LoadBrightened(const XfwmImage& source, float amount, const XfwmImage
 		return false;
 	}
 
-	// how far each pixel is from the bar's pixel at the same place (1: certainly the button, 0: background)
-	std::vector<float> face((size_t)source.fWidth * source.fHeight, 0.0f);
-	int32 faceCount = 0, opaqueCount = 0, minX = source.fWidth, minY = source.fHeight, maxX = -1, maxY = -1;
-	if (bar.IsValid()) {
-		for (int32 y = 0; y < source.fHeight; y++) {
-			const uint8* in = source.fBitmap->Bits() + y * source.fBitmap->BytesPerRow();
-			const int32 barRow = std::min(y, bar.fHeight - 1);
-			const uint8* barBits = bar.fBitmap->Bits() + barRow * bar.fBitmap->BytesPerRow();
-			for (int32 x = 0; x < source.fWidth; x++) {
-				if (in[x * 4 + 3] < 128)
-					continue;
-				opaqueCount++;
-				const uint8* behind = barBits + (x % bar.fWidth) * 4;
-				float distance;
-				if (behind[3] < 128) {
-					distance = 255.0f;
-				} else {
-					distance = std::max(std::max(fabsf((float)in[x * 4 + 0] - behind[0]),
-						fabsf((float)in[x * 4 + 1] - behind[1])), fabsf((float)in[x * 4 + 2] - behind[2]));
-				}
-				// the background of a button picture is not always exactly the bar's: the ends of the row are the
-				// background too, where they agree with each other
-				const uint8* first = in;
-				const uint8* last = in + (source.fWidth - 1) * 4;
-				if (first[3] >= 128 && last[3] >= 128
-					&& std::max(std::max(abs(first[0] - last[0]), abs(first[1] - last[1])), abs(first[2] - last[2]))
-						< 24) {
-					float ends = std::max(std::max(fabsf((float)in[x * 4 + 0] - first[0]),
-						fabsf((float)in[x * 4 + 1] - first[1])), fabsf((float)in[x * 4 + 2] - first[2]));
-					distance = std::min(distance, ends);
-				}
-				float weight = std::min(1.0f, std::max(0.0f, (distance - 14.0f) / 36.0f));
-				face[(size_t)y * source.fWidth + x] = weight;
-				if (weight > 0.5f) {
-					faceCount++;
-					minX = std::min(minX, x);
-					maxX = std::max(maxX, x);
-					minY = std::min(minY, y);
-					maxY = std::max(maxY, y);
-				}
-			}
-		}
-	}
+	std::vector<float> face;
 	bool shaped = false;
-	if (faceCount > 0) {
-		float area = (float)(maxX - minX + 1) * (maxY - minY + 1);
-		// a shape: dense in its box, and a real part of the picture (a glyph on the bar is neither)
-		shaped = faceCount / area >= 0.45f && faceCount >= 0.3f * opaqueCount && faceCount >= 20;
+	if (shapeSource != NULL && shapeBar != NULL && shapeSource->IsValid() && shapeSource->fWidth == source.fWidth
+		&& shapeSource->fHeight == source.fHeight) {
+		// (a pixel of the active picture that is the button is one of this picture's, where the outline is the same)
+		shaped = FindButtonFace(*shapeSource, *shapeBar, face);
 	}
+	if (!shaped)
+		shaped = FindButtonFace(source, bar, face);
 
 	// the typical brightness of what changes: the middle one, so a glyph or an outline doesn't pull it away from the
 	// body of the button
@@ -1417,7 +1442,8 @@ XfwmTheme::Load(const char* name)
 		// a window that isn't the active one has its own, paler buttons (unless the theme has a hover picture for them:
 		// <button>-prelight-inactive)
 		if (!fButton[button][kStatePrelightInactive].IsValid())
-			fButton[button][kStatePrelightInactive].LoadBrightened(fButton[button][kStateInactive], 0.4f, fTitle[2][1]);
+			fButton[button][kStatePrelightInactive].LoadBrightened(fButton[button][kStateInactive], 0.4f, fTitle[2][1],
+				&fButton[button][kStateActive], &fTitle[2][0]);
 	}
 
 	// everything the decorator draws must exist

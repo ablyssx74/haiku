@@ -117,7 +117,11 @@ public:
 	virtual void MouseUp(Window*, BMessage*, const BPoint&) {}
 	virtual void MouseMoved(Window*, BMessage*, const BPoint&) {}
 
-	virtual void WindowMoved(Window* window) { _Clear(window); }
+	virtual void WindowMoved(Window* window)
+	{
+		_Clear(window);
+		_RedrawBarAfterMove(window);
+	}
 	virtual void WindowResized(Window* window) { _Clear(window); }
 	virtual void WindowActivated(Window*) {}
 	virtual void WindowSentBehind(Window*, Window*) {}
@@ -168,6 +172,29 @@ private:
 		if (dirty == NULL)
 			return;
 		decorator->SetHover(tab, button, dirty);
+		_DrawBorder(window, decorator, dirty);
+		window->RegionPool()->Recycle(dirty);
+	}
+
+	// A window that has just been moved after its tabs or its focus changed: its bar was moved as pictures of the old
+	// one (the desktop copies what it can instead of drawing it again), so the bar is drawn whole again.
+	void _RedrawBarAfterMove(Window* window)
+	{
+		XfwmDecorator* decorator = dynamic_cast<XfwmDecorator*>(window->Decorator());
+		if (decorator == NULL || !decorator->TakeRedrawAfterMove())
+			return;
+
+		BRegion* dirty = window->RegionPool()->GetRegion();
+		if (dirty == NULL)
+			return;
+		window->GetBorderRegion(dirty);
+		_DrawBorder(window, decorator, dirty);
+		window->RegionPool()->Recycle(dirty);
+	}
+
+	// draws the decorator in \a dirty, clipped to what is visible of the window's border, and shows it
+	void _DrawBorder(Window* window, XfwmDecorator* decorator, BRegion* dirty)
+	{
 		if (dirty->CountRects() > 0) {
 			BRegion* border = window->RegionPool()->GetRegion();
 			if (border != NULL) {
@@ -178,7 +205,7 @@ private:
 			}
 
 			DrawingEngine* engine = decorator->GetDrawingEngine();
-			if (dirty->CountRects() > 0 && engine->LockParallelAccess()) {
+			if (dirty->CountRects() > 0 && engine != NULL && engine->LockParallelAccess()) {
 				engine->ConstrainClippingRegion(dirty);
 				bool copyToFront = engine->CopyToFrontEnabled();
 				engine->SetCopyToFrontEnabled(false);
@@ -189,7 +216,6 @@ private:
 				engine->UnlockParallelAccess();
 			}
 		}
-		window->RegionPool()->Recycle(dirty);
 	}
 
 	Desktop*	fDesktop;
@@ -286,7 +312,8 @@ XfwmDecorator::XfwmDecorator(DesktopSettings& settings, BRect frame, Desktop* de
 	SATDecorator(settings, frame, desktop),
 	fTheme(theme),
 	fHoverTab(-1),
-	fHoverButton(-1)
+	fHoverButton(-1),
+	fRedrawAfterMove(false)
 {
 	UpdatePalette(const_cast<XfwmTheme*>(fTheme), settings);
 }
@@ -364,6 +391,7 @@ XfwmDecorator::_SetFocus(Decorator::Tab* tab)
 		// the active and inactive pictures differ, and only the focused tab has buttons
 		_DoTabLayout();
 		_InvalidateFootprint();
+		fRedrawAfterMove = true;
 	}
 }
 
@@ -877,6 +905,61 @@ XfwmDecorator::_SetTitle(Decorator::Tab* tab, const char* string, BRegion* updat
 }
 
 
+// A window joins a stack or leaves it. The bar is laid out again (the tabs share the room, and the buttons move to the one
+// in front), and what it covered before has to be drawn again as well, or the old ends of tabs and the buttons that were
+// there stay on the screen: the base class only draws again the tabs' own rectangles and the new bar.
+bool
+XfwmDecorator::_AddTab(DesktopSettings& settings, int32 index, BRegion* updateRegion)
+{
+	if (!_HasTab())
+		return SATDecorator::_AddTab(settings, index, updateRegion);
+
+	const BRect oldBar = fTitleBarRect;
+	BRegion before(fUnreported);
+	before.Include(&fShown);
+
+	fRedrawAfterMove = true;
+	const bool ok = SATDecorator::_AddTab(settings, index, updateRegion);
+
+	_InvalidateFootprint();
+	fUnreported.MakeEmpty();
+	if (updateRegion != NULL) {
+		BRegion after;
+		_GetFootprint(&after);
+		updateRegion->Include(&before);
+		updateRegion->Include(&after);
+		updateRegion->Include(oldBar.InsetByCopy(-2, -2) | fTitleBarRect.InsetByCopy(-2, -2));
+	}
+	return ok;
+}
+
+
+bool
+XfwmDecorator::_RemoveTab(int32 index, BRegion* updateRegion)
+{
+	if (!_HasTab())
+		return SATDecorator::_RemoveTab(index, updateRegion);
+
+	const BRect oldBar = fTitleBarRect;
+	BRegion before(fUnreported);
+	before.Include(&fShown);
+
+	fRedrawAfterMove = true;
+	const bool ok = SATDecorator::_RemoveTab(index, updateRegion);
+
+	_InvalidateFootprint();
+	fUnreported.MakeEmpty();
+	if (updateRegion != NULL) {
+		BRegion after;
+		_GetFootprint(&after);
+		updateRegion->Include(&before);
+		updateRegion->Include(&after);
+		updateRegion->Include(oldBar.InsetByCopy(-2, -2) | fTitleBarRect.InsetByCopy(-2, -2));
+	}
+	return ok;
+}
+
+
 // The opaque pixels of a picture tiled along the bar from x to end (the last tile cut off there, as it is drawn); a
 // footprint that reached past the end of the bar would own pixels nothing paints.
 void
@@ -1016,6 +1099,15 @@ XfwmDecorator::RegionAt(BPoint where, int32& tab) const
 
 
 // #pragma mark - drawing
+
+
+bool
+XfwmDecorator::TakeRedrawAfterMove()
+{
+	const bool redraw = fRedrawAfterMove;
+	fRedrawAfterMove = false;
+	return redraw;
+}
 
 
 void

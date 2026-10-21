@@ -47,6 +47,10 @@ public:
 			// The pointer is over a button of a tab (button: kButtonClose, kButtonMaximize or kButtonHide, or -1 for
 			// none). The areas of the old and the new button, which have to be redrawn, are added to dirty.
 			void				SetHover(int32 tab, int32 button, BRegion* dirty);
+			// True once after a change that the desktop may not have been told about in full (a tab joined or left, the
+			// focus changed): the first move of the window afterwards copies the old pixels of the bar to the new
+			// place, which are not the ones the new layout draws, so the listener draws the bar again then.
+			bool				TakeRedrawAfterMove();
 
 
 protected:
@@ -61,6 +65,8 @@ protected:
 									BRegion* updateRegion = NULL);
 	virtual	bool				_MoveTab(int32 from, int32 to, bool isMoving, BRegion* updateRegion = NULL);
 	virtual	void				_SetFocus(Decorator::Tab* tab);
+	virtual	bool				_AddTab(DesktopSettings& settings, int32 index, BRegion* updateRegion = NULL);
+	virtual	bool				_RemoveTab(int32 index, BRegion* updateRegion = NULL);
 	virtual	void				_GetFootprint(BRegion* region);
 
 	virtual	void				_DrawFrame(BRect rect);
@@ -74,6 +80,7 @@ protected:
 private:
 							int32				fHoverTab;
 							int32				fHoverButton;
+							bool				fRedrawAfterMove;
 							BRegion				fShown;
 							BRegion				fUnreported;
 								// areas the bar covered earlier that no change has told the desktop about yet

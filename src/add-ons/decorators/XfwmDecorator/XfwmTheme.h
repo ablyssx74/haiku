@@ -27,7 +27,8 @@ public:
 			bool				LoadFlipped(const XfwmImage& source);
 			// a lighter (or, on a light button, darker) copy of another picture, background only: the hover look of a
 			// button the theme has no such picture for
-			bool				LoadBrightened(const XfwmImage& source, float amount, const XfwmImage& bar);
+			bool				LoadBrightened(const XfwmImage& source, float amount, const XfwmImage& bar,
+									const XfwmImage* shapeSource = NULL, const XfwmImage* shapeBar = NULL);
 			bool				IsValid() const { return fBitmap != NULL; }
 			// the pixels (BGRA, row after row), and a picture made from such pixels
 			bool				CopyBgra(std::vector<uint8>& bgra) const;
