@@ -349,25 +349,43 @@ SnakeAdoptItems(BMenu* menu)
 		if (submenu != NULL)
 			SnakeAdoptItems(submenu);
 		// (a bar's titles, items of ours and separators stay, and so do items of a class of their own, which draw themselves)
-		if (bar || dynamic_cast<SnakeMenuItem*>(item) != NULL || dynamic_cast<BSeparatorItem*>(item) != NULL
-			|| typeid(*item) != typeid(BMenuItem)) {
+		const bool snakeItem = !bar && dynamic_cast<SnakeMenuItem*>(item) == NULL
+			&& dynamic_cast<BSeparatorItem*>(item) == NULL && typeid(*item) == typeid(BMenuItem);
+		// A plain BMenu does not tell the snake look when it opens (Tracker's own menus do), so it is replaced by one that does.
+		const bool snakeMenu = submenu != NULL && typeid(*submenu) == typeid(BMenu);
+		if (!snakeItem && !snakeMenu)
 			continue;
-		}
+
 		BMessage* message = item->Message() != NULL ? new BMessage(*item->Message()) : NULL;
 		BLooper* looper = NULL;
 		BHandler* handler = item->Target(&looper);
 		const bool enabled = item->IsEnabled(), marked = item->IsMarked();
 		uint32 modifiers = 0;
 		const char shortcut = item->Shortcut(&modifiers);
+
+		BMenu* target = submenu;
+		if (snakeMenu) {
+			SnakeMenu* replacement = new SnakeMenu(submenu->Name());
+			while (submenu->CountItems() > 0) {
+				BMenuItem* moved = submenu->RemoveItem((int32)0);
+				replacement->AddItem(moved);
+			}
+			replacement->SetEnabled(submenu->IsEnabled());
+			target = replacement;
+		}
+
 		BMenuItem* adopted;
-		if (submenu != NULL) {
-			// (the submenu moves to the new item; the old item is taken out and left alone, as freeing it would free the submenu)
-			menu->RemoveItem(i);
-			adopted = new SnakeMenuItem(submenu, message);
-		} else {
+		if (target != NULL)
+			adopted = snakeItem ? new SnakeMenuItem(target, message) : new BMenuItem(target, message);
+		else
 			adopted = new SnakeMenuItem(item->Label(), message, shortcut, modifiers);
+		if (target == NULL || snakeMenu) {
+			// (the old item takes the old, now empty, menu with it)
 			menu->RemoveItem(i);
 			delete item;
+		} else {
+			// (the submenu moved to the new item; the old item is taken out and left alone, as freeing it would free the submenu)
+			menu->RemoveItem(i);
 		}
 		if (handler != NULL)
 			adopted->SetTarget(BMessenger(handler, looper));
