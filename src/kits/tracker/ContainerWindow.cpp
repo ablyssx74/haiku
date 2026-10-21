@@ -204,6 +204,9 @@ AddOnMenuGenerate(const struct AddOnInfo* info, BMenu* menu, BContainerWindow* w
 	// call add-on code
 	(*populateMenu)(message, menu, window->PoseView());
 
+	// (the add-on's items are plain ones: given the snake look, so the menu can have it)
+	SnakeAdoptItems(menu);
+
 	unload_add_on(addOnImage);
 	info->has_populate_menu = B_OK;
 	return B_OK;

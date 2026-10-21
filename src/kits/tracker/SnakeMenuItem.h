@@ -67,8 +67,15 @@ public:
 	virtual	void			DrawBackground(BRect updateRect);
 };
 
+// An add-on that fills a menu (Tracker's populate_menu) adds plain BMenuItems, and the snake look is only given to a menu
+// whose items it can all draw. Items that are not Tracker's own are replaced here by SnakeMenuItems with the same label,
+// message, target, shortcut and state; submenus are kept (and gone through in turn). A menu bar's own titles are left as
+// they are: it is what lies under them that is converted.
+void SnakeAdoptItems(BMenu* menu);
+
 }	// namespace BPrivate
 
+using BPrivate::SnakeAdoptItems;
 using BPrivate::SnakeMenu;
 using BPrivate::SnakeMenuItem;
 using BPrivate::SnakePopUpMenu;

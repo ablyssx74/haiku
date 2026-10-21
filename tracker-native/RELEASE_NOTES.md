@@ -1,8 +1,11 @@
-# snaketracker 1.0.44
+# snaketracker 1.0.45
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Menus that a Tracker add-on adds items to keep the snake look.** An add-on that fills a menu (TrackRunner, for one, adds a TrackRunner entry to the File menu and the desktop's menu) adds plain Haiku menu items, and the snake look is given only to a menu whose items it can all draw. Those menus were drawn in the stock look, while their submenus had the snake one. The add-on's items are now replaced by snake ones with the same label, action, shortcut and state, and the add-on's submenus are gone through in turn.
+
+Since 1.0.44 (if you skipped it):
 - **The side panel's right-click menu is in the snake look.** The menu that hides the Trash, removes a favorite and the like has the pill shape and colors now.
 - **Long menus scroll with less work.** Scrolling a submenu redraws only the rows that changed, about three times less CPU than before.
 - **Guards against runaway redraws.** A menu that kept being moved or redrawn could keep a thread busy until the menu closed; this is now rate limited, and the timers that re-checked a menu's frame are no longer left running. To see if a guard ever trips, create an empty file `~/config/settings/snake_debug`; it is then logged to `snake_debug.log` in the same folder.

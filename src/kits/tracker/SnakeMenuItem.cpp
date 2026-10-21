@@ -8,6 +8,10 @@
 #include <InterfaceDefs.h>
 #include <GradientLinear.h>
 #include <Menu.h>
+#include <Messenger.h>
+#include <typeinfo>
+#include <MenuBar.h>
+#include <MenuItem.h>
 #include <MenuPrivate.h>
 #include <Shape.h>
 #include <Window.h>
@@ -324,6 +328,53 @@ SnakePopUpMenu::DrawBackground(BRect updateRect)
 {
 	BPopUpMenu::DrawBackground(updateRect);
 	SnakeSelector::DrawTrail(this);
+}
+
+}	// namespace BPrivate
+
+
+namespace BPrivate {
+
+void
+SnakeAdoptItems(BMenu* menu)
+{
+	if (menu == NULL)
+		return;
+	const bool bar = dynamic_cast<BMenuBar*>(menu) != NULL;
+	for (int32 i = 0; i < menu->CountItems(); i++) {
+		BMenuItem* item = menu->ItemAt(i);
+		if (item == NULL)
+			continue;
+		BMenu* submenu = item->Submenu();
+		if (submenu != NULL)
+			SnakeAdoptItems(submenu);
+		// (a bar's titles, items of ours and separators stay, and so do items of a class of their own, which draw themselves)
+		if (bar || dynamic_cast<SnakeMenuItem*>(item) != NULL || dynamic_cast<BSeparatorItem*>(item) != NULL
+			|| typeid(*item) != typeid(BMenuItem)) {
+			continue;
+		}
+		BMessage* message = item->Message() != NULL ? new BMessage(*item->Message()) : NULL;
+		BLooper* looper = NULL;
+		BHandler* handler = item->Target(&looper);
+		const bool enabled = item->IsEnabled(), marked = item->IsMarked();
+		uint32 modifiers = 0;
+		const char shortcut = item->Shortcut(&modifiers);
+		BMenuItem* adopted;
+		if (submenu != NULL) {
+			// (the submenu moves to the new item; the old item is taken out and left alone, as freeing it would free the submenu)
+			menu->RemoveItem(i);
+			adopted = new SnakeMenuItem(submenu, message);
+		} else {
+			adopted = new SnakeMenuItem(item->Label(), message, shortcut, modifiers);
+			menu->RemoveItem(i);
+			delete item;
+		}
+		if (handler != NULL)
+			adopted->SetTarget(BMessenger(handler, looper));
+		adopted->SetEnabled(enabled);
+		adopted->SetMarked(marked);
+		menu->AddItem(adopted, i);
+	}
 }
 
 }	// namespace BPrivate
