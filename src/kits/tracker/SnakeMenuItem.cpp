@@ -345,6 +345,13 @@ SnakeAdoptItems(BMenu* menu)
 		BMenuItem* item = menu->ItemAt(i);
 		if (item == NULL)
 			continue;
+		// a plain separator (an add-on's AddSeparatorItem) is the stock bulky line: ours replaces it
+		if (!bar && typeid(*item) == typeid(BSeparatorItem)) {
+			menu->RemoveItem(i);
+			delete item;
+			menu->AddItem(new SnakeSeparatorItem(), i);
+			continue;
+		}
 		BMenu* submenu = item->Submenu();
 		if (submenu != NULL)
 			SnakeAdoptItems(submenu);

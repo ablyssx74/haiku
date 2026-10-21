@@ -1,8 +1,11 @@
-# snaketracker 1.0.46
+# snaketracker 1.0.47
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **The separator lines of an add-on's menu items are in the snake look.** An add-on that fills a menu (TrackRunner, for one) adds plain Haiku separators, which showed as the bulky dark stock line. They are replaced by the snake separator, in Tracker's menus and in the right-click popup menus.
+
+Since 1.0.46 (if you skipped it):
 - **A menu an add-on puts in a window's menu bar has the snake look.** TrackRunner's menu in a Tracker window's menu bar (and its submenus) was still drawn in the stock look. It is a plain Haiku menu, and Tracker's own menus tell the snake look when they open while a plain one does not, so a plain add-on menu is now replaced by one of Tracker's own, with its items moved over.
 
 Since 1.0.45 (if you skipped it):
