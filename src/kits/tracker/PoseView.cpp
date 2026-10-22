@@ -34,6 +34,8 @@ All rights reserved.
 
 
 #include "SnakeMenuItem.h"
+#include <Roster.h>
+
 #include "PoseView.h"
 
 #include <algorithm>
@@ -3708,8 +3710,8 @@ BPoseView::Cleanup(bool doAll, bool keepView)
 
 // Lays all the icons out in columns (down from the top left, then the next column to the right) or in rows (along from the top
 // left, then the next row down), in the order they are sorted in. Every icon is marked to have its place saved, and keeps it
-// afterwards; nothing arranges the icons again by itself. A grid cell and a half is left clear along the bottom edge, where a dock
-// or a panel may cover the icons' labels.
+// afterwards; nothing arranges the icons again by itself. When hDesktop is running, a grid cell and a half is left clear along
+// the bottom edge, where its dock covers the icons' labels.
 void
 BPoseView::ArrangeIcons(bool inColumns, bool keepView)
 {
@@ -3726,7 +3728,9 @@ BPoseView::ArrangeIcons(bool inColumns, bool keepView)
 
 	const BRect viewBounds(Bounds());
 	const BPoint start(fHintLocation);
-	const float bottomLimit = viewBounds.bottom - fGrid.y * 1.5f;
+	// with hDesktop running its dock covers the bottom of the screen, so the icons keep clear of it; without it they use it all
+	const bool dockRunning = be_roster->IsRunning("application/x-vnd.hdesktop");
+	const float bottomLimit = dockRunning ? viewBounds.bottom - fGrid.y * 1.5f : viewBounds.bottom;
 
 	fVSPoseList->MakeEmpty();
 	const int32 poseCount = fPoseList->CountItems();
