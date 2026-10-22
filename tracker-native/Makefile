@@ -126,9 +126,13 @@ $(OUT)/SnakeControlLook: $(CL)/SnakeControlLook.cpp
 look: $(OUT)/SnakeControlLook
 
 # The background server that makes sure these Tracker and Deskbar are the ones running (see snaketracker_server.cpp)
+# (on 32-bit Haiku it is built with the secondary architecture's gcc, like hDesktop: the libcurl that is there is curl_x86's, and gcc 2
+# could not use it)
+SERVER_CXX := $(if $(GCC2),g++-x86,$(CXX))
+SERVER_LIBS := $(if $(GCC2),-L/boot/system/lib/x86,$(CXXLIBS) -L$(DEV)/lib)
 $(OUT)/snaketracker_server: snaketracker_server.cpp snaketracker_server.rdef VERSION
 	@mkdir -p $(OUT)
-	$(CXX) -O2 -Wno-multichar -DSNAKETRACKER_VERSION=\"$(PKG_VERSION)\" -I$(DEV)/headers/private/app -I$(DEV)/headers/private/shared -o $@ snaketracker_server.cpp -lbe -lnetwork -lcurl $(CXXLIBS) -L$(DEV)/lib
+	$(SERVER_CXX) -O2 -Wno-multichar -DSNAKETRACKER_VERSION=\"$(PKG_VERSION)\" -I$(DEV)/headers/private/app -I$(DEV)/headers/private/shared -o $@ snaketracker_server.cpp -lbe -lnetwork -lcurl $(SERVER_LIBS)
 	rc -o $(OUT)/snaketracker_server.rsrc snaketracker_server.rdef
 	xres -o $@ $(OUT)/snaketracker_server.rsrc
 	mimeset -f $@ >/dev/null 2>&1 || true
