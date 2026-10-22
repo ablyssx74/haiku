@@ -126,9 +126,9 @@ $(OUT)/SnakeControlLook: $(CL)/SnakeControlLook.cpp
 look: $(OUT)/SnakeControlLook
 
 # The background server that makes sure these Tracker and Deskbar are the ones running (see snaketracker_server.cpp)
-$(OUT)/snaketracker_server: snaketracker_server.cpp snaketracker_server.rdef
+$(OUT)/snaketracker_server: snaketracker_server.cpp snaketracker_server.rdef VERSION
 	@mkdir -p $(OUT)
-	$(CXX) -O2 -Wno-multichar -I$(DEV)/headers/private/app -I$(DEV)/headers/private/shared -o $@ snaketracker_server.cpp -lbe $(CXXLIBS) -L$(DEV)/lib
+	$(CXX) -O2 -Wno-multichar -DSNAKETRACKER_VERSION=\"$(PKG_VERSION)\" -I$(DEV)/headers/private/app -I$(DEV)/headers/private/shared -o $@ snaketracker_server.cpp -lbe -lnetwork -lcurl $(CXXLIBS) -L$(DEV)/lib
 	rc -o $(OUT)/snaketracker_server.rsrc snaketracker_server.rdef
 	xres -o $@ $(OUT)/snaketracker_server.rsrc
 	mimeset -f $@ >/dev/null 2>&1 || true
@@ -167,7 +167,9 @@ uninstall: uninstall-launch
 # launch daemon only reads /boot/system/data/user_launch, so a home install is silently ignored.
 # Removing the package puts the stock Tracker and Deskbar back. A package can't replace files that
 # another package (haiku.hpkg) owns, hence the separate folder and the launch file.
-PKG_VERSION := 1.0.47
+# The one place a release changes is the VERSION file: the package, the server (which compares it with the one on GitHub) and the notes.
+PKG_VERSION := $(shell sed -n 's/.*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' VERSION | head -1)
+CURL_PKG := curl$(if $(GCC2),_x86,)
 PKG := $(OUT)/package
 package: all app look server
 	rm -rf $(PKG)
@@ -179,7 +181,7 @@ package: all app look server
 	cp $(OUT)/SnakeControlLook $(PKG)/add-ons/control_look/
 	cp package/x-snake-tracker $(PKG)/data/user_launch/
 	cp package/README.md $(PKG)/documentation/packages/snaketracker/
-	sed 's/@VERSION@/$(PKG_VERSION)/; s/@ARCH@/$(ARCH)/' package/PackageInfo.in > $(PKG)/.PackageInfo
+	sed 's/@VERSION@/$(PKG_VERSION)/; s/@ARCH@/$(ARCH)/; s/@CURL@/$(CURL_PKG)/' package/PackageInfo.in > $(PKG)/.PackageInfo
 	rm -f $(OUT)/snaketracker-$(PKG_VERSION)-1-$(ARCH).hpkg
 	package create -C $(PKG) $(OUT)/snaketracker-$(PKG_VERSION)-1-$(ARCH).hpkg
 

@@ -28,6 +28,7 @@ provides {
 }
 requires {
 	haiku >= r1~beta6
+	@CURL@
 }
 urls {
 	"https://github.com/ablyssx74/haiku"

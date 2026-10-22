@@ -51,6 +51,7 @@
 #include <PopUpMenu.h>
 #include <Message.h>
 #include <MessageFilter.h>
+#include <image.h>
 #include <Path.h>
 #include <Roster.h>
 #include <View.h>
@@ -1338,6 +1339,27 @@ LitBoxes()
 }
 
 
+// The light and dark shading of a lit row's raised look, kept as a translucent layer (white or black, as opaque as the
+// shading is strong) for the menus that fill part of their rows themselves (ProcessController's columns of numbers),
+// which paint over it; it is laid over them again once the row's content is drawn.
+struct ShadeLayer {
+	BBitmap*	bitmap;
+	BBitmap*	restore;	// the menu's own color, as opaque as the row's pill is not (the column is a full row high, the pill is not)
+	BPoint		origin;
+	rgb_color	fill;		// the menu's own color
+	BRect		pending;	// what was drawn again since the shading was last laid over it
+	bool		scheduled;
+};
+
+
+static std::map<BMenu*, ShadeLayer>&
+ShadeLayers()
+{
+	static std::map<BMenu*, ShadeLayer>* layers = new std::map<BMenu*, ShadeLayer>();
+	return *layers;
+}
+
+
 // #pragma mark - the pill look
 
 // Tracker takes a picture of the screen just before it opens one of its popup menus and hands it over
@@ -1460,10 +1482,10 @@ StockMenu(BMenu* menu)
 }
 
 
-// ProcessController's menus: its rows are drawn with the system's own menu colors (the numbers' columns are filled with the menu's
-// background color, the selected row's with the selection color), and every row of them opens a list. The pill is made in those
-// colors for them, so that what the program fills in is not a box of another color in the pill, and an arrow on each row is left
-// out (it only crowds the usage bars).
+// ProcessController's menus, and hdesktop's CPU graph menu (made the same way): every row of them opens a list, and an
+// arrow on each row is left out (it only crowds the usage bars drawn in the row; the row still opens as before). These
+// menus get the accent-tinted pill like any other program's now, not Haiku's own menu colors; the columns of numbers that
+// ProcessController fills itself are set to the pill's colors too (SyncBarMenuColors).
 static bool
 BarMenu(BMenu* menu)
 {
@@ -1480,6 +1502,38 @@ BarMenu(BMenu* menu)
 }
 
 
+// ProcessController fills the columns of numbers in its rows (memory, thread and CPU usage) with two color variables of its
+// own, set once at start-up from Haiku's menu colors, so the columns showed as boxes of another color in the pill. They are
+// exported by the program, so they are found in its image and set to the pill's colors (this does nothing in a program that
+// has no such variables).
+static void
+SyncBarMenuColors(const rgb_color& fill, const rgb_color& hot)
+{
+	static rgb_color* back = NULL;
+	static rgb_color* backSelected = NULL;
+	static bigtime_t lastLook = 0;
+	if (back == NULL && backSelected == NULL && system_time() - lastLook > 2000000) {
+		lastLook = system_time();
+		// (ProcessController in the Deskbar is an add-on image of the Deskbar's team, so every image is looked at)
+		image_info info;
+		int32 cookie = 0;
+		while (get_next_image_info(B_CURRENT_TEAM, &cookie, &info) == B_OK) {
+			void* address;
+			if (get_image_symbol(info.id, "gMenuBackColor", B_SYMBOL_TYPE_DATA, &address) == B_OK)
+				back = (rgb_color*)address;
+			if (get_image_symbol(info.id, "gMenuBackColorSelected", B_SYMBOL_TYPE_DATA, &address) == B_OK)
+				backSelected = (rgb_color*)address;
+			if (back != NULL && backSelected != NULL)
+				break;
+		}
+	}
+	if (back != NULL)
+		*back = fill;
+	if (backSelected != NULL)
+		*backSelected = hot;
+}
+
+
 // The pill's colors for a menu of another program: Haiku's own when the Tracker preference says so, otherwise the
 // SnakeTracker color; the pill is light on a light theme and dark on a dark one (the stock items' text is dark on the one and
 // light on the other), and the lit row is the SnakeTracker color.
@@ -1487,7 +1541,7 @@ static void
 StockPillColors(BMenu* menu, rgb_color* fill, rgb_color* hot, rgb_color* text)
 {
 	const rgb_color itemText = ui_color(B_MENU_ITEM_TEXT_COLOR);
-	if (SystemColors() || BarMenu(menu)) {
+	if (SystemColors()) {
 		*fill = ui_color(B_MENU_BACKGROUND_COLOR);
 		*hot = ui_color(B_MENU_SELECTION_BACKGROUND_COLOR);
 		*text = itemText;
@@ -1498,6 +1552,8 @@ StockPillColors(BMenu* menu, rgb_color* fill, rgb_color* hot, rgb_color* text)
 	*fill = lightText ? MixColors(Accent(), black, 0.68f) : MixColors(Accent(), white, 0.5f);
 	*hot = MixColors(Accent(), white, lightText ? 0.18f : 0.0f);
 	*text = itemText;
+	if (BarMenu(menu))
+		SyncBarMenuColors(*fill, *hot);
 }
 
 
@@ -2243,6 +2299,209 @@ LinkRetries()
 }
 
 
+// Where ProcessController paints the column of numbers in a memory row (the way it places it: a font size from the bar,
+// and a font size more, from the bar's inner edge); false for a menu without such columns.
+static bool
+BarColumnRect(BMenu* menu, BMenuItem* item, BRect* column)
+{
+	if (item == NULL || strstr(typeid(*menu).name(), "Memory") == NULL)
+		return false;
+	static float* textWidth = NULL;
+	static bigtime_t lastLook = 0;
+	if (textWidth == NULL && system_time() - lastLook > 2000000) {
+		lastLook = system_time();
+		image_info info;
+		int32 cookie = 0;
+		while (get_next_image_info(B_CURRENT_TEAM, &cookie, &info) == B_OK) {
+			void* address;
+			if (get_image_symbol(info.id, "gMemoryTextWidth", B_SYMBOL_TYPE_DATA, &address) == B_OK) {
+				textWidth = (float*)address;
+				break;
+			}
+		}
+	}
+	if (textWidth == NULL)
+		return false;
+	BFont font;
+	menu->GetFont(&font);
+	const BRect frame = item->Frame();
+	// (the bar's frame is inset by a pixel before the column is placed from its left edge)
+	const float barLeft = frame.right - font.Size() - 100.0f + 1.0f;
+	*column = BRect(barLeft - font.Size() - *textWidth, frame.top, barLeft - font.Size(), frame.bottom) & frame;
+	return column->IsValid();
+}
+
+
+// ProcessController paints the column of numbers over the lit row, the row's full height, which wipes the raised look (the light
+// and dark edges) from it. Once the menu has been drawn (this message is handled after the drawing is over), the row's
+// shading is laid over the column again, only where it was drawn again, so it never builds up.
+static void StartShadeRepair(BWindow* window);
+
+
+class ShadeFilter : public BMessageFilter {
+public:
+	ShadeFilter() : BMessageFilter(B_ANY_DELIVERY, B_ANY_SOURCE, 'SnSh') {}
+
+	virtual filter_result Filter(BMessage* message, BHandler** target)
+	{
+		BWindow* window = dynamic_cast<BWindow*>(Looper());
+		BMenu* menu = window != NULL ? MenuOfWindow(window) : NULL;
+		if (menu == NULL)
+			return B_SKIP_MESSAGE;
+		BBitmap* bitmap = NULL;
+		BBitmap* restore = NULL;
+		BPoint origin;
+		rgb_color fill = make_color(0, 0, 0);
+		BRect pending;
+		{
+			BAutolock lock(LinkLock());
+			std::map<BMenu*, ShadeLayer>::iterator it = ShadeLayers().find(menu);
+			if (it == ShadeLayers().end())
+				return B_SKIP_MESSAGE;
+			it->second.scheduled = false;
+			bitmap = it->second.bitmap;
+			restore = it->second.restore;
+			origin = it->second.origin;
+			fill = it->second.fill;
+			pending = it->second.pending;
+			it->second.pending = BRect();
+		}
+		BRect column;
+		if (bitmap == NULL || !pending.IsValid() || !BarColumnRect(menu, SelectedItem(menu), &column))
+			return B_SKIP_MESSAGE;
+		column = column & pending & menu->Bounds();
+		if (!column.IsValid())
+			return B_SKIP_MESSAGE;
+		menu->PushState();
+		menu->ClipToRect(column);
+		menu->SetDrawingMode(B_OP_ALPHA);
+		menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+		// (the column is a row high and the pill is not: above and below the pill it is the menu's own color)
+		const float litTop = origin.y, litBottom = origin.y + bitmap->Bounds().Height();
+		menu->SetHighColor(fill);
+		if (column.top < litTop)
+			menu->FillRect(BRect(column.left, column.top, column.right, litTop - 1));
+		if (column.bottom > litBottom)
+			menu->FillRect(BRect(column.left, litBottom + 1, column.right, column.bottom));
+		if (restore != NULL)
+			menu->DrawBitmap(restore, origin);
+		menu->DrawBitmap(bitmap, origin);
+		menu->PopState();
+		menu->Sync();
+		StartShadeRepair(window);
+		return B_SKIP_MESSAGE;
+	}
+};
+
+
+// ProcessController redraws a row's column of numbers by itself whenever they change (the Deskbar's, which has ProcessController
+// inside it, nearly always), and that wipes the shading again. So while the menu is open the lit row's column is drawn again
+// twice a second, which puts the shading back (drawing it again is what lays it over).
+class ShadeRepairFilter : public BMessageFilter {
+public:
+	ShadeRepairFilter() : BMessageFilter(B_ANY_DELIVERY, B_ANY_SOURCE, 'SnSr') {}
+
+	virtual filter_result Filter(BMessage* message, BHandler** target);
+};
+
+
+static std::map<BWindow*, BMessageRunner*>&
+ShadeRepairRunners()
+{
+	static std::map<BWindow*, BMessageRunner*>* runners = new std::map<BWindow*, BMessageRunner*>();
+	return *runners;
+}
+
+
+static void
+StopShadeRepair(BWindow* window)
+{
+	BAutolock lock(LinkLock());
+	std::map<BWindow*, BMessageRunner*>::iterator it = ShadeRepairRunners().find(window);
+	if (it != ShadeRepairRunners().end()) {
+		delete it->second;
+		ShadeRepairRunners().erase(it);
+	}
+}
+
+
+filter_result
+ShadeRepairFilter::Filter(BMessage* message, BHandler** target)
+{
+	BWindow* window = dynamic_cast<BWindow*>(Looper());
+	BMenu* menu = window != NULL ? MenuOfWindow(window) : NULL;
+	BRect column;
+	if (menu == NULL || window->IsHidden() || !BarColumnRect(menu, SelectedItem(menu), &column)) {
+		if (window != NULL)
+			StopShadeRepair(window);
+		return B_SKIP_MESSAGE;
+	}
+	menu->Invalidate(column);
+	return B_SKIP_MESSAGE;
+}
+
+
+static void
+StartShadeRepair(BWindow* window)
+{
+	BAutolock lock(LinkLock());
+	if (ShadeRepairRunners().find(window) != ShadeRepairRunners().end())
+		return;
+	BList* filters = window->CommonFilterList();
+	bool has = false;
+	if (filters != NULL) {
+		for (int32 i = 0; i < filters->CountItems(); i++) {
+			if (dynamic_cast<ShadeRepairFilter*>((BMessageFilter*)filters->ItemAt(i)) != NULL) {
+				has = true;
+				break;
+			}
+		}
+	}
+	if (!has)
+		window->AddCommonFilter(new ShadeRepairFilter());
+	BMessage again('SnSr');
+	ShadeRepairRunners()[window] = new BMessageRunner(BMessenger(window), &again, 500000, -1);
+}
+
+
+// Asks for the shading to be laid over the column again after this drawing (see ShadeFilter).
+static void
+ShadeSoon(BMenu* menu, const BRect& drawn)
+{
+	BWindow* window = menu->Window();
+	if (window == NULL)
+		return;
+	bool post = false;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BMenu*, ShadeLayer>::iterator it = ShadeLayers().find(menu);
+		if (it == ShadeLayers().end())
+			return;
+		ShadeLayer& layer = it->second;
+		layer.pending = layer.pending.IsValid() ? (layer.pending | drawn) : drawn;
+		if (!layer.scheduled) {
+			layer.scheduled = true;
+			post = true;
+		}
+	}
+	if (!post)
+		return;
+	BList* filters = window->CommonFilterList();
+	bool has = false;
+	if (filters != NULL) {
+		for (int32 i = 0; i < filters->CountItems(); i++) {
+			if (dynamic_cast<ShadeFilter*>((BMessageFilter*)filters->ItemAt(i)) != NULL) {
+				has = true;
+				break;
+			}
+		}
+	}
+	if (!has)
+		window->AddCommonFilter(new ShadeFilter());
+	window->PostMessage('SnSh');
+}
+
+
 static void
 DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 {
@@ -2745,6 +3004,49 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		// (the window's own edges are the shape's edges beside the Deskbar; the box's other sides lie where nothing is lit)
 		RaisedShade(lit, bw, bh, shadow, deskbarRoot && parentOnLeft && bx0 == 0,
 			deskbarRoot && !parentOnLeft && bx1 == w - 1, std::max(0, edgeFrom - by0));
+		if (StockMenu(menu) && BarMenu(menu)) {
+			BBitmap* layerBitmap = new(std::nothrow) BBitmap(BRect(0, 0, bw - 1, bh - 1), B_RGBA32);
+			BBitmap* restoreBitmap = new(std::nothrow) BBitmap(BRect(0, 0, bw - 1, bh - 1), B_RGBA32);
+			if (layerBitmap != NULL && layerBitmap->InitCheck() == B_OK && restoreBitmap != NULL
+				&& restoreBitmap->InitCheck() == B_OK) {
+				uint8* lbits = (uint8*)layerBitmap->Bits();
+				const int32 lbpr = layerBitmap->BytesPerRow();
+				uint8* rbits = (uint8*)restoreBitmap->Bits();
+				const int32 rbpr = restoreBitmap->BytesPerRow();
+				for (int y = 0; y < bh; ++y) {
+					for (int x = 0; x < bw; ++x) {
+						const float c = lit[(size_t)y * bw + x];
+						const float sh = shadow[(size_t)y * bw + x];
+						uint8* px = lbits + y * lbpr + x * 4;
+						const uint8 value = sh >= 0.0f ? 255 : 0;
+						px[0] = px[1] = px[2] = value;
+						px[3] = (uint8)lroundf(std::min(1.0f, c * fabsf(sh)) * 255.0f);
+						uint8* rp = rbits + y * rbpr + x * 4;
+						rp[0] = fillUnused.blue;  rp[1] = fillUnused.green;  rp[2] = fillUnused.red;
+						rp[3] = (uint8)lroundf(std::max(0.0f, 1.0f - c) * 255.0f);
+					}
+				}
+				{
+					BAutolock lock(LinkLock());
+					ShadeLayer& layer = ShadeLayers()[menu];
+					delete layer.bitmap;
+					delete layer.restore;
+					layer.bitmap = layerBitmap;
+					layer.restore = restoreBitmap;
+					layer.fill = fillUnused;
+					layer.origin = bounds.LeftTop() + BPoint(bx0, by0);
+				}
+				BRect column;
+				if (BarColumnRect(menu, SelectedItem(menu), &column)) {
+					const BRect drawn = column & updateRect;
+					if (drawn.IsValid())
+						ShadeSoon(menu, drawn);
+				}
+			} else {
+				delete layerBitmap;
+				delete restoreBitmap;
+			}
+		}
 		for (int y = 0; y < bh; ++y) {
 			uint8* row = fbits + y * fbpr;
 			for (int x = 0; x < bw; ++x) {
@@ -4142,7 +4444,7 @@ public:
 			rgb_color f, h, t;
 			StockPillColors(menu, &f, &h, &t);
 			view->SetLowColor(h);
-			view->SetHighColor(SystemColors() || BarMenu(menu) ? ui_color(B_MENU_SELECTED_ITEM_TEXT_COLOR) : TextOn(h));
+			view->SetHighColor(SystemColors() ? ui_color(B_MENU_SELECTED_ITEM_TEXT_COLOR) : TextOn(h));
 			return;
 		}
 		view->SetLowColor(Accent());

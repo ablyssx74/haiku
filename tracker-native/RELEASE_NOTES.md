@@ -1,8 +1,13 @@
-# snaketracker 1.0.47
+# snaketracker 1.0.48
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **SnakeTracker tells you when there is a newer version.** About half a minute after the desktop starts, the SnakeTracker server looks at the version number in the repository on GitHub; if it is newer than the one installed, a window says so and offers to open the GitHub page to download it. It does nothing when there is no connection. To turn it off, create an empty file `~/config/settings/snaketracker_no_update_check`. The package now needs the `curl` package (the check is done with libcurl). The version number comes from the new `VERSION` file, which the build also takes the package's version from.
+- **Restarting Tracker or Deskbar brings back SnakeTracker.** ProcessController's Restart items, and the Deskbar when it starts Tracker again, ask the system for "the" Tracker by its name, and what the system started could be Haiku's own Tracker or Deskbar (the launch daemon may still have the system's definition, and the two had the same version). The SnakeTracker server now watches for that: when Haiku's own Tracker or Deskbar is started, it is replaced by SnakeTracker's. The two are also numbered one step above Haiku's, so a lookup by name prefers them.
+- **ProcessController's menus and hDesktop's CPU graph menu are in the SnakeTracker color again.** Since 1.0.44 they were drawn in Haiku's own colors to keep the trail unbroken; they now have the pill in the SnakeTracker color like every other menu. The columns of numbers in its memory, thread and CPU rows are in the pill's colors too, not boxes of Haiku's own.
+
+Since 1.0.47 (if you skipped it):
 - **The separator lines of an add-on's menu items are in the snake look.** An add-on that fills a menu (TrackRunner, for one) adds plain Haiku separators, which showed as the bulky dark stock line. They are replaced by the snake separator, in Tracker's menus and in the right-click popup menus.
 
 Since 1.0.46 (if you skipped it):
