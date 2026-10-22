@@ -224,6 +224,7 @@ BPoseView::BPoseView(Model* model, uint32 viewMode)
 	fExtent(INT32_MAX, INT32_MAX, INT32_MIN, INT32_MIN),
 	fFilteredPoseList(new PoseList()),
 	fVSPoseList(new PoseList()),
+	fEmptyPoseList(new PoseList()),
 	fSelectionList(new PoseList()),
 	fMimeTypesInSelectionCache(20),
 	fZombieList(new BObjectList<Model, true>(10)),
@@ -272,6 +273,7 @@ BPoseView::BPoseView(Model* model, uint32 viewMode)
 	fSelectionVisible(true),
 	fSelectionRectEnabled(true),
 	fAlwaysAutoPlace(false),
+	fHidePoses(false),
 	fAllowPoseEditing(true),
 	fSelectionChangedHook(false),
 	fOkToMapIcons(false),
@@ -296,6 +298,7 @@ BPoseView::~BPoseView()
 	delete fPoseList;
 	delete fFilteredPoseList;
 	delete fVSPoseList;
+	delete fEmptyPoseList;
 	delete fColumnList;
 	delete fSelectionList;
 	delete fZombieList;
@@ -3700,6 +3703,72 @@ BPoseView::Cleanup(bool doAll, bool keepView)
 			}
 		}
 	}
+}
+
+
+// Lays all the icons out in columns (down from the top left, then the next column to the right) or in rows (along from the top
+// left, then the next row down), in the order they are sorted in. Every icon is marked to have its place saved, and keeps it
+// afterwards; nothing arranges the icons again by itself. A grid cell and a half is left clear along the bottom edge, where a dock
+// or a panel may cover the icons' labels.
+void
+BPoseView::ArrangeIcons(bool inColumns, bool keepView)
+{
+	if (ViewMode() == kListMode || ContainerWindow() == NULL)
+		return;
+
+	SortPoses();
+
+	DisableScrollBars();
+	ClearExtent();
+	UpdateScrollRange();
+	SetScrollBarsTo(keepView ? Bounds().LeftTop() : B_ORIGIN);
+	ResetPosePlacementHint();
+
+	const BRect viewBounds(Bounds());
+	const BPoint start(fHintLocation);
+	const float bottomLimit = viewBounds.bottom - fGrid.y * 1.5f;
+
+	fVSPoseList->MakeEmpty();
+	const int32 poseCount = fPoseList->CountItems();
+	for (int32 index = 0; index < poseCount; index++) {
+		BPose* pose = fPoseList->ItemAt(index);
+		bool placed = false;
+
+		// the first axis runs across, the second along (columns: x across and y down; rows: y down and x across)
+		const float outerStart = inColumns ? start.x : start.y;
+		const float outerEnd = inColumns ? viewBounds.right : bottomLimit;
+		const float outerStep = inColumns ? fGrid.x : fGrid.y;
+		const float innerStart = inColumns ? start.y : start.x;
+		const float innerEnd = inColumns ? bottomLimit : viewBounds.right;
+		const float innerStep = inColumns ? fGrid.y : fGrid.x;
+
+		for (float outer = outerStart; !placed && outer < outerEnd; outer += outerStep) {
+			for (float inner = innerStart; inner < innerEnd; inner += innerStep) {
+				pose->SetLocation(inColumns ? BPoint(outer, inner) : BPoint(inner, outer), this);
+				BRect rect(pose->CalcRect(this));
+				if (rect.bottom > bottomLimit || rect.right >= viewBounds.right)
+					break;		// no room left on this line
+
+				rect.InsetBy(-3, 0);
+					// (a little more room between the icons, as PlacePose() leaves)
+				if (!SlotOccupied(rect, viewBounds) && IsValidLocation(rect)) {
+					placed = true;
+					break;
+				}
+			}
+		}
+
+		if (!placed)
+			pose->SetLocation(start, this);
+
+		pose->SetSaveLocation();
+		AddToVSList(pose);
+	}
+
+	RecalcExtent();
+	UpdateScrollRange();
+	EnableScrollBars();
+	Invalidate(viewBounds);
 }
 
 
@@ -7130,6 +7199,9 @@ LinesIntersect(float s1, float e1, float s2, float e2)
 BPose*
 BPoseView::FindNearbyPose(char arrowKey, int32* poseIndex)
 {
+	if (fHidePoses)
+		return NULL;
+
 	int32 resultIndex = -1;
 	BPose* poseToSelect = NULL;
 	BPose* selectedPose = fSelectionList->LastItem();
@@ -10749,6 +10821,22 @@ BPoseView::RebuildFilteringPoseList()
 		else
 			EnsurePoseUnselected(pose);
 	}
+}
+
+
+// Hides (or shows again) every pose: the view lists, draws, hit-tests and selects none of them, but they stay where they are and
+// still hold their places, so showing them again puts everything back. Nothing hidden stays selected.
+void
+BPoseView::SetHidePoses(bool hide)
+{
+	if (fHidePoses == hide)
+		return;
+
+	if (hide)
+		ClearSelection();
+
+	fHidePoses = hide;
+	Invalidate();
 }
 
 

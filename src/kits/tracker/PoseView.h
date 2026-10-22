@@ -358,6 +358,8 @@ public:
 
 	// filtering
 	void SetRefFilter(BRefFilter*);
+	void SetHidePoses(bool hide);
+	bool HidePoses() const { return fHidePoses; }
 	BRefFilter* RefFilter() const;
 
 	// access for mime types represented in the pose view
@@ -451,6 +453,7 @@ protected:
 		// returns the entry iterator after _add_poses_ is done
 
 	void Cleanup(bool doAll = false, bool keepView = false);
+	void ArrangeIcons(bool inColumns, bool keepView = false);
 	void _ArrangeAfterViewModeChange();
 	void _ArrangeIcons(bool keepView);
 		// clean up poses
@@ -737,6 +740,8 @@ private:
 	// the following should probably be just member lists, not pointers
 	PoseList* fFilteredPoseList;
 	PoseList* fVSPoseList;
+	PoseList* fEmptyPoseList;
+		// what the current list is while the poses are hidden (the Desktop's "Hide Desktop Icons")
 	PoseList* fSelectionList;
 	HashSet<node_ref_key> fInsertedNodes;
 	BStringList fMimeTypesInSelectionCache;
@@ -829,6 +834,7 @@ private:
 	bool fSelectionVisible : 1;
 	bool fSelectionRectEnabled : 1;
 	bool fAlwaysAutoPlace : 1;
+	bool fHidePoses : 1;
 	bool fAllowPoseEditing : 1;
 	bool fSelectionChangedHook : 1;
 		// get rid of this
@@ -1312,6 +1318,9 @@ BPoseView::SetHasPosesInClipboard(bool hasPoses)
 inline PoseList*
 BPoseView::CurrentPoseList() const
 {
+	if (fHidePoses)
+		return fEmptyPoseList;
+
 	if (ViewMode() == kListMode)
 		return IsFiltering() ? fFilteredPoseList : fPoseList;
 	else

@@ -48,6 +48,7 @@ All rights reserved.
 
 #include "Background.h"
 #include "Commands.h"
+#include "DeskWindow.h"
 #include "FSUtils.h"
 #include "PoseList.h"
 #include "Tracker.h"
@@ -73,6 +74,19 @@ DesktopPoseView::AttachedToWindow()
 	AddFilter(new TPoseViewFilter(this));
 
 	_inherited::AttachedToWindow();
+
+	ApplyHideIcons();
+}
+
+
+// Hides or shows the icons of the Desktop as the "Hide Desktop Icons" setting says (not in a file panel).
+void
+DesktopPoseView::ApplyHideIcons()
+{
+	if (IsFilePanel())
+		return;
+
+	SetHidePoses(TrackerSettings().HideDesktopIcons());
 }
 
 
@@ -80,6 +94,33 @@ void
 DesktopPoseView::MessageReceived(BMessage* message)
 {
 	switch (message->what) {
+		case kArrangeDesktopColumns:
+		case kArrangeDesktopRows:
+		{
+			if (IsFilePanel() || HidePoses())
+				break;
+
+			ArrangeIcons(message->what == kArrangeDesktopColumns, true);
+
+			// kept at once, so that the arrangement is there after a restart too
+			BDeskWindow* window = dynamic_cast<BDeskWindow*>(Window());
+			if (window != NULL)
+				window->SaveDesktopPoseLocations();
+			break;
+		}
+
+		case kHideDesktopIcons:
+		{
+			if (IsFilePanel())
+				break;
+
+			TrackerSettings settings;
+			settings.SetHideDesktopIcons(!settings.HideDesktopIcons());
+			settings.SaveSettings(false);
+			ApplyHideIcons();
+			break;
+		}
+
 		case B_WORKSPACE_ACTIVATED:
 		{
 			bool active;

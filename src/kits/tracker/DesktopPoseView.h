@@ -76,6 +76,8 @@ protected:
 	void AdaptToBackgroundColorChange();
 
 private:
+	void ApplyHideIcons();
+
 
 	typedef BPoseView _inherited;
 };

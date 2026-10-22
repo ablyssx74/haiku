@@ -75,6 +75,7 @@ private:
 	BooleanValueSetting* fTransparentSelection;
 	BooleanValueSetting* fSortFolderNamesFirst;
 	BooleanValueSetting* fHideDotFiles;
+	BooleanValueSetting* fHideDesktopIcons;
 	BooleanValueSetting* fTypeAheadFiltering;
 	BooleanValueSetting* fGenerateImageThumbnails;
 	BooleanValueSetting* fSnakeTrail;
@@ -148,6 +149,7 @@ TTrackerState::TTrackerState()
 	fTransparentSelection(NULL),
 	fSortFolderNamesFirst(NULL),
 	fHideDotFiles(NULL),
+	fHideDesktopIcons(NULL),
 	fTypeAheadFiltering(NULL),
 	fGenerateImageThumbnails(NULL),
 	fSnakeTrail(NULL),
@@ -189,6 +191,7 @@ TTrackerState::TTrackerState(const TTrackerState&)
 	fTransparentSelection(NULL),
 	fSortFolderNamesFirst(NULL),
 	fHideDotFiles(NULL),
+	fHideDesktopIcons(NULL),
 	fTypeAheadFiltering(NULL),
 	fGenerateImageThumbnails(NULL),
 	fSnakeTrail(NULL),
@@ -263,6 +266,8 @@ TTrackerState::LoadSettingsIfNeeded()
 	Add(fSortFolderNamesFirst
 		= new BooleanValueSetting("SortFolderNamesFirst", kDefaultSortFolderNamesFirst));
 	Add(fHideDotFiles = new BooleanValueSetting("HideDotFiles", kDefaultHideDotFiles));
+	Add(fHideDesktopIcons
+		= new BooleanValueSetting("HideDesktopIcons", kDefaultHideDesktopIcons));
 	Add(fTypeAheadFiltering
 		= new BooleanValueSetting("TypeAheadFiltering", kDefaultTypeAheadFiltering));
 	Add(fGenerateImageThumbnails
@@ -494,6 +499,20 @@ void
 TrackerSettings::SetHideDotFiles(bool hide)
 {
 	gTrackerState.fHideDotFiles->SetValue(hide);
+}
+
+
+bool
+TrackerSettings::HideDesktopIcons()
+{
+	return gTrackerState.fHideDesktopIcons->Value();
+}
+
+
+void
+TrackerSettings::SetHideDesktopIcons(bool hide)
+{
+	gTrackerState.fHideDesktopIcons->SetValue(hide);
 }
 
 

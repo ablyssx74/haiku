@@ -92,6 +92,8 @@ public:
 	void SetSortFolderNamesFirst(bool);
 	bool HideDotFiles();
 	void SetHideDotFiles(bool hide);
+	bool HideDesktopIcons();
+	void SetHideDesktopIcons(bool hide);
 	bool TypeAheadFiltering();
 	void SetTypeAheadFiltering(bool enabled);
 	bool GenerateImageThumbnails();

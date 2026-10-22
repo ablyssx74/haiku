@@ -1974,6 +1974,9 @@ BContainerWindow::AddShortcuts()
 	BMessage* increaseSize = new BMessage(kIconMode);
 	increaseSize->AddInt32("scale", 1);
 	AddShortcut('+', B_COMMAND_KEY, increaseSize, PoseView());
+
+	if (PoseView()->IsDesktopView())
+		AddShortcut('3', B_COMMAND_KEY, new BMessage(kHideDesktopIcons), PoseView());
 }
 
 
@@ -2695,6 +2698,21 @@ BContainerWindow::AddWindowContextMenu(BMenu* menu)
 
 	if (PoseView()->IsDesktopView()) {
 		AddIconSizeMenu(menu);
+		BMenuItem* hideIcons = new SnakeMenuItem(B_TRANSLATE("Hide Desktop Icons"),
+			new BMessage(kHideDesktopIcons), '3');
+		hideIcons->SetTarget(PoseView());
+		menu->AddItem(hideIcons);
+
+		// the icons are put in rows or columns once, when this is chosen (and keep their places after that)
+		BMenu* arrangeMenu = new SnakeMenu(B_TRANSLATE("Arrange"));
+		BMenuItem* arrangeItem = new SnakeMenuItem(B_TRANSLATE("In Columns"),
+			new BMessage(kArrangeDesktopColumns));
+		arrangeItem->SetTarget(PoseView());
+		arrangeMenu->AddItem(arrangeItem);
+		arrangeItem = new SnakeMenuItem(B_TRANSLATE("In Rows"), new BMessage(kArrangeDesktopRows));
+		arrangeItem->SetTarget(PoseView());
+		arrangeMenu->AddItem(arrangeItem);
+		menu->AddItem(new SnakeMenuItem(arrangeMenu));
 		menu->AddItem(new SnakeSeparatorItem());
 	}
 
@@ -3062,6 +3080,17 @@ BContainerWindow::UpdateWindowMenuOrWindowContextMenu(BMenu* menu, MenuContext c
 	MarkNamedMenuItem(menu, kIconMode, viewMode == kIconMode);
 	MarkNamedMenuItem(menu, kListMode, viewMode == kListMode);
 	MarkNamedMenuItem(menu, kMiniIconMode, viewMode == kMiniIconMode);
+	if (PoseView()->IsDesktopView()) {
+		const bool hidden = TrackerSettings().HideDesktopIcons();
+		MarkNamedMenuItem(menu, kHideDesktopIcons, hidden);
+		// (there is nothing to arrange while the icons are hidden)
+		BMenuItem* arrangeItem = menu->FindItem(kArrangeDesktopColumns);
+		if (arrangeItem != NULL)
+			arrangeItem->SetEnabled(!hidden);
+		arrangeItem = menu->FindItem(kArrangeDesktopRows);
+		if (arrangeItem != NULL)
+			arrangeItem->SetEnabled(!hidden);
+	}
 }
 
 

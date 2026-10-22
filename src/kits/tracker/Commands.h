@@ -91,6 +91,9 @@ const uint32 kOpenParentDir = 'Topt';
 const uint32 kOpenDir = 'Topd';
 const uint32 kCleanup = 'Tcln';
 const uint32 kCleanupAll = 'Tcla';
+const uint32 kHideDesktopIcons = 'Thdi';
+const uint32 kArrangeDesktopColumns = 'Tadc';
+const uint32 kArrangeDesktopRows = 'Tadr';
 
 const uint32 kArrangeBy = 'ARBY';
 const uint32 kArrangeReverseOrder = 'ARRO';
