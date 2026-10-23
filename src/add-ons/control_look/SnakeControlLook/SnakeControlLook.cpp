@@ -54,6 +54,7 @@
 #include <image.h>
 #include <Path.h>
 #include <Roster.h>
+#include <Screen.h>
 #include <View.h>
 #include <Window.h>
 
@@ -96,7 +97,7 @@ static bool sTrail = true;
 static bool sFlat = true;
 static bool sArrows = false;
 static bool sLook = true;
-static bool sRound = false;
+static bool sRound = true;
 static bool sSysDeskbar = false;
 static bool sSysTracker = false;
 static bool sAllApps = true;
@@ -1677,12 +1678,13 @@ SquareCorners(BMenu* menu, bool* tl, bool* tr, bool* br, bool* bl)
 	} else if (strstr(typeid(*menu).name(), "TDeskbarMenu") != NULL || strstr(typeid(*menu).name(), "TTeamMenu") != NULL) {
 		bool stripOnLeft = false;
 		const DeskbarPlace place = FindDeskbarPlace(menu, &stripOnLeft);
+		// (the menu hangs flush from the bar: a rounded corner at its far end would show the bar's own border line behind it)
 		if (place == kBelowLeaf) {
-			*tl = stripOnLeft;
-			*tr = !stripOnLeft;
+			*tl = true;
+			*tr = true;
 		} else if (place == kAboveLeaf) {
-			*bl = stripOnLeft;
-			*br = !stripOnLeft;
+			*bl = true;
+			*br = true;
 		}
 	}
 
@@ -1706,6 +1708,312 @@ SquareCorners(BMenu* menu, bool* tl, bool* tr, bool* br, bool* bl)
 				*bl = true;
 		}
 	}
+}
+
+
+// The window system's one pixel border round a menu window shows as a square frame round the pill when its corners are
+// rounded. It can't be left out of the window (a menu window without it never shows), and the corners can't be cut from
+// a window, so four borderless windows, one over each side of the border, show the screen behind the menu: the part of the
+// capture that is already the menu's background, taken a pixel further out. They stay up for as long as the menu is
+// shown.
+class FrameStrip;
+static void ForgetFrameStrip(FrameStrip* strip);
+
+
+class FrameStrip : public BWindow {
+public:
+	FrameStrip(BWindow* child)
+		:
+		BWindow(BRect(0, 0, 0, 0), "frame", B_NO_BORDER_WINDOW_LOOK, (window_feel)1025,
+			B_NOT_MOVABLE | B_NOT_CLOSABLE | B_NOT_ZOOMABLE | B_NOT_MINIMIZABLE | B_NOT_RESIZABLE
+				| B_AVOID_FOCUS),
+		fChild(child),
+		fRunner(NULL),
+		fRect(),
+		fRaisedFor(),
+		fRaisedAt(0)
+	{
+		SetSizeLimits(0, 10000, 0, 10000);
+		AddChild(new StripView());
+		BMessage tick('Tick');
+		fRunner = new BMessageRunner(BMessenger(this), &tick, 25000);
+	}
+
+	~FrameStrip()
+	{
+		delete fRunner;
+	}
+
+	// from the menu's thread (false when this window was busy: the caller asks for another try)
+	bool Place(BRect rect, const BRect& childFrame)
+	{
+		if (LockWithTimeout(20000) != B_OK)
+			return false;
+		const bool moved = IsHidden() || rect != fRect;
+		if (moved) {
+			fRect = rect;
+			ResizeTo(rect.Width(), rect.Height());
+			MoveTo(rect.left, rect.top);
+			if (IsHidden())
+				Show();
+			ChildAt(0)->Invalidate();
+		} else if (fRaisedAt == 0 || fRaisedFor != childFrame) {
+			// the menu window is reused for other menus, and one shown again comes up in front of this strip
+			Hide();
+			Show();
+		}
+		fRaisedFor = childFrame;
+		fRaisedAt = system_time();
+		Unlock();
+		return true;
+	}
+
+	void PostHide()
+	{
+		PostMessage('Hide');
+	}
+
+	virtual void MessageReceived(BMessage* message)
+	{
+		if (message->what == 'Tick' || message->what == 'Hide') {
+			// Hide when the menu's window is hidden or has moved away, and quit when it is gone for good. Never wait
+			// for the menu's window (its thread may be waiting for this one): if it is busy, ask again next tick.
+			bool hide = message->what == 'Hide';
+			bool gone = false;
+			status_t status = fChild.LockTargetWithTimeout(0);
+			if (status == B_OK) {
+				BLooper* looper = NULL;
+				fChild.Target(&looper);
+				BWindow* window = dynamic_cast<BWindow*>(looper);
+				if (window == NULL)
+					gone = true;
+				else if (window->IsHidden())
+					hide = true;
+				else {
+					BRect near = window->Frame();
+					near.InsetBy(-2, -2);
+					if (!near.Contains(Frame()))
+						hide = true;
+				}
+				if (looper != NULL)
+					looper->Unlock();
+			} else if (status == B_TIMED_OUT || status == B_WOULD_BLOCK)
+				gone = false;
+			else
+				gone = !fChild.IsValid();
+
+			if (gone) {
+				ForgetFrameStrip(this);
+				PostMessage(B_QUIT_REQUESTED);
+			} else if (hide && !IsHidden()) {
+				Hide();
+				fRaisedAt = 0;
+			}
+			return;
+		}
+		BWindow::MessageReceived(message);
+	}
+
+private:
+	class StripView : public BView {
+	public:
+		StripView()
+			:
+			BView(BRect(0, 0, 0, 0), "frame", B_FOLLOW_ALL, B_WILL_DRAW)
+		{
+			SetViewColor(B_TRANSPARENT_COLOR);
+		}
+
+		virtual void Draw(BRect)
+		{
+			const BRect bounds = Bounds();
+			const BRect source = Window()->Frame();
+			SetDrawingMode(B_OP_COPY);
+			BAutolock lock(BackdropLock());
+			BackdropState& state = Backdrop();
+			for (size_t i = 0; i < state.tiles.size(); i++) {
+				const BRect shown = source & state.tiles[i].rect;
+				if (!shown.IsValid())
+					continue;
+				const BRect from(shown.left - state.tiles[i].rect.left, shown.top - state.tiles[i].rect.top,
+					shown.right - state.tiles[i].rect.left, shown.bottom - state.tiles[i].rect.top);
+				const BRect target(bounds.left + (shown.left - source.left), bounds.top + (shown.top - source.top),
+					bounds.left + (shown.right - source.left), bounds.top + (shown.bottom - source.top));
+				DrawBitmap(state.tiles[i].bitmap, from, target);
+			}
+		}
+	};
+
+	BMessenger		fChild;
+	BMessageRunner*	fRunner;
+	BRect			fRect;
+	BRect			fRaisedFor;
+	bigtime_t		fRaisedAt;
+};
+
+
+static const int kFramePieces = 3;	// pieces a side is cut into at most (two neighbours cut one into three)
+
+struct FrameSet {
+	FrameSet() { for (int i = 0; i < 4 * kFramePieces; i++) strips[i] = NULL; }
+
+	FrameStrip*	strips[4 * kFramePieces];	// the pieces of the top, bottom, left and right side
+};
+
+
+static std::map<BWindow*, FrameSet>&
+FrameSets()
+{
+	static std::map<BWindow*, FrameSet>* sets = new std::map<BWindow*, FrameSet>();
+	return *sets;
+}
+
+
+static void
+ForgetFrameStrip(FrameStrip* strip)
+{
+	BAutolock lock(LinkLock());
+	for (std::map<BWindow*, FrameSet>::iterator it = FrameSets().begin(); it != FrameSets().end();) {
+		bool any = false;
+		for (int i = 0; i < 4 * kFramePieces; i++) {
+			if (it->second.strips[i] == strip)
+				it->second.strips[i] = NULL;
+			if (it->second.strips[i] != NULL)
+				any = true;
+		}
+		if (!any)
+			FrameSets().erase(it++);
+		else
+			++it;
+	}
+}
+
+
+// Cover the border round this menu's window with the screen behind it (the menu has to be one drawn in the pill look).
+static void
+PlaceFrame(BMenu* menu)
+{
+	BWindow* window = menu->Window();
+	if (window == NULL || window->IsHidden())
+		return;
+	// a menu joined to the Deskbar's bar or to a menu bar's title runs along that window on one side
+	bool onLeft;
+	BWindow* barWindow = NULL;
+	if (FindDeskbarPlace(menu, &onLeft) != kNotDeskbar && menu->Supermenu() != NULL)
+		barWindow = menu->Supermenu()->Window();
+
+	const BRect f = window->Frame();
+	BRect sides[4] = {
+		BRect(f.left - 1, f.top - 1, f.right + 1, f.top - 1),
+		BRect(f.left - 1, f.bottom + 1, f.right + 1, f.bottom + 1),
+		BRect(f.left - 1, f.top, f.left - 1, f.bottom),
+		BRect(f.right + 1, f.top, f.right + 1, f.bottom),
+	};
+	std::vector<BRect> parts[4];
+	for (int i = 0; i < 4; i++)
+		parts[i].push_back(sides[i]);
+
+	// the part of a side that another menu window runs along (a submenu, or the menu it opened from) is left to the strips
+	// that join them: the side is cut there, and what is left on either side of the cut is covered
+	BMenuItem* open = SelectedItem(menu);
+	BMenu* submenu = open != NULL ? open->Submenu() : NULL;
+	BMenu* parent = menu->Supermenu();
+	if (parent != NULL && dynamic_cast<BMenuBar*>(parent) != NULL)
+		parent = NULL;
+	BWindow* neighbours[3] = { submenu != NULL ? submenu->Window() : NULL, parent != NULL ? parent->Window() : NULL,
+		barWindow };
+	for (int n = 0; n < 3; n++) {
+		BWindow* other = neighbours[n];
+		if (other == NULL || other == window || other->IsHidden())
+			continue;
+		// (a side is only cut where the other window really is: the strips of the seam, along the submenu's edge, take over
+		// there, and what is left of the side runs on right up to them)
+		const BRect near = other->Frame();
+		for (int i = 0; i < 4; i++) {
+			const bool horizontal = i < 2;
+			std::vector<BRect> left;
+			for (size_t k = 0; k < parts[i].size(); k++) {
+				const BRect part = parts[i][k];
+				if (!near.Intersects(part)) {
+					left.push_back(part);
+					continue;
+				}
+				const float from = horizontal ? part.left : part.top, to = horizontal ? part.right : part.bottom;
+				const float cutFrom = horizontal ? near.left : near.top, cutTo = horizontal ? near.right : near.bottom;
+				if (cutFrom - 1 >= from) {
+					BRect piece = part;
+					if (horizontal)
+						piece.right = cutFrom - 1;
+					else
+						piece.bottom = cutFrom - 1;
+					left.push_back(piece);
+				}
+				if (cutTo + 1 <= to) {
+					BRect piece = part;
+					if (horizontal)
+						piece.left = cutTo + 1;
+					else
+						piece.top = cutTo + 1;
+					left.push_back(piece);
+				}
+			}
+			parts[i] = left;
+		}
+	}
+
+	// only the part of a piece that is on the screen and has a picture in the capture (a tall menu runs off the top and
+	// bottom of the screen, and the capture may fall short of a menu that grew after it was taken)
+	BRect pieces[4 * kFramePieces];
+	bool used[4 * kFramePieces];
+	for (int i = 0; i < 4 * kFramePieces; i++)
+		used[i] = false;
+	{
+		BScreen screen(B_MAIN_SCREEN_ID);
+		const BRect onScreen = screen.Frame();
+		BAutolock lock(BackdropLock());
+		BackdropState& state = Backdrop();
+		for (int i = 0; i < 4; i++) {
+			for (size_t k = 0; k < parts[i].size() && k < (size_t)kFramePieces; k++) {
+				BRect best;
+				float bestLength = -1;
+				for (size_t t = 0; t < state.tiles.size(); t++) {
+					const BRect part = parts[i][k] & state.tiles[t].rect & onScreen;
+					const float length = part.IsValid() ? std::max(part.Width(), part.Height()) : -1;
+					if (length > bestLength) {
+						bestLength = length;
+						best = part;
+					}
+				}
+				if (bestLength >= 0) {
+					pieces[i * kFramePieces + k] = best;
+					used[i * kFramePieces + k] = true;
+				}
+			}
+		}
+	}
+
+	FrameSet set;
+	{
+		BAutolock lock(LinkLock());
+		set = FrameSets()[window];
+		for (int i = 0; i < 4 * kFramePieces; i++) {
+			if (used[i] && set.strips[i] == NULL) {
+				set.strips[i] = new FrameStrip(window);
+				set.strips[i]->Run();
+			}
+		}
+		FrameSets()[window] = set;
+	}
+	bool placed = true;
+	for (int i = 0; i < 4 * kFramePieces; i++) {
+		if (set.strips[i] == NULL)
+			continue;
+		if (used[i])
+			placed = set.strips[i]->Place(pieces[i], f) && placed;
+		else
+			set.strips[i]->PostHide();
+	}
+	RetryLater(window, placed);
 }
 
 
@@ -1770,6 +2078,8 @@ DrawPillBase(BMenu* menu)
 		menu->FillRect(bounds);
 	}
 	menu->PopState();
+	if (RoundCorners())
+		PlaceFrame(menu);
 }
 
 
@@ -1901,8 +2211,12 @@ snake_wants_tile(BMenu* menu)
 	if (menu == NULL)
 		return false;
 	BMenu* root = RootMenu(menu);
+	// (or a menu under the menu bar of one of Tracker's windows)
+	const bool underBar = SnakeProgram() == 2 && root->Supermenu() != NULL
+		&& dynamic_cast<BMenuBar*>(root->Supermenu()) != NULL;
 	if (dynamic_cast<BPopUpMenu*>(root) == NULL && strstr(typeid(*root).name(), "TDeskbarMenu") == NULL
-		&& strstr(typeid(*root).name(), "TWindowMenu") == NULL && strstr(typeid(*root).name(), "TTeamMenu") == NULL)
+		&& strstr(typeid(*root).name(), "TWindowMenu") == NULL && strstr(typeid(*root).name(), "TTeamMenu") == NULL
+		&& !underBar)
 		return false;
 	BAutolock lock(BackdropLock());
 	BackdropState& state = Backdrop();
@@ -1928,9 +2242,11 @@ snake_add_menu_tile(BBitmap* bitmap, BRect rect)
 			return;
 		}
 	}
-	while (state.tiles.size() >= 24) {
-		delete state.tiles.front().bitmap;
-		state.tiles.erase(state.tiles.begin());
+	// (the first tile is the menu the chain began with: it is drawn again whenever the pointer comes back to it, however many
+	// submenus were opened since, so it is the one that is kept; the others go oldest first)
+	while (state.tiles.size() >= 64) {
+		delete state.tiles[1].bitmap;
+		state.tiles.erase(state.tiles.begin() + 1);
 	}
 	state.tiles.push_back(BackdropTile(bitmap, rect));
 }
@@ -2794,7 +3110,8 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 						sBottom -= pillR;
 					// (with the submenu beside its parent, not over it, the corners of its border stay: its top and bottom lines run
 					// on into the parent's own border)
-					const float edge = kShiftSideways ? 1.0f : 0.0f;
+					// (rounded: the corner pixels of the border, which lie over the parent's panel, are covered as well)
+					const float edge = (kShiftSideways || RoundCorners()) ? 1.0f : 0.0f;
 					const float y0 = std::max(frame.top - edge, link.parentTop), y1 = std::min(frame.bottom + edge, link.parentBottom);
 					sTop = std::max(sTop, y0);
 					sBottom = std::min(sBottom, y1);

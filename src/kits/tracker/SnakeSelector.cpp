@@ -1502,11 +1502,22 @@ CaptureSubmenuTile(BMenu* submenu)
 {
 	BMenu* parent = submenu->Supermenu();
 	BMenuItem* item = submenu->Superitem();
-	if (parent == NULL || item == NULL || parent->Window() == NULL || dynamic_cast<BMenuBar*>(parent) != NULL
-		|| !WantsMenuTile(submenu))
+	if (parent == NULL || item == NULL || parent->Window() == NULL || !WantsMenuTile(submenu))
 		return;
 	float width = 200, height = 300;
 	submenu->GetPreferredSize(&width, &height);
+	if (dynamic_cast<BMenuBar*>(parent) != NULL) {
+		// a menu under the title of a menu bar (File, Window, ...) opens below the title: the screen there, a little more all
+		// round (the Deskbar's own bar has its menus captured as they open)
+		if (strstr(typeid(*parent).name(), "TBarMenuBar") != NULL)
+			return;
+		BScreen screen(B_MAIN_SCREEN_ID);
+		const BRect title = parent->ConvertToScreen(item->Frame());
+		const BRect barFrame = parent->ConvertToScreen(parent->Bounds());
+		const BRect area(title.left - 8, barFrame.bottom - 8, title.left + width + 48, barFrame.bottom + height + 48);
+		CaptureMenuTile(area & screen.Frame());
+		return;
+	}
 	const BRect parentFrame = parent->Window()->Frame();
 	const BRect row = parent->ConvertToScreen(item->Frame());
 	BScreen screen(B_MAIN_SCREEN_ID);

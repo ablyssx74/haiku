@@ -164,6 +164,56 @@ StartSupervising(int i)
 }
 
 
+// The system's Tracker saves its settings file as it quits, with only the settings it knows: SnakeTracker's own lines and
+// "HideDesktopIcons" are dropped, so every time it is replaced by ours (at start-up, and by a restart by name) they were lost.
+// The file is kept before the system's Tracker is stopped and put back before ours starts.
+static bool
+TrackerSettingsPath(BPath* path)
+{
+	return find_directory(B_USER_SETTINGS_DIRECTORY, path) == B_OK && path->Append("Tracker/TrackerSettings") == B_OK;
+}
+
+
+static BString
+ReadTrackerSettings()
+{
+	BString text;
+	BPath path;
+	if (!TrackerSettingsPath(&path))
+		return text;
+	FILE* file = fopen(path.Path(), "r");
+	if (file == NULL)
+		return text;
+	char buffer[1024];
+	size_t count;
+	while ((count = fread(buffer, 1, sizeof(buffer), file)) > 0 && text.Length() < 65536)
+		text.Append(buffer, count);
+	fclose(file);
+	return text;
+}
+
+
+static void
+RestoreTrackerSettings(const BString& saved)
+{
+	BPath path;
+	if (saved.Length() == 0 || !TrackerSettingsPath(&path) || ReadTrackerSettings() == saved)
+		return;
+	FILE* file = fopen(path.Path(), "w");
+	if (file == NULL)
+		return;
+	fwrite(saved.String(), 1, saved.Length(), file);
+	fclose(file);
+}
+
+
+static bool
+IsTracker(const Program& program)
+{
+	return strcmp(program.signature, "application/x-vnd.Be-TRAK") == 0;
+}
+
+
 static int32
 HandoffThread(void*)
 {
@@ -177,10 +227,13 @@ HandoffThread(void*)
 		if (UsesOurs(program.job))
 			continue;
 
+		const BString saved = IsTracker(program) ? ReadTrackerSettings() : BString();
 		roster.Stop(program.job);
 		// wait (up to ~15 s) until the system's copy is gone
 		for (int n = 0; n < 30 && !sStop && OtherInstanceRunning(program); n++)
 			snooze(500000);
+		if (IsTracker(program))
+			RestoreTrackerSettings(saved);
 
 		StartSupervising(i);
 	}
@@ -196,6 +249,7 @@ ReplaceThread(void* cookie)
 	const int i = (int)(addr_t)cookie;
 	const Program& program = kPrograms[i];
 	team_id team = be_roster->TeamFor(program.signature);
+	BString saved;
 	if (team >= 0) {
 		app_info info;
 		if (be_roster->GetRunningAppInfo(team, &info) == B_OK) {
@@ -203,6 +257,8 @@ ReplaceThread(void* cookie)
 			if (path.Path() != NULL && strncmp(path.Path(), kAppFolder, strlen(kAppFolder)) == 0)
 				return 0;
 		}
+		if (IsTracker(program))
+			saved = ReadTrackerSettings();
 		BMessenger(NULL, team).SendMessage(B_QUIT_REQUESTED);
 		for (int n = 0; n < 30 && !sStop && be_roster->IsRunning(program.signature); n++)
 			snooze(100000);
@@ -212,6 +268,7 @@ ReplaceThread(void* cookie)
 	BLaunchRoster().Stop(program.job);
 	for (int n = 0; n < 30 && !sStop && OtherInstanceRunning(program); n++)
 		snooze(500000);
+	RestoreTrackerSettings(saved);
 	StartSupervising(i);
 	return 0;
 }
