@@ -43,6 +43,8 @@ All rights reserved.
 class TBarApp;
 class TBarView;
 class TDeskbarMenu;
+class BMessageRunner;
+class SnakeCorners;
 
 class TBarWindow : public BWindow {
 public:
@@ -57,6 +59,7 @@ public:
 	virtual	void				MessageReceived(BMessage* message);
 	virtual	void				Minimize(bool minimize);
 	virtual	void				FrameResized(float width, float height);
+	virtual	void				FrameMoved(BPoint origin);
 
 			void				SaveSettings();
 			TBarView*			BarView() const { return fBarView; };
@@ -92,12 +95,15 @@ public:
 
 private:
 			bool				_IsFocusMessage(BMessage* message);
+			void				_ScheduleCorners();
 
 private:
 	static	TDeskbarMenu*		sDeskbarMenu;
 			TBarApp*			fBarApp;
 			TBarView*			fBarView;
 			int32				fMenusShown;
+			SnakeCorners*		fCorners;
+			BMessageRunner*		fCornersRunner;
 };
 
 

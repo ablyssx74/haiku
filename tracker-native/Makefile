@@ -83,7 +83,7 @@ DESK := $(TOP)/src/apps/deskbar
 DESK_SRCS := BarApp BarMenuBar BarMenuTitle BarView BarWindow DeskbarMenu DeskbarUtils ExpandoMenuBar \
   InlineScrollView PreferencesWindow ScreenCornerSelector ShowHideMenuItem StatusView StatusViewShelf \
   TeamMenu TeamMenuItem TimeView TruncatableMenuItem WindowMenu WindowMenuItem ResourceSet Switcher \
-  CalendarMenuWindow
+  CalendarMenuWindow SnakeCorners
 DESK_OBJS := $(addprefix $(OUT)/deskbar/,$(addsuffix .o,$(DESK_SRCS)))
 DESK_FLAGS := -DDB_ADDONS -D_INCLUDES_CLASS_DEVICE_MAP=1 -D_SUPPORTS_RESOURCES=1 \
   -D_SUPPORTS_FEATURE_SCRIPTING=1 -D_SHOW_CALENDAR_MENU_WINDOW=1 -DMOUNT_MENU_IN_DESKBAR=1 \

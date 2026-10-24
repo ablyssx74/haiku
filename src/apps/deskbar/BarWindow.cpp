@@ -36,6 +36,13 @@ All rights reserved.
 
 #include "BarWindow.h"
 
+#include <MessageRunner.h>
+
+#include "SnakeCorners.h"
+
+
+static const uint32 kMsgSnakeCorners = 'SnkC';
+
 #include <stdio.h>
 
 #include <Application.h>
@@ -94,7 +101,9 @@ TBarWindow::TBarWindow()
 		B_ALL_WORKSPACES),
 	fBarApp(static_cast<TBarApp*>(be_app)),
 	fBarView(NULL),
-	fMenusShown(0)
+	fMenusShown(0),
+	fCorners(NULL),
+	fCornersRunner(NULL)
 {
 	desk_settings* settings = fBarApp->Settings();
 	if (settings->alwaysOnTop)
@@ -108,6 +117,28 @@ TBarWindow::TBarWindow()
 	AddShortcut('F', B_COMMAND_KEY, new BMessage(kFindButton));
 
 	SetSizeLimits();
+
+	// rounded outer corners (SnakeTracker): the corners are looked at again whenever the window's frame settles
+	fCorners = new SnakeCorners(this);
+}
+
+
+void
+TBarWindow::_ScheduleCorners()
+{
+	if (fCorners == NULL)
+		return;
+	delete fCornersRunner;
+	BMessage update(kMsgSnakeCorners);
+	fCornersRunner = new BMessageRunner(BMessenger(this), &update, 250000, 1);
+}
+
+
+void
+TBarWindow::FrameMoved(BPoint origin)
+{
+	BWindow::FrameMoved(origin);
+	_ScheduleCorners();
 }
 
 
@@ -175,6 +206,12 @@ void
 TBarWindow::MessageReceived(BMessage* message)
 {
 	switch (message->what) {
+		case kMsgSnakeCorners:
+			if (fCorners != NULL) {
+				fCorners->Update(fBarApp->Settings()->autoHide && fBarView->IsHidden());
+			}
+			break;
+
 		case kFindButton:
 		{
 			BMessenger tracker(kTrackerSignature);
@@ -246,6 +283,7 @@ TBarWindow::Minimize(bool minimize)
 void
 TBarWindow::FrameResized(float width, float height)
 {
+	_ScheduleCorners();
 	if (!fBarView->Vertical())
 		return BWindow::FrameResized(width, height);
 
@@ -287,6 +325,10 @@ TBarWindow::SaveSettings()
 bool
 TBarWindow::QuitRequested()
 {
+	delete fCornersRunner;
+	fCornersRunner = NULL;
+	delete fCorners;
+	fCorners = NULL;
 	be_app->PostMessage(B_QUIT_REQUESTED);
 
 	return BWindow::QuitRequested();
@@ -297,6 +339,7 @@ void
 TBarWindow::WorkspaceActivated(int32 workspace, bool active)
 {
 	BWindow::WorkspaceActivated(workspace, active);
+	_ScheduleCorners();
 
 	if (active && !(fBarView->ExpandoState() && fBarView->Vertical()))
 		fBarView->UpdatePlacement();
