@@ -117,8 +117,7 @@ SnakeCorners::SnakeCorners(BWindow* deskbar)
 	:
 	fDeskbar(deskbar),
 	fActive(false),
-	fWorkspace(-1),
-	fOriginalLook(deskbar->Look())
+	fWorkspace(-1)
 {
 	for (int i = 0; i < kCornerCount; i++) {
 		fCorners[i] = NULL;
@@ -155,10 +154,7 @@ SnakeCorners::_Remove()
 			fEdges[i] = NULL;
 		}
 	}
-	if (fActive) {
-		fDeskbar->SetLook(fOriginalLook);
-		fActive = false;
-	}
+	fActive = false;
 }
 
 
@@ -228,117 +224,11 @@ SnakeCorners::_Picture(int corner, const BRect& rect, BBitmap* behind, const BRe
 }
 
 
+// The outline along each side that is not at a screen edge, between the corners.
 void
-SnakeCorners::Update(bool hidden)
+SnakeCorners::_PlaceEdges(const bool* want, bool atLeft, bool atRight, bool atTop, bool atBottom, const rgb_color& line)
 {
-	BScreen screen(fDeskbar);
-	if (!screen.IsValid())
-		return;
-	const BRect screenFrame = screen.Frame();
-	const BRect frame = fDeskbar->Frame();
-
-	bool want[kCornerCount];
-	BRect rects[kCornerCount];
-	for (int i = 0; i < kCornerCount; i++)
-		want[i] = false;
-	bool atLeft = false, atRight = false, atTop = false, atBottom = false;
-	if (!hidden && !fDeskbar->IsHidden() && Enabled() && frame.Width() > 2 * kRadius + 2 && frame.Height() > 2 * kRadius + 2) {
-		const float slack = 1.5f;
-		atLeft = frame.left <= screenFrame.left + slack;
-		atRight = frame.right >= screenFrame.right - slack;
-		atTop = frame.top <= screenFrame.top + slack;
-		atBottom = frame.bottom >= screenFrame.bottom - slack;
-		// a corner that is a corner of the screen stays square; any other is rounded
-		want[kTopLeft] = !(atLeft && atTop);
-		want[kTopRight] = !(atRight && atTop);
-		want[kBottomLeft] = !(atLeft && atBottom);
-		want[kBottomRight] = !(atRight && atBottom);
-		const float r = kRadius - 1;
-		rects[kTopLeft] = BRect(frame.left, frame.top, frame.left + r, frame.top + r);
-		rects[kTopRight] = BRect(frame.right - r, frame.top, frame.right, frame.top + r);
-		rects[kBottomLeft] = BRect(frame.left, frame.bottom - r, frame.left + r, frame.bottom);
-		rects[kBottomRight] = BRect(frame.right - r, frame.bottom - r, frame.right, frame.bottom);
-	}
-
-	bool any = false, same = true;
-	const int32 workspace = current_workspace();
-	for (int i = 0; i < kCornerCount; i++) {
-		any |= want[i];
-		if (want[i] != fWanted[i] || (want[i] && rects[i] != fRects[i]))
-			same = false;
-	}
-	if (!any) {
-		_Remove();
-		return;
-	}
-	if (same && fActive && workspace == fWorkspace)
-		return;
-
-	// The screen behind the Deskbar: hide it for a moment (and take no focus when it shows again).
-	BRect area = frame & screenFrame;
-	area.left = floorf(area.left);
-	area.top = floorf(area.top);
-	const uint32 flags = fDeskbar->Flags();
-	fDeskbar->SetFlags(flags | B_AVOID_FOCUS);
-	fDeskbar->Hide();
-	BBitmap* behind = NULL;
-	for (int attempt = 0; attempt < 4; attempt++) {
-		snooze(attempt == 0 ? 50000 : 30000);
-		BBitmap* shot = NULL;
-		if (screen.GetBitmap(&shot, false, &area) != B_OK || shot == NULL)
-			break;
-		// the desktop repaints behind the Deskbar after it hides: take it again until it stops changing
-		const bool settled = behind != NULL && behind->BitsLength() == shot->BitsLength()
-			&& memcmp(behind->Bits(), shot->Bits(), shot->BitsLength()) == 0;
-		delete behind;
-		behind = shot;
-		if (settled)
-			break;
-	}
-	fDeskbar->Show();
-	fDeskbar->SetFlags(flags);
-	if (behind == NULL)
-		return;
-
-	// no border of the window system: the views draw the outline
-	if (!fActive) {
-		fOriginalLook = fDeskbar->Look();
-		fDeskbar->SetLook(B_NO_BORDER_WINDOW_LOOK);
-		fActive = true;
-	}
-	const rgb_color line = tint_color(ui_color(B_PANEL_BACKGROUND_COLOR), B_DARKEN_MAX_TINT);
 	const BRect bounds = fDeskbar->Bounds();
-	for (int i = 0; i < kCornerCount; i++) {
-		if (!want[i]) {
-			if (fCorners[i] != NULL) {
-				fCorners[i]->RemoveSelf();
-				delete fCorners[i];
-				fCorners[i] = NULL;
-			}
-			fWanted[i] = false;
-			continue;
-		}
-		BBitmap* picture = _Picture(i, rects[i], behind, area, line);
-		if (picture == NULL)
-			continue;
-		const bool left = i == kTopLeft || i == kBottomLeft;
-		const bool top = i == kTopLeft || i == kTopRight;
-		const float r = kRadius - 1;
-		const BRect place(left ? 0 : bounds.right - r, top ? 0 : bounds.bottom - r, left ? r : bounds.right,
-			top ? r : bounds.bottom);
-		const uint32 resizing = B_FOLLOW_LEFT | B_FOLLOW_TOP;	// (placed again whenever the window changes)
-		if (fCorners[i] == NULL) {
-			fCorners[i] = new SnakeCornerView(place, resizing);
-			fDeskbar->AddChild(fCorners[i]);
-		} else {
-			fCorners[i]->MoveTo(place.LeftTop());
-		}
-		fCorners[i]->SetPicture(picture);
-		fWanted[i] = true;
-		fRects[i] = rects[i];
-	}
-
-	// the outline along each side that is not at a screen edge, between the corners
 	const bool sides[kEdgeCount] = { !atTop, !atBottom, !atLeft, !atRight };
 	for (int s = 0; s < kEdgeCount; s++) {
 		const bool horizontal = s == kTop || s == kBottom;
@@ -383,6 +273,133 @@ SnakeCorners::Update(bool hidden)
 			fEdges[s]->SetColor(line);
 		}
 	}
+}
+
+
+void
+SnakeCorners::Update(bool hidden)
+{
+	BScreen screen(fDeskbar);
+	if (!screen.IsValid())
+		return;
+	const BRect screenFrame = screen.Frame();
+	const BRect frame = fDeskbar->Frame();
+
+	bool want[kCornerCount];
+	BRect rects[kCornerCount];
+	for (int i = 0; i < kCornerCount; i++)
+		want[i] = false;
+	bool atLeft = false, atRight = false, atTop = false, atBottom = false;
+	const bool shown = !hidden && !fDeskbar->IsHidden() && frame.Width() > 2 * kRadius + 2
+		&& frame.Height() > 2 * kRadius + 2;
+	const bool rounded = shown && Enabled();
+	if (shown) {
+		const float slack = 1.5f;
+		atLeft = frame.left <= screenFrame.left + slack;
+		atRight = frame.right >= screenFrame.right - slack;
+		atTop = frame.top <= screenFrame.top + slack;
+		atBottom = frame.bottom >= screenFrame.bottom - slack;
+		// a corner that is a corner of the screen stays square; any other is rounded
+		want[kTopLeft] = rounded && !(atLeft && atTop);
+		want[kTopRight] = rounded && !(atRight && atTop);
+		want[kBottomLeft] = rounded && !(atLeft && atBottom);
+		want[kBottomRight] = rounded && !(atRight && atBottom);
+		const float r = kRadius - 1;
+		rects[kTopLeft] = BRect(frame.left, frame.top, frame.left + r, frame.top + r);
+		rects[kTopRight] = BRect(frame.right - r, frame.top, frame.right, frame.top + r);
+		rects[kBottomLeft] = BRect(frame.left, frame.bottom - r, frame.left + r, frame.bottom);
+		rects[kBottomRight] = BRect(frame.right - r, frame.bottom - r, frame.right, frame.bottom);
+	}
+
+	bool any = false, same = true;
+	const int32 workspace = current_workspace();
+	for (int i = 0; i < kCornerCount; i++) {
+		any |= want[i];
+		if (want[i] != fWanted[i] || (want[i] && rects[i] != fRects[i]))
+			same = false;
+	}
+	if (!shown) {
+		_Remove();
+		return;
+	}
+	if (!any) {
+		// (square corners: only the outline, no picture of the screen behind is needed)
+		const rgb_color line = tint_color(ui_color(B_PANEL_BACKGROUND_COLOR), B_DARKEN_MAX_TINT);
+		for (int i = 0; i < kCornerCount; i++) {
+			if (fCorners[i] != NULL) {
+				fCorners[i]->RemoveSelf();
+				delete fCorners[i];
+				fCorners[i] = NULL;
+			}
+			fWanted[i] = false;
+		}
+		_PlaceEdges(want, atLeft, atRight, atTop, atBottom, line);
+		fActive = true;
+		return;
+	}
+	if (same && fActive && workspace == fWorkspace)
+		return;
+
+	// The screen behind the Deskbar: hide it for a moment (and take no focus when it shows again).
+	BRect area = frame & screenFrame;
+	area.left = floorf(area.left);
+	area.top = floorf(area.top);
+	const uint32 flags = fDeskbar->Flags();
+	fDeskbar->SetFlags(flags | B_AVOID_FOCUS);
+	fDeskbar->Hide();
+	BBitmap* behind = NULL;
+	for (int attempt = 0; attempt < 4; attempt++) {
+		snooze(attempt == 0 ? 50000 : 30000);
+		BBitmap* shot = NULL;
+		if (screen.GetBitmap(&shot, false, &area) != B_OK || shot == NULL)
+			break;
+		// the desktop repaints behind the Deskbar after it hides: take it again until it stops changing
+		const bool settled = behind != NULL && behind->BitsLength() == shot->BitsLength()
+			&& memcmp(behind->Bits(), shot->Bits(), shot->BitsLength()) == 0;
+		delete behind;
+		behind = shot;
+		if (settled)
+			break;
+	}
+	fDeskbar->Show();
+	fDeskbar->SetFlags(flags);
+	if (behind == NULL)
+		return;
+
+	fActive = true;
+	const rgb_color line = tint_color(ui_color(B_PANEL_BACKGROUND_COLOR), B_DARKEN_MAX_TINT);
+	const BRect bounds = fDeskbar->Bounds();
+	for (int i = 0; i < kCornerCount; i++) {
+		if (!want[i]) {
+			if (fCorners[i] != NULL) {
+				fCorners[i]->RemoveSelf();
+				delete fCorners[i];
+				fCorners[i] = NULL;
+			}
+			fWanted[i] = false;
+			continue;
+		}
+		BBitmap* picture = _Picture(i, rects[i], behind, area, line);
+		if (picture == NULL)
+			continue;
+		const bool left = i == kTopLeft || i == kBottomLeft;
+		const bool top = i == kTopLeft || i == kTopRight;
+		const float r = kRadius - 1;
+		const BRect place(left ? 0 : bounds.right - r, top ? 0 : bounds.bottom - r, left ? r : bounds.right,
+			top ? r : bounds.bottom);
+		const uint32 resizing = B_FOLLOW_LEFT | B_FOLLOW_TOP;	// (placed again whenever the window changes)
+		if (fCorners[i] == NULL) {
+			fCorners[i] = new SnakeCornerView(place, resizing);
+			fDeskbar->AddChild(fCorners[i]);
+		} else {
+			fCorners[i]->MoveTo(place.LeftTop());
+		}
+		fCorners[i]->SetPicture(picture);
+		fWanted[i] = true;
+		fRects[i] = rects[i];
+	}
+
+	_PlaceEdges(want, atLeft, atRight, atTop, atBottom, line);
 	delete behind;
 	fWorkspace = workspace;
 }

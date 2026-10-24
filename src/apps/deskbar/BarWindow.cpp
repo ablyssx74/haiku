@@ -94,7 +94,8 @@ TBarWindow::TBarWindow()
 	:
 	BWindow(BRect(-1000.0f, -1000.0f, -1000.0f, -1000.0f),
 		"Deskbar", /* no B_TRANSLATE_SYSTEM_NAME, for binary compatibility */
-		B_BORDERED_WINDOW,
+		B_NO_BORDER_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL,
+			// (SnakeCorners draws the outline: see there)
 		B_WILL_ACCEPT_FIRST_CLICK | B_NOT_ZOOMABLE | B_NOT_CLOSABLE
 			| B_NOT_MINIMIZABLE | B_NOT_MOVABLE | B_NOT_V_RESIZABLE
 			| B_AVOID_FRONT | B_ASYNCHRONOUS_CONTROLS,
