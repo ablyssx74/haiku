@@ -229,7 +229,12 @@ void
 SnakeCorners::_PlaceEdges(const bool* want, bool atLeft, bool atRight, bool atTop, bool atBottom, const rgb_color& line)
 {
 	const BRect bounds = fDeskbar->Bounds();
-	const bool sides[kEdgeCount] = { !atTop, !atBottom, !atLeft, !atRight };
+	// (the outline runs along every side, along the ones at a screen edge too)
+	(void)atLeft;
+	(void)atRight;
+	(void)atTop;
+	(void)atBottom;
+	const bool sides[kEdgeCount] = { true, true, true, true };
 	for (int s = 0; s < kEdgeCount; s++) {
 		const bool horizontal = s == kTop || s == kBottom;
 		const float from = horizontal ? (want[s == kTop ? kTopLeft : kBottomLeft] ? kRadius : 0)

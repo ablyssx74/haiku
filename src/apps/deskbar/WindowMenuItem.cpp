@@ -36,6 +36,8 @@ All rights reserved.
 
 #include "WindowMenuItem.h"
 
+#include <Region.h>
+
 #include <Bitmap.h>
 #include <ControlLook.h>
 #include <Debug.h>
@@ -134,7 +136,23 @@ TWindowMenuItem::Draw()
 			pillMenu->SetDrawingMode(B_OP_ALPHA);
 			pillMenu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
 			pillMenu->SetHighColor(hot);
-			pillMenu->FillRoundRect(row, 6, 6);
+			if (pillBar->Vertical()) {
+				// reaches the box's straight right end at the window's edge
+				BRect shape = row;
+				if (pillBar->Left()) {
+					row.left = Frame().left;
+					shape.left = row.left - 12;
+					shape.right = row.right;
+				} else {
+					row.right = Frame().right;
+					shape.right = row.right + 12;
+				}
+				BRegion clip(row);
+				pillMenu->ConstrainClippingRegion(&clip);
+				pillMenu->FillRoundRect(shape, 6, 6);
+				pillMenu->ConstrainClippingRegion(NULL);
+			} else
+				pillMenu->FillRoundRect(row, 6, 6);
 		}
 		pillMenu->SetDrawingMode(B_OP_COPY);
 		DrawContent();

@@ -38,6 +38,8 @@ All rights reserved.
 #include "SnakeSelector.h"
 #include "WindowMenu.h"
 
+#include <algorithm>
+
 #include <Catalog.h>
 #include <Locale.h>
 #include <Window.h>
@@ -225,7 +227,17 @@ TWindowMenu::AttachedToWindow()
 	if (pillBar != NULL && pillBar->PillLook()) {
 		if (dynamic_cast<TTeamMenu*>(Supermenu()) == NULL)
 			SnakeSelector::BeginMenuChain();
-		SnakeSelector::CaptureRootTile(this, ScreenLocation());
+		BPoint where = ScreenLocation();
+		if (!pillBar->Vertical() && !pillBar->Top()) {
+			// a Deskbar along the bottom of the screen: the menu opens above it, not below the tab
+			BWindow* barWindow = pillBar->Window();
+			if (barWindow != NULL) {
+				float width, height;
+				GetPreferredSize(&width, &height);
+				where.y = std::min(where.y, barWindow->Frame().top - height - 16);
+			}
+		}
+		SnakeSelector::CaptureRootTile(this, where);
 	}
 }
 

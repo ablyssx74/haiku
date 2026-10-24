@@ -247,9 +247,64 @@ TTeamMenuItem::Draw()
 		fBarView->PillColors(NULL, &hot, NULL, NULL, NULL);
 		bool lit = _IsSelected() && (!fBarView->Dragging()
 			|| fBarView->AppCanHandleTypes(Signature()));
-		BRect pill(frame.left + 3, frame.top + 2, frame.right - 3,
-			frame.bottom - 2);
+		// in a vertical Deskbar the program's header is straight at its right end and reaches the window's edge like the
+		// leaf's block does; only its left end is round. In a horizontal one it is a pill.
+		// (on the left of the screen it is the other way round: straight at its left end, against the screen's edge)
+		const bool flatEnd = fBarView->Vertical();
+		const bool flatLeft = flatEnd && fBarView->Left();
+		BRect pill(flatLeft ? frame.left : frame.left + 3, frame.top + 2,
+			flatEnd && !flatLeft ? frame.right : frame.right - 3, frame.bottom - 2);
 		float radius = floorf(pill.Height() / 2);
+		if (flatEnd) {
+			// a bar that runs on past the window's edge, clipped to it: that end is straight
+			BRect shape = pill;
+			if (flatLeft)
+				shape.left -= 2 * radius;
+			else
+				shape.right += 2 * radius;
+			BRegion clip(pill);
+			menu->ConstrainClippingRegion(&clip);
+			SnakeSelector::DrawRaised(menu, shape, radius, flatLeft ? 2 | 4 : 1 | 8, 0);
+			{
+				// the same fade as the leaf's block: the left 30% keeps its colour, then it melts into the panel's
+				rgb_color fill;
+				fBarView->PillColors(&fill, NULL, NULL, NULL, NULL);
+				BGradientLinear fade;
+				fade.SetStart(BPoint(pill.left + pill.Width() * 0.3f, 0));
+				fade.SetEnd(BPoint(pill.right, 0));
+				fill.alpha = 0;
+				fade.AddColor(fill, 0);
+				fill.alpha = 153;
+				fade.AddColor(fill, 255);
+				menu->SetDrawingMode(B_OP_ALPHA);
+				menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+				menu->FillRoundRect(shape, radius, radius, fade);
+			}
+			if (lit) {
+				menu->SetDrawingMode(B_OP_ALPHA);
+				menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+				menu->SetHighColor(255, 255, 255, 46);
+				menu->FillRoundRect(shape.InsetByCopy(1, 1), radius - 1, radius - 1);
+			}
+			{
+				// a shade along the bottom, like the leaf's block has
+				BGradientLinear shade;
+				shade.SetStart(BPoint(0, pill.bottom - 4));
+				shade.SetEnd(BPoint(0, pill.bottom));
+				shade.AddColor(make_color(0, 0, 0, 0), 0);
+				shade.AddColor(make_color(0, 0, 0, 72), 255);
+				menu->SetDrawingMode(B_OP_ALPHA);
+				menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+				menu->FillRoundRect(shape, radius, radius, shade);
+			}
+			menu->ConstrainClippingRegion(NULL);
+			menu->SetDrawingMode(B_OP_COPY);
+
+			menu->MovePenTo(ContentLocation());
+			DrawContent();
+			menu->PopState();
+			return;
+		}
 		// the pill is a raised round bar, like the trail's; under the pointer it is a little lighter
 		// (the right end is flat: the shading is drawn on a bar that runs on past it, and clipped, and the end is the plain
 		// colour; shaded, the end showed as a dark crescent)
@@ -441,6 +496,20 @@ TTeamMenuItem::DrawExpanderArrow()
 	rgb_color bgColor = ui_color(B_MENU_BACKGROUND_COLOR);
 	if (bgColor.red + bgColor.green + bgColor.blue <= 128 * 3)
 		colorTint = B_LIGHTEN_2_TINT;
+
+	if (fBarView->PillLook()) {
+		// on the header's pill (which melts into the panel towards its right end): the colour it has there, darker
+		rgb_color hot, fill;
+		fBarView->PillColors(&fill, &hot, NULL, NULL, NULL);
+		rgb_color under;
+		under.red = (uint8)(hot.red * 0.4f + fill.red * 0.6f);
+		under.green = (uint8)(hot.green * 0.4f + fill.green * 0.6f);
+		under.blue = (uint8)(hot.blue * 0.4f + fill.blue * 0.6f);
+		under.alpha = 255;
+		be_control_look->DrawArrowShape(Menu(), rect, Menu()->Frame(),
+			tint_color(under, 1.34f), fArrowDirection, 0, B_NO_TINT);
+		return;
+	}
 
 	be_control_look->DrawArrowShape(Menu(), rect, Menu()->Frame(),
 		bgColor, fArrowDirection, 0, colorTint);

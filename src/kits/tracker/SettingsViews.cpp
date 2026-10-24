@@ -903,7 +903,7 @@ SnakeSettingsView::SnakeSettingsView()
 	fSnakeAccent(kDefaultSnakeAccent)
 {
 	fSnakeLookCheckBox = new BCheckBox("",
-		B_TRANSLATE("Snake look for Tracker and Deskbar"), new BMessage(kSnakeLookChanged));
+		B_TRANSLATE("Raised Snake look for Tracker and Deskbar"), new BMessage(kSnakeLookChanged));
 	fSnakeTrailCheckBox = new BCheckBox("",
 		B_TRANSLATE("Snake trail in folder menus"), new BMessage(kSnakeTrailChanged));
 	fSnakeFlatCheckBox = new BCheckBox("",
@@ -911,13 +911,13 @@ SnakeSettingsView::SnakeSettingsView()
 	fSnakeArrowsCheckBox = new BCheckBox("",
 		B_TRANSLATE("Scroll bar arrows"), new BMessage(kSnakeArrowsChanged));
 	fSnakeRoundCheckBox = new BCheckBox("",
-		B_TRANSLATE("Enable rounded corners on Tracker"), new BMessage(kSnakeRoundChanged));
+		B_TRANSLATE("Enable rounded corners on Tracker & Deskbar"), new BMessage(kSnakeRoundChanged));
 	fSnakeSysDeskbarCheckBox = new BCheckBox("",
 		B_TRANSLATE("Use system colors for Deskbar"), new BMessage(kSnakeSysDeskbarChanged));
 	fSnakeSysTrackerCheckBox = new BCheckBox("",
 		B_TRANSLATE("Use system colors for Tracker"), new BMessage(kSnakeSysTrackerChanged));
 	fSnakeAllAppsCheckBox = new BCheckBox("",
-		B_TRANSLATE("Snake look in all programs"), new BMessage(kSnakeAllAppsChanged));
+		B_TRANSLATE("Snake look in all programs & menus"), new BMessage(kSnakeAllAppsChanged));
 
 	fSnakeAccentControl = new BColorControl(BPoint(0, 0), B_CELLS_32x8, 4,
 		"snake_accent", new BMessage(kSnakeAccentChanged));
@@ -931,7 +931,7 @@ SnakeSettingsView::SnakeSettingsView()
 	BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
 		.AddGroup(B_VERTICAL, 0)
 			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeLookCheckBox)
-				.Add(HelpMark(B_TRANSLATE("Draws Tracker's and the Deskbar's menus, the Deskbar's\npanel and the menu bar titles in the SnakeTracker pill look.\nOff, they are drawn the way Haiku draws them; the snake trail\nand the buttons, scroll bars and the like stay.")))
+				.Add(HelpMark(B_TRANSLATE("Draws the menus of Tracker and the Deskbar, the Deskbar's panel\nand program tabs, and the menu bar titles in the raised\nSnakeTracker pill look. Off, they are drawn the way Haiku\ndraws them, and rounded corners are not available; the\nsnake trail and the buttons, scroll bars and the like stay.")))
 				.AddGlue().End()
 			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeTrailCheckBox)
 				.Add(HelpMark(B_TRANSLATE("The highlight stays joined through every open submenu\nof a folder menu, like a snake.")))
@@ -943,7 +943,7 @@ SnakeSettingsView::SnakeSettingsView()
 				.Add(HelpMark(B_TRANSLATE("Shows the arrow buttons at the ends of scroll bars.")))
 				.AddGlue().End()
 			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeRoundCheckBox)
-				.Add(HelpMark(B_TRANSLATE("Rounds the corners of Tracker's menus.\nHaiku draws a black outline round every menu window\nand it cannot be rounded, so with rounded corners the\noutline shows as a square frame round the menu.\nOff, the corners are square and the outline fits.")))
+				.Add(HelpMark(B_TRANSLATE("Rounds the corners of the menus of Tracker and the Deskbar,\nand the outer corners of the Deskbar's own window (not those\nat the edge of the screen). Haiku's square window outline is\ncovered with the screen behind it, so the wallpaper or the\nwindow behind shows through the corners. Off, the corners\nare square and have an outline. Needs the raised Snake look.")))
 				.AddGlue().End()
 			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeSysDeskbarCheckBox)
 				.Add(HelpMark(B_TRANSLATE("On: the Deskbar uses the colors of Haiku's Appearance\nsettings (the menu background and selection colors).\nOff: it uses the SnakeTracker color.")))
@@ -952,7 +952,7 @@ SnakeSettingsView::SnakeSettingsView()
 				.Add(HelpMark(B_TRANSLATE("On: Tracker uses the colors of Haiku's Appearance\nsettings (the menu background and selection colors).\nOff: it uses the SnakeTracker color.")))
 				.AddGlue().End()
 			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeAllAppsCheckBox)
-				.Add(HelpMark(B_TRANSLATE("The pill look for the menus of every program that\nuses Haiku's own menus, in Haiku's Appearance colors,\nwith square corners. Programs that draw their own menus\ndo not change. Menus pick it up as they open.")))
+				.Add(HelpMark(B_TRANSLATE("The pill look for the menus of every program that uses\nHaiku's own menus, in Haiku's Appearance colors, with\nsquare corners. Programs that draw their own menus do\nnot change. Menus pick it up as they open.")))
 				.AddGlue().End()
 			.AddGroup(B_HORIZONTAL, spacing / 2)
 				.Add(new BStringView("", B_TRANSLATE("SnakeTracker color:")))
@@ -1006,6 +1006,8 @@ SnakeSettingsView::MessageReceived(BMessage* message)
 
 		case kSnakeLookChanged:
 			settings.SetSnakeLook(fSnakeLookCheckBox->Value() == 1);
+			// (rounded corners belong to the raised look: without it there is nothing to round)
+			fSnakeRoundCheckBox->SetEnabled(fSnakeLookCheckBox->Value() == 1);
 			Window()->PostMessage(kSettingsContentsModified);
 			break;
 
@@ -1110,6 +1112,7 @@ SnakeSettingsView::ShowCurrentSettings()
 	fSnakeLookCheckBox->SetValue(settings.SnakeLook());
 	fSnakeArrowsCheckBox->SetValue(settings.SnakeArrows());
 	fSnakeRoundCheckBox->SetValue(settings.SnakeRoundCorners());
+	fSnakeRoundCheckBox->SetEnabled(settings.SnakeLook());
 	fSnakeSysDeskbarCheckBox->SetValue(settings.SnakeSystemColorsDeskbar());
 	fSnakeSysTrackerCheckBox->SetValue(settings.SnakeSystemColorsTracker());
 	fSnakeAllAppsCheckBox->SetValue(settings.SnakeAllApps());

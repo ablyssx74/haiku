@@ -871,15 +871,30 @@ TExpandoMenuBar::DrawBackground(BRect updateRect)
 				continue;
 			BRect head = team->Frame();
 			BRect tail = ItemAt(last)->Frame();
-			BRect area(head.left + 8, head.bottom - 8, head.right - 8,
-				tail.bottom - 2);
+			// in a vertical Deskbar the box reaches the window's edge, straight there like the program's header; only its
+			// left end is round
+			const bool flatEnd = Vertical();
+			const bool flatLeft = flatEnd && fBarView->Left();
+				// (on the left of the screen the box is straight at its left end instead)
+			BRect area(flatLeft ? head.left : head.left + 8, head.bottom - 8,
+				flatEnd && !flatLeft ? head.right : head.right - 8, tail.bottom - 2);
+			BRect shape = area;
+			if (flatLeft)
+				shape.left -= 16;
+			else if (flatEnd)
+				shape.right += 16;
+			BRegion clip(BRect(area.left, area.top, area.right + 1, area.bottom + 2));
+			if (flatEnd)
+				ConstrainClippingRegion(&clip);
 			// a soft shadow under the box: two fainter copies, a pixel and two pixels lower
 			SetHighColor(0, 0, 0, 30);
-			FillRoundRect(area.OffsetByCopy(0, 2), 8, 8);
+			FillRoundRect(shape.OffsetByCopy(0, 2), 8, 8);
 			SetHighColor(0, 0, 0, 48);
-			FillRoundRect(area.OffsetByCopy(0, 1), 8, 8);
+			FillRoundRect(shape.OffsetByCopy(0, 1), 8, 8);
 			SetHighColor(box);
-			FillRoundRect(area, 8, 8);
+			FillRoundRect(shape, 8, 8);
+			if (flatEnd)
+				ConstrainClippingRegion(NULL);
 		}
 		SetDrawingMode(B_OP_COPY);
 		return;
