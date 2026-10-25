@@ -1,8 +1,11 @@
-# snaketracker 1.0.51
+# snaketracker 1.0.52
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **The Flat menu selector option is greyed out while the Raised Snake look is on.** The option takes away the light top edge and dark bottom edge of a selector in the plain look (without the raised look). The raised look shades the selector itself, so with it on the option changed nothing you could see. It is now disabled then, in the SnakeTracker pane of Tracker preferences, and keeps its value for when the raised look is turned off; with the raised look off, it is available as before.
+
+Since 1.0.51 (if you skipped it):
 - **The Deskbar's own window has rounded corners.** Every corner of the bar that is not a corner of the screen is round, in all six places the Deskbar can sit (top, bottom, and the four corners, expanded or not). The window system's square border is gone from the Deskbar: its window is made without one, and thin lines along the sides draw the outline in its place, round at the corners, and along the sides at the edge of the screen too. A small picture of the screen behind each corner is taken while the bar is hidden for a moment (a fraction of a second, when the bar starts or its size or place changes; it can blink then), so the wallpaper, or a window, shows through the corners. With **Enable rounded corners** off the corners are square, with the same outline. It follows the Raised Snake look and rounded corners settings.
 - **The program tabs of a vertical Deskbar run to the edge of the window.** The header of each program, the dark box under it with its windows, and the row you point at are straight at the end that faces the edge of the screen and round at the other; with the Deskbar on the left they are the other way round. The tab has a soft shade along its bottom like the leaf's block, and its chevron is a darker shade of the tab's color. A horizontal Deskbar keeps its pill tabs.
 - **The window menus of a Deskbar at the bottom of the screen are in the snake look.** A menu that opens upward from a tab (the list of a program's windows, and "No windows") had the picture of the screen behind it taken for a menu that opens downward: a tall menu showed the window system's square frame along its top, and a short one was drawn in the stock look. The picture is taken in the right place now.
@@ -166,4 +169,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.43-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.43-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.52-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.52-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
