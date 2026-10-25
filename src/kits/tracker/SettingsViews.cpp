@@ -1008,6 +1008,8 @@ SnakeSettingsView::MessageReceived(BMessage* message)
 			settings.SetSnakeLook(fSnakeLookCheckBox->Value() == 1);
 			// (rounded corners belong to the raised look: without it there is nothing to round)
 			fSnakeRoundCheckBox->SetEnabled(fSnakeLookCheckBox->Value() == 1);
+			// (the flat selector is the plain look's: the raised look shades the selector itself)
+			fSnakeFlatCheckBox->SetEnabled(fSnakeLookCheckBox->Value() != 1);
 			Window()->PostMessage(kSettingsContentsModified);
 			break;
 
@@ -1113,6 +1115,7 @@ SnakeSettingsView::ShowCurrentSettings()
 	fSnakeArrowsCheckBox->SetValue(settings.SnakeArrows());
 	fSnakeRoundCheckBox->SetValue(settings.SnakeRoundCorners());
 	fSnakeRoundCheckBox->SetEnabled(settings.SnakeLook());
+	fSnakeFlatCheckBox->SetEnabled(!settings.SnakeLook());
 	fSnakeSysDeskbarCheckBox->SetValue(settings.SnakeSystemColorsDeskbar());
 	fSnakeSysTrackerCheckBox->SetValue(settings.SnakeSystemColorsTracker());
 	fSnakeAllAppsCheckBox->SetValue(settings.SnakeAllApps());
