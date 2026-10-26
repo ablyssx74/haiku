@@ -82,6 +82,7 @@ private:
 	BooleanValueSetting* fSnakeFlat;
 	BooleanValueSetting* fSnakeLook;
 	BooleanValueSetting* fSnakeRoundCorners;
+	BooleanValueSetting* fSnakeDeskbarRoundCorners;
 	BooleanValueSetting* fSnakeSystemColorsDeskbar;
 	BooleanValueSetting* fSnakeSystemColorsTracker;
 	BooleanValueSetting* fSnakeAllApps;
@@ -156,6 +157,7 @@ TTrackerState::TTrackerState()
 	fSnakeFlat(NULL),
 	fSnakeLook(NULL),
 	fSnakeRoundCorners(NULL),
+	fSnakeDeskbarRoundCorners(NULL),
 	fSnakeSystemColorsDeskbar(NULL),
 	fSnakeSystemColorsTracker(NULL),
 	fSnakeAllApps(NULL),
@@ -198,6 +200,7 @@ TTrackerState::TTrackerState(const TTrackerState&)
 	fSnakeFlat(NULL),
 	fSnakeLook(NULL),
 	fSnakeRoundCorners(NULL),
+	fSnakeDeskbarRoundCorners(NULL),
 	fSnakeSystemColorsDeskbar(NULL),
 	fSnakeSystemColorsTracker(NULL),
 	fSnakeAllApps(NULL),
@@ -277,6 +280,8 @@ TTrackerState::LoadSettingsIfNeeded()
 	Add(fSnakeFlat = new BooleanValueSetting("SnakeFlat", kDefaultSnakeFlat));
 	Add(fSnakeLook = new BooleanValueSetting("SnakeLook", kDefaultSnakeLook));
 	Add(fSnakeRoundCorners = new BooleanValueSetting("SnakeRoundCorners", kDefaultSnakeRoundCorners));
+	Add(fSnakeDeskbarRoundCorners
+		= new BooleanValueSetting("SnakeDeskbarRoundCorners", kDefaultSnakeDeskbarRoundCorners));
 	Add(fSnakeSystemColorsDeskbar = new BooleanValueSetting("SnakeSystemColorsDeskbar", kDefaultSnakeSystemColorsDeskbar));
 	Add(fSnakeSystemColorsTracker = new BooleanValueSetting("SnakeSystemColorsTracker", kDefaultSnakeSystemColorsTracker));
 	Add(fSnakeAllApps = new BooleanValueSetting("SnakeAllApps", kDefaultSnakeAllApps));
@@ -583,6 +588,20 @@ void
 TrackerSettings::SetSnakeRoundCorners(bool value)
 {
 	gTrackerState.fSnakeRoundCorners->SetValue(value);
+}
+
+
+bool
+TrackerSettings::SnakeDeskbarRoundCorners()
+{
+	return gTrackerState.fSnakeDeskbarRoundCorners->Value();
+}
+
+
+void
+TrackerSettings::SetSnakeDeskbarRoundCorners(bool value)
+{
+	gTrackerState.fSnakeDeskbarRoundCorners->SetValue(value);
 }
 
 

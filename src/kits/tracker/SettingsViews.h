@@ -172,6 +172,7 @@ private:
 	BCheckBox* fSnakeFlatCheckBox;
 	BCheckBox* fSnakeArrowsCheckBox;
 	BCheckBox* fSnakeRoundCheckBox;
+	BCheckBox* fSnakeDeskbarRoundCheckBox;
 	BCheckBox* fSnakeSysDeskbarCheckBox;
 	BCheckBox* fSnakeSysTrackerCheckBox;
 	BCheckBox* fSnakeAllAppsCheckBox;
@@ -184,6 +185,7 @@ private:
 	bool fSnakeFlat;
 	bool fSnakeArrows;
 	bool fSnakeRound;
+	bool fSnakeDeskbarRound;
 	bool fSnakeSysDeskbar;
 	bool fSnakeSysTracker;
 	bool fSnakeAllApps;

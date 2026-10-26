@@ -886,6 +886,7 @@ SnakeSettingsView::SnakeSettingsView()
 	fSnakeFlatCheckBox(NULL),
 	fSnakeArrowsCheckBox(NULL),
 	fSnakeRoundCheckBox(NULL),
+	fSnakeDeskbarRoundCheckBox(NULL),
 	fSnakeSysDeskbarCheckBox(NULL),
 	fSnakeSysTrackerCheckBox(NULL),
 	fSnakeAllAppsCheckBox(NULL),
@@ -897,6 +898,7 @@ SnakeSettingsView::SnakeSettingsView()
 	fSnakeFlat(kDefaultSnakeFlat),
 	fSnakeArrows(kDefaultSnakeArrows),
 	fSnakeRound(kDefaultSnakeRoundCorners),
+	fSnakeDeskbarRound(kDefaultSnakeDeskbarRoundCorners),
 	fSnakeSysDeskbar(kDefaultSnakeSystemColorsDeskbar),
 	fSnakeSysTracker(kDefaultSnakeSystemColorsTracker),
 	fSnakeAllApps(kDefaultSnakeAllApps),
@@ -911,7 +913,9 @@ SnakeSettingsView::SnakeSettingsView()
 	fSnakeArrowsCheckBox = new BCheckBox("",
 		B_TRANSLATE("Scroll bar arrows"), new BMessage(kSnakeArrowsChanged));
 	fSnakeRoundCheckBox = new BCheckBox("",
-		B_TRANSLATE("Enable rounded corners on Tracker & Deskbar"), new BMessage(kSnakeRoundChanged));
+		B_TRANSLATE("Enable rounded corners on Tracker"), new BMessage(kSnakeRoundChanged));
+	fSnakeDeskbarRoundCheckBox = new BCheckBox("",
+		B_TRANSLATE("Enable rounded corners on Deskbar"), new BMessage(kSnakeDeskbarRoundChanged));
 	fSnakeSysDeskbarCheckBox = new BCheckBox("",
 		B_TRANSLATE("Use system colors for Deskbar"), new BMessage(kSnakeSysDeskbarChanged));
 	fSnakeSysTrackerCheckBox = new BCheckBox("",
@@ -943,7 +947,10 @@ SnakeSettingsView::SnakeSettingsView()
 				.Add(HelpMark(B_TRANSLATE("Shows the arrow buttons at the ends of scroll bars.")))
 				.AddGlue().End()
 			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeRoundCheckBox)
-				.Add(HelpMark(B_TRANSLATE("Rounds the corners of the menus of Tracker and the Deskbar,\nand the outer corners of the Deskbar's own window (not those\nat the edge of the screen). Haiku's square window outline is\ncovered with the screen behind it, so the wallpaper or the\nwindow behind shows through the corners. Off, the corners\nare square and have an outline. Needs the raised Snake look.")))
+				.Add(HelpMark(B_TRANSLATE("Rounds the corners of the menus of Tracker and the Deskbar.\nOff, the corners are square and have an outline.\nNeeds the raised Snake look.")))
+				.AddGlue().End()
+			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeDeskbarRoundCheckBox)
+				.Add(HelpMark(B_TRANSLATE("Rounds the outer corners of the Deskbar's own window (not\nthose at the edge of the screen). Haiku's square window outline\nis covered with the screen behind it, so the wallpaper or the\nwindow behind shows through the corners. Off, the corners\nare square and have an outline. Needs the raised Snake look.")))
 				.AddGlue().End()
 			.AddGroup(B_HORIZONTAL, spacing / 2).Add(fSnakeSysDeskbarCheckBox)
 				.Add(HelpMark(B_TRANSLATE("On: the Deskbar uses the colors of Haiku's Appearance\nsettings (the menu background and selection colors).\nOff: it uses the SnakeTracker color.")))
@@ -980,6 +987,7 @@ SnakeSettingsView::AttachedToWindow()
 	fSnakeFlatCheckBox->SetTarget(this);
 	fSnakeArrowsCheckBox->SetTarget(this);
 	fSnakeRoundCheckBox->SetTarget(this);
+	fSnakeDeskbarRoundCheckBox->SetTarget(this);
 	fSnakeSysDeskbarCheckBox->SetTarget(this);
 	fSnakeSysTrackerCheckBox->SetTarget(this);
 	fSnakeAllAppsCheckBox->SetTarget(this);
@@ -1008,6 +1016,7 @@ SnakeSettingsView::MessageReceived(BMessage* message)
 			settings.SetSnakeLook(fSnakeLookCheckBox->Value() == 1);
 			// (rounded corners belong to the raised look: without it there is nothing to round)
 			fSnakeRoundCheckBox->SetEnabled(fSnakeLookCheckBox->Value() == 1);
+			fSnakeDeskbarRoundCheckBox->SetEnabled(fSnakeLookCheckBox->Value() == 1);
 			// (the flat selector is the plain look's: the raised look shades the selector itself)
 			fSnakeFlatCheckBox->SetEnabled(fSnakeLookCheckBox->Value() != 1);
 			Window()->PostMessage(kSettingsContentsModified);
@@ -1015,6 +1024,11 @@ SnakeSettingsView::MessageReceived(BMessage* message)
 
 		case kSnakeArrowsChanged:
 			settings.SetSnakeArrows(fSnakeArrowsCheckBox->Value() == 1);
+			Window()->PostMessage(kSettingsContentsModified);
+			break;
+
+		case kSnakeDeskbarRoundChanged:
+			settings.SetSnakeDeskbarRoundCorners(fSnakeDeskbarRoundCheckBox->Value() == 1);
 			Window()->PostMessage(kSettingsContentsModified);
 			break;
 
@@ -1064,6 +1078,7 @@ SnakeSettingsView::SetDefaults()
 	settings.SetSnakeLook(kDefaultSnakeLook);
 	settings.SetSnakeArrows(kDefaultSnakeArrows);
 	settings.SetSnakeRoundCorners(kDefaultSnakeRoundCorners);
+	settings.SetSnakeDeskbarRoundCorners(kDefaultSnakeDeskbarRoundCorners);
 	settings.SetSnakeSystemColorsDeskbar(kDefaultSnakeSystemColorsDeskbar);
 	settings.SetSnakeSystemColorsTracker(kDefaultSnakeSystemColorsTracker);
 	settings.SetSnakeAllApps(kDefaultSnakeAllApps);
@@ -1081,6 +1096,7 @@ SnakeSettingsView::IsDefaultable() const
 		|| settings.SnakeLook() != kDefaultSnakeLook
 		|| settings.SnakeArrows() != kDefaultSnakeArrows
 		|| settings.SnakeRoundCorners() != kDefaultSnakeRoundCorners
+		|| settings.SnakeDeskbarRoundCorners() != kDefaultSnakeDeskbarRoundCorners
 		|| settings.SnakeSystemColorsDeskbar() != kDefaultSnakeSystemColorsDeskbar
 		|| settings.SnakeSystemColorsTracker() != kDefaultSnakeSystemColorsTracker
 		|| settings.SnakeAllApps() != kDefaultSnakeAllApps
@@ -1097,6 +1113,7 @@ SnakeSettingsView::Revert()
 	settings.SetSnakeLook(fSnakeLook);
 	settings.SetSnakeArrows(fSnakeArrows);
 	settings.SetSnakeRoundCorners(fSnakeRound);
+	settings.SetSnakeDeskbarRoundCorners(fSnakeDeskbarRound);
 	settings.SetSnakeSystemColorsDeskbar(fSnakeSysDeskbar);
 	settings.SetSnakeSystemColorsTracker(fSnakeSysTracker);
 	settings.SetSnakeAllApps(fSnakeAllApps);
@@ -1115,6 +1132,8 @@ SnakeSettingsView::ShowCurrentSettings()
 	fSnakeArrowsCheckBox->SetValue(settings.SnakeArrows());
 	fSnakeRoundCheckBox->SetValue(settings.SnakeRoundCorners());
 	fSnakeRoundCheckBox->SetEnabled(settings.SnakeLook());
+	fSnakeDeskbarRoundCheckBox->SetValue(settings.SnakeDeskbarRoundCorners());
+	fSnakeDeskbarRoundCheckBox->SetEnabled(settings.SnakeLook());
 	fSnakeFlatCheckBox->SetEnabled(!settings.SnakeLook());
 	fSnakeSysDeskbarCheckBox->SetValue(settings.SnakeSystemColorsDeskbar());
 	fSnakeSysTrackerCheckBox->SetValue(settings.SnakeSystemColorsTracker());
@@ -1133,6 +1152,7 @@ SnakeSettingsView::RecordRevertSettings()
 	fSnakeLook = settings.SnakeLook();
 	fSnakeArrows = settings.SnakeArrows();
 	fSnakeRound = settings.SnakeRoundCorners();
+	fSnakeDeskbarRound = settings.SnakeDeskbarRoundCorners();
 	fSnakeSysDeskbar = settings.SnakeSystemColorsDeskbar();
 	fSnakeSysTracker = settings.SnakeSystemColorsTracker();
 	fSnakeAllApps = settings.SnakeAllApps();
@@ -1149,6 +1169,7 @@ SnakeSettingsView::IsRevertable() const
 		|| fSnakeLook != settings.SnakeLook()
 		|| fSnakeArrows != settings.SnakeArrows()
 		|| fSnakeRound != settings.SnakeRoundCorners()
+		|| fSnakeDeskbarRound != settings.SnakeDeskbarRoundCorners()
 		|| fSnakeSysDeskbar != settings.SnakeSystemColorsDeskbar()
 		|| fSnakeSysTracker != settings.SnakeSystemColorsTracker()
 		|| fSnakeAllApps != settings.SnakeAllApps()

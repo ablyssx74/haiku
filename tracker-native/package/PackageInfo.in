@@ -11,7 +11,7 @@ The selector colour follows hDesktop's Selector Color while hDesktop is running,
 or Tracker's own setting (Tracker preferences > Windows).
 
 Installs next to the system Tracker and Deskbar and takes over when they next
-start (log out and in, or restart). Remove the package to go back to the stock
+start (restart). Remove the package to go back to the stock
 ones."
 packager		"ablyssx74 <ablyssx74@users.noreply.github.com>"
 vendor			"ablyssx74"

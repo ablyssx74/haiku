@@ -13,6 +13,8 @@
 #include <View.h>
 #include <Window.h>
 
+#include <OS.h>
+
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -35,7 +37,7 @@ Enabled()
 			while (fgets(line, sizeof(line), file) != NULL) {
 				const bool off = strstr(line, " off") != NULL || strstr(line, " 0") != NULL
 					|| strstr(line, " false") != NULL;
-				if (strncmp(line, "SnakeRoundCorners ", 18) == 0)
+				if (strncmp(line, "SnakeDeskbarRoundCorners ", 25) == 0)
 					round = !off;
 				else if (strncmp(line, "SnakeLook ", 10) == 0)
 					look = !off;
@@ -113,11 +115,22 @@ private:
 };
 
 
+static void
+FreeStrips(BBitmap** strips, int count)
+{
+	for (int i = 0; i < count; i++) {
+		delete strips[i];
+		strips[i] = NULL;
+	}
+}
+
+
 SnakeCorners::SnakeCorners(BWindow* deskbar)
 	:
 	fDeskbar(deskbar),
 	fActive(false),
-	fWorkspace(-1)
+	fWorkspace(-1),
+	fAheadWorkspace(-1)
 {
 	for (int i = 0; i < kCornerCount; i++) {
 		fCorners[i] = NULL;
@@ -126,12 +139,179 @@ SnakeCorners::SnakeCorners(BWindow* deskbar)
 	}
 	for (int i = 0; i < kEdgeCount; i++)
 		fEdges[i] = NULL;
+	for (int i = 0; i < kBackdropCount; i++) {
+		for (int j = 0; j < kStripCount; j++)
+			fBackdrops[i].strips[j] = NULL;
+		fBackdrops[i].workspace = -1;
+		fBackdrops[i].when = 0;
+	}
+	for (int i = 0; i < kCornerCount; i++)
+		fAhead[i] = NULL;
 }
 
 
 SnakeCorners::~SnakeCorners()
 {
 	// (the window is locked by its caller; the views go with the window)
+	for (int i = 0; i < kBackdropCount; i++)
+		FreeStrips(fBackdrops[i].strips, kStripCount);
+	_DropAhead();
+}
+
+
+// The kept strips for a workspace, if the screen is still the same size. (They are taken again whenever the Deskbar is hidden
+// anyway, so they don't grow old.)
+SnakeCorners::Backdrop*
+SnakeCorners::_Backdrop(int32 workspace, const BRect& screenFrame)
+{
+	for (int i = 0; i < kBackdropCount; i++) {
+		Backdrop& b = fBackdrops[i];
+		if (b.strips[0] == NULL || b.workspace != workspace)
+			continue;
+		if (b.rects[0].top != screenFrame.top || b.rects[0].bottom != screenFrame.bottom) {
+			FreeStrips(b.strips, kStripCount);
+			return NULL;
+		}
+		return &b;
+	}
+	return NULL;
+}
+
+
+// The strip that holds rect, or -1.
+int
+SnakeCorners::_Strip(const Backdrop* backdrop, const BRect& rect)
+{
+	for (int i = 0; i < kStripCount; i++) {
+		if (backdrop->strips[i] != NULL && backdrop->rects[i].Contains(rect))
+			return i;
+	}
+	return -1;
+}
+
+
+void
+SnakeCorners::_DropAhead()
+{
+	FreeStrips(fAhead, kCornerCount);
+}
+
+
+// The four corner places of a frame.
+static void
+CornerRects(const BRect& frame, BRect* rects)
+{
+	const float r = kRadius - 1;
+	rects[0] = BRect(frame.left, frame.top, frame.left + r, frame.top + r);
+	rects[1] = BRect(frame.right - r, frame.top, frame.right, frame.top + r);
+	rects[2] = BRect(frame.left, frame.bottom - r, frame.left + r, frame.bottom);
+	rects[3] = BRect(frame.right - r, frame.bottom - r, frame.right, frame.bottom);
+}
+
+
+void
+SnakeCorners::Prepare(const BRect& newFrame)
+{
+	_DropAhead();
+	if (!fActive || !Enabled())
+		return;
+	BScreen screen(fDeskbar);
+	if (!screen.IsValid())
+		return;
+	const BRect current = fDeskbar->Frame();
+	BRect rects[kCornerCount];
+	CornerRects(newFrame, rects);
+	for (int i = 0; i < kCornerCount; i++) {
+		// only ground the Deskbar does not cover now (a few pixels each)
+		if (rects[i].Intersects(current) || !screen.Frame().Contains(rects[i]))
+			continue;
+		BRect area = rects[i];
+		if (screen.GetBitmap(&fAhead[i], false, &area) != B_OK)
+			fAhead[i] = NULL;
+		else
+			fAheadRects[i] = area;
+	}
+	fAheadWorkspace = current_workspace();
+}
+
+
+// Hides the Deskbar for a moment and takes the columns and rows of the screen along its four sides: a few thousand pixels,
+// not the screen. (The Deskbar takes no focus when it shows again.)
+SnakeCorners::Backdrop*
+SnakeCorners::_Capture(int32 workspace, const BRect& frame, const BRect& screenFrame)
+{
+	const float r = kRadius - 1;
+	BRect wanted[kStripCount] = {
+		BRect(frame.left, screenFrame.top, frame.left + r, screenFrame.bottom),
+		BRect(frame.right - r, screenFrame.top, frame.right, screenFrame.bottom),
+		BRect(screenFrame.left, frame.top, screenFrame.right, frame.top + r),
+		BRect(screenFrame.left, frame.bottom - r, screenFrame.right, frame.bottom)
+	};
+	BBitmap* strips[kStripCount];
+	BBitmap* previous[kStripCount];
+	for (int i = 0; i < kStripCount; i++) {
+		strips[i] = previous[i] = NULL;
+		wanted[i] = wanted[i] & screenFrame;
+		wanted[i].left = floorf(wanted[i].left);
+		wanted[i].top = floorf(wanted[i].top);
+	}
+
+	BScreen screen(fDeskbar);
+	const uint32 flags = fDeskbar->Flags();
+	fDeskbar->SetFlags(flags | B_AVOID_FOCUS);
+	fDeskbar->Hide();
+	bool ok = true;
+	for (int attempt = 0; attempt < 3 && ok; attempt++) {
+		snooze(attempt == 0 ? 40000 : 20000);
+		bool settled = attempt > 0;
+		for (int i = 0; i < kStripCount && ok; i++) {
+			delete previous[i];
+			previous[i] = strips[i];
+			strips[i] = NULL;
+			if (!wanted[i].IsValid())
+				continue;
+			if (screen.GetBitmap(&strips[i], false, &wanted[i]) != B_OK || strips[i] == NULL) {
+				strips[i] = NULL;
+				ok = false;
+				break;
+			}
+			// the desktop repaints behind the Deskbar after it hides: take it again until it stops changing
+			if (previous[i] == NULL || previous[i]->BitsLength() != strips[i]->BitsLength()
+					|| memcmp(previous[i]->Bits(), strips[i]->Bits(), strips[i]->BitsLength()) != 0)
+				settled = false;
+		}
+		if (settled)
+			break;
+	}
+	fDeskbar->Show();
+	fDeskbar->SetFlags(flags);
+	FreeStrips(previous, kStripCount);
+	if (!ok) {
+		FreeStrips(strips, kStripCount);
+		return NULL;
+	}
+
+	int slot = -1;
+	for (int i = 0; i < kBackdropCount && slot < 0; i++) {
+		if (fBackdrops[i].strips[0] == NULL || fBackdrops[i].workspace == workspace)
+			slot = i;
+	}
+	if (slot < 0) {
+		slot = 0;	// (the oldest goes)
+		for (int i = 1; i < kBackdropCount; i++) {
+			if (fBackdrops[i].when < fBackdrops[slot].when)
+				slot = i;
+		}
+	}
+	Backdrop& b = fBackdrops[slot];
+	FreeStrips(b.strips, kStripCount);
+	b.workspace = workspace;
+	b.when = system_time();
+	for (int i = 0; i < kStripCount; i++) {
+		b.strips[i] = strips[i];
+		b.rects[i] = wanted[i];
+	}
+	return &b;
 }
 
 
@@ -307,8 +487,9 @@ SnakeCorners::Update(bool hidden)
 		// a corner that is a corner of the screen stays square; any other is rounded
 		want[kTopLeft] = rounded && !(atLeft && atTop);
 		want[kTopRight] = rounded && !(atRight && atTop);
-		want[kBottomLeft] = rounded && !(atLeft && atBottom);
-		want[kBottomRight] = rounded && !(atRight && atBottom);
+		// (and the bottom corner of a Deskbar that hangs from the top of the screen, on the side of the screen's edge, is square too)
+		want[kBottomLeft] = rounded && !(atLeft && atBottom) && !(atLeft && atTop);
+		want[kBottomRight] = rounded && !(atRight && atBottom) && !(atRight && atTop);
 		const float r = kRadius - 1;
 		rects[kTopLeft] = BRect(frame.left, frame.top, frame.left + r, frame.top + r);
 		rects[kTopRight] = BRect(frame.right - r, frame.top, frame.right, frame.top + r);
@@ -345,31 +526,31 @@ SnakeCorners::Update(bool hidden)
 	if (same && fActive && workspace == fWorkspace)
 		return;
 
-	// The screen behind the Deskbar: hide it for a moment (and take no focus when it shows again).
-	BRect area = frame & screenFrame;
-	area.left = floorf(area.left);
-	area.top = floorf(area.top);
-	const uint32 flags = fDeskbar->Flags();
-	fDeskbar->SetFlags(flags | B_AVOID_FOCUS);
-	fDeskbar->Hide();
-	BBitmap* behind = NULL;
-	for (int attempt = 0; attempt < 4; attempt++) {
-		snooze(attempt == 0 ? 50000 : 30000);
-		BBitmap* shot = NULL;
-		if (screen.GetBitmap(&shot, false, &area) != B_OK || shot == NULL)
-			break;
-		// the desktop repaints behind the Deskbar after it hides: take it again until it stops changing
-		const bool settled = behind != NULL && behind->BitsLength() == shot->BitsLength()
-			&& memcmp(behind->Bits(), shot->Bits(), shot->BitsLength()) == 0;
-		delete behind;
-		behind = shot;
-		if (settled)
-			break;
+	// A corner that stayed where it was keeps its picture. Another takes one of ground it was seen on before the window
+	// changed (Prepare), or else out of the strips kept for this workspace; only when neither reaches it is the Deskbar
+	// hidden for a moment to take the strips again.
+	const bool sameWorkspace = fActive && workspace == fWorkspace;
+	const bool aheadOk = fAheadWorkspace == workspace;
+	Backdrop* backdrop = _Backdrop(workspace, screenFrame);
+	bool redo[kCornerCount], fromAhead[kCornerCount];
+	bool needHide = false;
+	for (int i = 0; i < kCornerCount; i++) {
+		redo[i] = fromAhead[i] = false;
+		if (!want[i])
+			continue;
+		if (sameWorkspace && fWanted[i] && fRects[i] == rects[i] && fCorners[i] != NULL)
+			continue;
+		redo[i] = true;
+		if (aheadOk && fAhead[i] != NULL && fAheadRects[i] == rects[i])
+			fromAhead[i] = true;
+		else if (backdrop == NULL || _Strip(backdrop, rects[i]) < 0)
+			needHide = true;
 	}
-	fDeskbar->Show();
-	fDeskbar->SetFlags(flags);
-	if (behind == NULL)
-		return;
+	if (needHide) {
+		backdrop = _Capture(workspace, frame, screenFrame);
+		if (backdrop == NULL)
+			return;
+	}
 
 	fActive = true;
 	const rgb_color line = tint_color(ui_color(B_PANEL_BACKGROUND_COLOR), B_DARKEN_MAX_TINT);
@@ -384,15 +565,26 @@ SnakeCorners::Update(bool hidden)
 			fWanted[i] = false;
 			continue;
 		}
-		BBitmap* picture = _Picture(i, rects[i], behind, area, line);
-		if (picture == NULL)
-			continue;
 		const bool left = i == kTopLeft || i == kBottomLeft;
 		const bool top = i == kTopLeft || i == kTopRight;
 		const float r = kRadius - 1;
 		const BRect place(left ? 0 : bounds.right - r, top ? 0 : bounds.bottom - r, left ? r : bounds.right,
 			top ? r : bounds.bottom);
 		const uint32 resizing = B_FOLLOW_LEFT | B_FOLLOW_TOP;	// (placed again whenever the window changes)
+		if (!redo[i]) {
+			fCorners[i]->MoveTo(place.LeftTop());
+			continue;
+		}
+		BBitmap* picture = NULL;
+		if (fromAhead[i])
+			picture = _Picture(i, rects[i], fAhead[i], fAheadRects[i], line);
+		else {
+			const int strip = _Strip(backdrop, rects[i]);
+			if (strip >= 0)
+				picture = _Picture(i, rects[i], backdrop->strips[strip], backdrop->rects[strip], line);
+		}
+		if (picture == NULL)
+			continue;
 		if (fCorners[i] == NULL) {
 			fCorners[i] = new SnakeCornerView(place, resizing);
 			fDeskbar->AddChild(fCorners[i]);
@@ -405,6 +597,6 @@ SnakeCorners::Update(bool hidden)
 	}
 
 	_PlaceEdges(want, atLeft, atRight, atTop, atBottom, line);
-	delete behind;
+	_DropAhead();
 	fWorkspace = workspace;
 }

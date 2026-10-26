@@ -31,13 +31,29 @@ public:
 			// corners again only when they have moved. hidden: the Deskbar is auto-hidden (no corners then).
 			void				Update(bool hidden);
 
+			// Called just before the window gets another frame: a corner that will lie on ground the Deskbar does not
+			// cover now takes its picture of it now, and the Deskbar need not be hidden afterwards.
+			void				Prepare(const BRect& newFrame);
+
 private:
+			enum { kBackdropCount = 4, kStripCount = 4 };
+			// The screen behind the Deskbar's side columns and rows (the corners lie in them, whatever the Deskbar's size).
+			struct Backdrop {
+				int32		workspace;
+				BBitmap*	strips[kStripCount];
+				BRect		rects[kStripCount];
+				bigtime_t	when;
+			};
 			enum { kTopLeft, kTopRight, kBottomLeft, kBottomRight, kCornerCount };
 			enum { kTop, kBottom, kLeft, kRight, kEdgeCount };
 
 			BBitmap*			_Picture(int corner, const BRect& rect, BBitmap* behind, const BRect& behindRect,
 									const rgb_color& border);
 			void				_Remove();
+			Backdrop*			_Backdrop(int32 workspace, const BRect& screenFrame);
+			Backdrop*			_Capture(int32 workspace, const BRect& frame, const BRect& screenFrame);
+			int					_Strip(const Backdrop* backdrop, const BRect& rect);
+			void				_DropAhead();
 			void				_PlaceEdges(const bool* want, bool atLeft, bool atRight, bool atTop, bool atBottom,
 									const rgb_color& line);
 
@@ -48,6 +64,10 @@ private:
 			bool				fWanted[kCornerCount];
 			bool				fActive;
 			int32				fWorkspace;
+			Backdrop			fBackdrops[kBackdropCount];
+			BBitmap*			fAhead[kCornerCount];
+			BRect				fAheadRects[kCornerCount];
+			int32				fAheadWorkspace;
 };
 
 

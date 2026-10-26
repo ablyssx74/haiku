@@ -106,6 +106,8 @@ public:
 	void SetSnakeLook(bool look);
 	bool SnakeRoundCorners();
 	void SetSnakeRoundCorners(bool value);
+	bool SnakeDeskbarRoundCorners();
+	void SetSnakeDeskbarRoundCorners(bool value);
 	bool SnakeSystemColorsDeskbar();
 	void SetSnakeSystemColorsDeskbar(bool value);
 	bool SnakeSystemColorsTracker();

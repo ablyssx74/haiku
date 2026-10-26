@@ -93,6 +93,9 @@ public:
 
 			void				SetSizeLimits();
 
+			// The window is about to get newFrame: the rounded corners (SnakeTracker) look at what it will cover.
+			void				PrepareCorners(const BRect& newFrame);
+
 private:
 			bool				_IsFocusMessage(BMessage* message);
 			void				_ScheduleCorners();

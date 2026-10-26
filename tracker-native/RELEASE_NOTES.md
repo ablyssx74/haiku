@@ -1,8 +1,16 @@
-# snaketracker 1.0.52
+# snaketracker 1.0.53
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **The Deskbar no longer flashes when a program starts or quits, or when you change workspace.** The rounded corners need a picture of the screen behind them, and it used to be taken by hiding the Deskbar for a moment each time its size changed. Now the few pixels where a growing Deskbar's new corners will be are taken just before it grows, and the strips of screen along its four sides are kept for each workspace (up to four) and reused, so a program leaving or a return to a workspace takes no new picture. The Deskbar is hidden only when no kept strip reaches a corner (the first time on a workspace, or when the screen changes); the strips are taken again then, so they don't go stale. Only those few pixels are taken, not the screen.
+- **Rounded corners for the Deskbar have their own setting.** Tracker preferences > SnakeTracker has **Enable rounded corners on Deskbar** next to **Enable rounded corners on Tracker** (which was "on Tracker & Deskbar" and now rounds the menus). Both need the raised Snake look.
+- **The snake is in the Deskbar's header** instead of the leaf: the same picture, size (24 pixels) and place (the middle of the header) as hDeskbar's.
+- **A margin under the last row of an expanded Deskbar** (6 pixels, in the raised look), so the bar's bottom is not tight against its last program.
+- **A Deskbar that hangs from the top of the screen is square at the bottom corner that is on the side of the screen's edge.**
+- **The package says "restart", not "log out and in"**, in its description and README: Haiku has no logging out.
+
+Since 1.0.52 (if you skipped it):
 - **The Flat menu selector option is greyed out while the Raised Snake look is on.** The option takes away the light top edge and dark bottom edge of a selector in the plain look (without the raised look). The raised look shades the selector itself, so with it on the option changed nothing you could see. It is now disabled then, in the SnakeTracker pane of Tracker preferences, and keeps its value for when the raised look is turned off; with the raised look off, it is available as before.
 
 Since 1.0.51 (if you skipped it):

@@ -142,7 +142,7 @@ install-look: look
 	rm -f $(CL_DIR)/SnakeControlLook
 	cp $(OUT)/SnakeControlLook $(CL_DIR)/SnakeControlLook
 	mimeset -f $(CL_DIR)/SnakeControlLook >/dev/null 2>&1 || true
-# Programs read the control look when they start; restart Tracker/Deskbar (or log out and in).
+# Programs read the control look when they start; restart Tracker/Deskbar.
 activate-look: install-look
 	$(CXX) -o $(OUT)/setlook setlook.cpp -I$(DEV)/headers/private/interface -lbe
 	$(OUT)/setlook $(CL_DIR)/SnakeControlLook

@@ -125,6 +125,14 @@ TBarWindow::TBarWindow()
 
 
 void
+TBarWindow::PrepareCorners(const BRect& newFrame)
+{
+	if (fCorners != NULL)
+		fCorners->Prepare(newFrame);
+}
+
+
+void
 TBarWindow::_ScheduleCorners()
 {
 	if (fCorners == NULL)

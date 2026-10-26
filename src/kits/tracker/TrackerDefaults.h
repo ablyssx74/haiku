@@ -30,6 +30,7 @@ static const bool kDefaultSnakeTrail = true;
 static const bool kDefaultSnakeFlat = true;
 static const bool kDefaultSnakeLook = true;
 static const bool kDefaultSnakeRoundCorners = true;
+static const bool kDefaultSnakeDeskbarRoundCorners = true;
 static const bool kDefaultSnakeSystemColorsDeskbar = false;
 static const bool kDefaultSnakeSystemColorsTracker = false;
 static const bool kDefaultSnakeAllApps = true;

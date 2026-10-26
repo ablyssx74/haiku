@@ -677,6 +677,9 @@ TBarView::GetPreferredWindowSize(BRect screenFrame, float* width,
 				// top left or right
 				windowHeight += fExpandoMenuBar->Bounds().Height();
 					// use Height() here, not bottom so view can be scrolled
+				// (the raised look leaves a margin under the last row, like hDeskbar's)
+				if (PillLook())
+					windowHeight += 6;
 			}
 		}
 
@@ -707,6 +710,15 @@ TBarView::SizeWindow(BRect screenFrame)
 	float windowWidth;
 	float windowHeight;
 	GetPreferredWindowSize(screenFrame, &windowWidth, &windowHeight);
+	TBarWindow* barWindow = dynamic_cast<TBarWindow*>(Window());
+	if (barWindow != NULL && (windowWidth != Window()->Frame().Width() || windowHeight != Window()->Frame().Height())) {
+		BPoint at(0, 0);
+		if (!Left() && (Vertical() || State() == kMiniState))
+			at.x = screenFrame.right - windowWidth;
+		if (!Top())
+			at.y = screenFrame.bottom - windowHeight;
+		barWindow->PrepareCorners(BRect(at.x, at.y, at.x + windowWidth, at.y + windowHeight));
+	}
 	Window()->ResizeTo(windowWidth, windowHeight);
 	ResizeTo(windowWidth, windowHeight);
 }
