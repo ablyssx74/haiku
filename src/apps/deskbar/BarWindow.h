@@ -107,6 +107,7 @@ private:
 			int32				fMenusShown;
 			SnakeCorners*		fCorners;
 			BMessageRunner*		fCornersRunner;
+			BMessageRunner*		fWallpaperRunner;
 };
 
 

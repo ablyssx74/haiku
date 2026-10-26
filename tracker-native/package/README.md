@@ -18,3 +18,5 @@ quits when the system shuts down. To go back, remove the package and pick the
 default control look in Appearance.
 
 Source: https://github.com/ablyssx74/haiku (`tracker-native/`, `src/add-ons/control_look/SnakeControlLook`).
+
+The Desktop's menu has **SnakeTracker Wallpaper...**: wallpapers from your folders or from the internet that change by themselves, a fade between them, and an SVG wallpaper that follows the accent color (that one needs the `librsvg` package).

@@ -2703,6 +2703,12 @@ BContainerWindow::AddWindowContextMenu(BMenu* menu)
 		hideIcons->SetTarget(PoseView());
 		menu->AddItem(hideIcons);
 
+		// the window of the wallpaper settings (the SnakeTracker server changes the wallpaper, with Haiku's own settings)
+		BMenuItem* wallpaper = new SnakeMenuItem(B_TRANSLATE("SnakeTracker Wallpaper" B_UTF8_ELLIPSIS),
+			new BMessage(kSnakeWallpaper));
+		wallpaper->SetTarget(PoseView());
+		menu->AddItem(wallpaper);
+
 		// the icons are put in rows or columns once, when this is chosen (and keep their places after that)
 		BMenu* arrangeMenu = new SnakeMenu(B_TRANSLATE("Arrange"));
 		BMenuItem* arrangeItem = new SnakeMenuItem(B_TRANSLATE("In Columns"),

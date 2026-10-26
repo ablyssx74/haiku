@@ -47,6 +47,7 @@ All rights reserved.
 #include <PathMonitor.h>
 #include <PopUpMenu.h>
 #include <Resources.h>
+#include <Bitmap.h>
 #include <Screen.h>
 #include <String.h>
 #include <StringList.h>
@@ -603,5 +604,31 @@ BDeskWindow::MessageReceived(BMessage* message)
 		default:
 			_inherited::MessageReceived(message);
 			break;
+	}
+}
+
+
+void
+BDeskWindow::SnakeCornerPixels(const BMessage* request, BMessage* reply)
+{
+	const int32 workspace = request->GetInt32("workspace", current_workspace());
+	BRect rect;
+	for (int32 i = 0; request->FindRect("rect", i, &rect) == B_OK; i++) {
+		BBitmap* bitmap = NULL;
+		if (fBackgroundImage != NULL && PoseView() != NULL)
+			bitmap = fBackgroundImage->Pixels(PoseView(), workspace, rect);
+		if (bitmap == NULL) {
+			// no picture: the Desktop's color
+			bitmap = new BBitmap(BRect(0, 0, rect.IntegerWidth(), rect.IntegerHeight()), B_RGB32);
+			const rgb_color color = BScreen().DesktopColor(workspace);
+			uint32 pixel = (uint32)color.blue | ((uint32)color.green << 8) | ((uint32)color.red << 16) | (255u << 24);
+			uint32* bits = (uint32*)bitmap->Bits();
+			for (size_t p = 0; p < bitmap->BitsLength() / 4; p++)
+				bits[p] = pixel;
+		}
+		reply->AddRect("rect", rect);
+		reply->AddInt32("bytesperrow", bitmap->BytesPerRow());
+		reply->AddData("pixels", B_RAW_TYPE, bitmap->Bits(), bitmap->BitsLength());
+		delete bitmap;
 	}
 }

@@ -69,6 +69,7 @@ All rights reserved.
 #include "Commands.h"
 #include "ContainerWindow.h"
 #include "DeskWindow.h"
+#include "SnakeSelector.h"
 #include "FindPanel.h"
 #include "FunctionObject.h"
 #include "FSClipboard.h"
@@ -536,6 +537,30 @@ TTracker::MessageReceived(BMessage* message)
 		case kMountAllNow:
 			MountServer().SendMessage(message);
 			break;
+
+		case 'SnkA':
+		{
+			// (the SnakeTracker server: the accent color, for the SVG wallpaper that follows it)
+			const rgb_color accent = SnakeSelector::Accent();
+			BMessage reply;
+			reply.AddInt32("accent", ((int32)accent.red << 16) | ((int32)accent.green << 8) | accent.blue);
+			message->SendReply(&reply);
+			break;
+		}
+
+		case kSnakeCornerPixels:
+		{
+			// (the Deskbar's rounded corners: the wallpaper behind them, so that it need not hide to look)
+			BMessage reply;
+			BDeskWindow* desktop = GetDeskWindow();
+			if (desktop != NULL) {
+				AutoLock<BWindow> lock(desktop);
+				if (lock.IsLocked())
+					desktop->SnakeCornerPixels(message, &reply);
+			}
+			message->SendReply(&reply);
+			break;
+		}
 
 		case B_RESTORE_BACKGROUND_IMAGE:
 		{

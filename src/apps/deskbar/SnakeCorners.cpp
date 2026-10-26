@@ -15,12 +15,36 @@
 
 #include <OS.h>
 
+#include <Messenger.h>
+
+#include <unistd.h>
+
 #include <math.h>
+#include <algorithm>
 #include <stdio.h>
 #include <string.h>
 
 
-static const int kRadius = 7;		// the corner's radius, in pixels
+static const uint32 kSnakeCornerPixels = 'SnkP';		// (the same code Tracker answers to)
+
+static const int kRadius = 7;
+
+
+// When ~/config/settings/snaketracker_wallpaper_debug exists, what the corners do is written to snaketracker_wallpaper.log.
+static void
+DebugLog(const char* text)
+{
+	BPath path;
+	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) != B_OK || path.Append("snaketracker_wallpaper_debug") != B_OK
+		|| access(path.Path(), F_OK) != 0 || find_directory(B_USER_SETTINGS_DIRECTORY, &path) != B_OK
+		|| path.Append("snaketracker_wallpaper.log") != B_OK)
+		return;
+	FILE* file = fopen(path.Path(), "a");
+	if (file != NULL) {
+		fprintf(file, "Deskbar: %s\n", text);
+		fclose(file);
+	}
+}		// the corner's radius, in pixels
 
 
 // Tracker's settings file is plain text, one "Name value" per line: the corners follow "Enable rounded corners" and the
@@ -130,7 +154,8 @@ SnakeCorners::SnakeCorners(BWindow* deskbar)
 	fDeskbar(deskbar),
 	fActive(false),
 	fWorkspace(-1),
-	fAheadWorkspace(-1)
+	fAheadWorkspace(-1),
+	fTrackerAnswers(false)
 {
 	for (int i = 0; i < kCornerCount; i++) {
 		fCorners[i] = NULL;
@@ -210,9 +235,73 @@ CornerRects(const BRect& frame, BRect* rects)
 
 
 void
+SnakeCorners::WallpaperChanged()
+{
+	for (int i = 0; i < kBackdropCount; i++)
+		FreeStrips(fBackdrops[i].strips, kStripCount);
+	_DropAhead();
+	fWorkspace = -1;		// (every corner takes its picture again at the next Update)
+}
+
+
+// Asks Tracker for the pixels of its wallpaper under the corners that need a picture (a bitmap for each, in shots; false when it
+// could not tell, and none is made then).
+bool
+SnakeCorners::_FromTracker(const bool* redo, const BRect* rects, int32 workspace, BBitmap** shots)
+{
+	BMessage request(kSnakeCornerPixels), reply;
+	request.AddInt32("workspace", workspace);
+	int wanted = 0;
+	for (int i = 0; i < kCornerCount; i++) {
+		if (redo[i]) {
+			request.AddRect("rect", rects[i]);
+			wanted++;
+		}
+	}
+	if (wanted == 0)
+		return true;
+	BMessenger tracker("application/x-vnd.Be-TRAK");
+	if (!tracker.IsValid() || tracker.SendMessage(&request, &reply, 500000, 1500000) != B_OK)
+		return false;
+
+	int32 index = 0;
+	for (int i = 0; i < kCornerCount; i++) {
+		if (!redo[i])
+			continue;
+		BRect rect;
+		const void* data;
+		ssize_t size;
+		int32 bytesPerRow;
+		BBitmap* bitmap = new BBitmap(BRect(0, 0, rects[i].IntegerWidth(), rects[i].IntegerHeight()), B_RGB32);
+		if (bitmap->InitCheck() != B_OK || reply.FindRect("rect", index, &rect) != B_OK || rect != rects[i]
+			|| reply.FindData("pixels", B_RAW_TYPE, index, &data, &size) != B_OK
+			|| reply.FindInt32("bytesperrow", index, &bytesPerRow) != B_OK || bytesPerRow <= 0
+			|| size < (ssize_t)bytesPerRow * (rects[i].IntegerHeight() + 1)) {
+			delete bitmap;
+			for (int j = 0; j < kCornerCount; j++) {
+				delete shots[j];
+				shots[j] = NULL;
+			}
+			return false;
+		}
+		const int rows = rects[i].IntegerHeight() + 1;
+		const int copy = std::min(bitmap->BytesPerRow(), bytesPerRow);
+		for (int row = 0; row < rows; row++)
+			memcpy((uint8*)bitmap->Bits() + row * bitmap->BytesPerRow(), (const uint8*)data + row * bytesPerRow, copy);
+		shots[i] = bitmap;
+		index++;
+	}
+	return true;
+}
+
+
+void
 SnakeCorners::Prepare(const BRect& newFrame)
 {
 	_DropAhead();
+	// (the grab below is only for when Tracker can't tell what is behind the corners)
+	if (fTrackerAnswers)
+		return;
 	if (!fActive || !Enabled())
 		return;
 	BScreen screen(fDeskbar);
@@ -526,30 +615,41 @@ SnakeCorners::Update(bool hidden)
 	if (same && fActive && workspace == fWorkspace)
 		return;
 
-	// A corner that stayed where it was keeps its picture. Another takes one of ground it was seen on before the window
-	// changed (Prepare), or else out of the strips kept for this workspace; only when neither reaches it is the Deskbar
-	// hidden for a moment to take the strips again.
+	// A corner that stayed where it was keeps its picture. For the others Tracker is asked for the wallpaper behind them (so the
+	// Deskbar need not hide to look). If it can't tell, a corner takes one of ground it was seen on before the window changed
+	// (Prepare), or else out of the strips kept for this workspace; only when none of those reaches it is the Deskbar hidden for
+	// a moment to take the strips again.
 	const bool sameWorkspace = fActive && workspace == fWorkspace;
 	const bool aheadOk = fAheadWorkspace == workspace;
-	Backdrop* backdrop = _Backdrop(workspace, screenFrame);
 	bool redo[kCornerCount], fromAhead[kCornerCount];
-	bool needHide = false;
+	BBitmap* tracked[kCornerCount];
 	for (int i = 0; i < kCornerCount; i++) {
 		redo[i] = fromAhead[i] = false;
-		if (!want[i])
+		tracked[i] = NULL;
+		if (want[i] && !(sameWorkspace && fWanted[i] && fRects[i] == rects[i] && fCorners[i] != NULL))
+			redo[i] = true;
+	}
+	fTrackerAnswers = _FromTracker(redo, rects, workspace, tracked);
+	DebugLog(fTrackerAnswers ? "corners from Tracker's wallpaper" : "Tracker could not tell");
+
+	Backdrop* backdrop = _Backdrop(workspace, screenFrame);
+	bool needHide = false;
+	for (int i = 0; i < kCornerCount; i++) {
+		if (!redo[i] || tracked[i] != NULL)
 			continue;
-		if (sameWorkspace && fWanted[i] && fRects[i] == rects[i] && fCorners[i] != NULL)
-			continue;
-		redo[i] = true;
 		if (aheadOk && fAhead[i] != NULL && fAheadRects[i] == rects[i])
 			fromAhead[i] = true;
 		else if (backdrop == NULL || _Strip(backdrop, rects[i]) < 0)
 			needHide = true;
 	}
 	if (needHide) {
+		DebugLog("hiding to look at the screen behind the corners");
 		backdrop = _Capture(workspace, frame, screenFrame);
-		if (backdrop == NULL)
+		if (backdrop == NULL) {
+			for (int i = 0; i < kCornerCount; i++)
+				delete tracked[i];
 			return;
+		}
 	}
 
 	fActive = true;
@@ -576,13 +676,17 @@ SnakeCorners::Update(bool hidden)
 			continue;
 		}
 		BBitmap* picture = NULL;
-		if (fromAhead[i])
+		if (tracked[i] != NULL)
+			picture = _Picture(i, rects[i], tracked[i], rects[i], line);
+		else if (fromAhead[i])
 			picture = _Picture(i, rects[i], fAhead[i], fAheadRects[i], line);
 		else {
 			const int strip = _Strip(backdrop, rects[i]);
 			if (strip >= 0)
 				picture = _Picture(i, rects[i], backdrop->strips[strip], backdrop->rects[strip], line);
 		}
+		delete tracked[i];
+		tracked[i] = NULL;
 		if (picture == NULL)
 			continue;
 		if (fCorners[i] == NULL) {

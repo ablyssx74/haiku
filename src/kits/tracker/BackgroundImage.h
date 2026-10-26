@@ -96,6 +96,8 @@ public:
 		// display the right background for a given workspace
 	void Remove();
 		// remove the background from it's current view
+	BBitmap* Pixels(BView* view, int32 workspace, BRect region);
+		// a part of the Desktop's picture on a workspace, as a bitmap of its own
 
 	void WorkspaceActivated(BView* view, int32 workspace, bool state);
 		// respond to a workspace change
@@ -108,6 +110,14 @@ public:
 private:
 	BackgroundImageInfo* ImageInfoForWorkspace(int32) const;
 	void Show(BackgroundImageInfo*, BView* view);
+	void Placement(BackgroundImageInfo* info, BView* view,
+		BRect* destination, uint32* followFlags, uint32* options);
+		// where and how the bitmap is shown on the view
+	BBitmap* Render(BackgroundImageInfo* info, BView* view);
+	BBitmap* Render(BackgroundImageInfo* info, BView* view, BRect region,
+		int32 workspace);
+		// the view as it shows that bitmap, in a bitmap of its own (for
+		// a fade from one picture to the next)
 
 	BackgroundImage(const BNode*, bool);
 		// no public constructor, GetBackgroundImage factory function is

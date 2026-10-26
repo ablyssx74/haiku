@@ -40,6 +40,8 @@ All rights reserved.
 
 #include "DesktopPoseView.h"
 
+#include "SnakeWallpaperWindow.h"
+
 #include <NodeMonitor.h>
 #include <Path.h>
 #include <Screen.h>
@@ -108,6 +110,11 @@ DesktopPoseView::MessageReceived(BMessage* message)
 				window->SaveDesktopPoseLocations();
 			break;
 		}
+
+		case kSnakeWallpaper:
+			if (!IsFilePanel())
+				SnakeWallpaperWindow::Open();
+			break;
 
 		case kHideDesktopIcons:
 		{

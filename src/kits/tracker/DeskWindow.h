@@ -67,6 +67,9 @@ public:
 
 	void SaveDesktopPoseLocations();
 
+	// The Deskbar's rounded corners (SnakeTracker): the wallpaper's pixels under the rectangles asked for
+	void SnakeCornerPixels(const BMessage* request, BMessage* reply);
+
 	virtual bool ShouldHaveDraggableFolderIcon() { return false; };
 
 protected:

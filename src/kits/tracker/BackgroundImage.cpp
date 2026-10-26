@@ -38,6 +38,7 @@ All rights reserved.
 #include <Bitmap.h>
 #include <ControlLook.h>
 #include <Node.h>
+#include <Screen.h>
 #include <TranslationKit.h>
 #include <View.h>
 #include <Window.h>
@@ -49,6 +50,8 @@ All rights reserved.
 #include "Background.h"
 #include "Commands.h"
 #include "PoseView.h"
+#include "SnakeFade.h"
+#include "SnakeWallpaper.h"
 
 
 namespace BPrivate {
@@ -158,6 +161,7 @@ BackgroundImage::BackgroundImage(const BNode* node, bool desktop)
 
 BackgroundImage::~BackgroundImage()
 {
+	SnakeFade::Cancel(this);
 }
 
 
@@ -197,12 +201,30 @@ BackgroundImage::Show(BackgroundImageInfo* info, BView* view)
 		fShowingBitmap = info;
 		return;
 	}
+	BRect bitmapBounds(info->fBitmap->Bounds());
+	BRect destinationBitmapBounds;
+	uint32 options = 0;
+	uint32 followFlags = B_FOLLOW_TOP | B_FOLLOW_LEFT;
+	Placement(info, view, &destinationBitmapBounds, &followFlags, &options);
+
+	// switch to the bitmap and force a redraw
+	view->SetViewBitmap(info->fBitmap, bitmapBounds, destinationBitmapBounds,
+		followFlags, options);
+	view->Invalidate();
+	fShowingBitmap = info;
+}
+
+
+void
+BackgroundImage::Placement(BackgroundImageInfo* info, BView* view, BRect* destination, uint32* followFlagsOut,
+	uint32* optionsOut)
+{
 	BRect viewBounds(view->Bounds());
 	BRect bitmapBounds(info->fBitmap->Bounds());
 	BRect destinationBitmapBounds(bitmapBounds);
-
 	uint32 options = 0;
 	uint32 followFlags = B_FOLLOW_TOP | B_FOLLOW_LEFT;
+	BPoseView* poseView = dynamic_cast<BPoseView*>(view);
 
 	// figure out the display mode and the destination bounds for the bitmap
 	switch (info->fMode) {
@@ -253,11 +275,71 @@ BackgroundImage::Show(BackgroundImageInfo* info, BView* view)
 			break;
 	}
 
-	// switch to the bitmap and force a redraw
-	view->SetViewBitmap(info->fBitmap, bitmapBounds, destinationBitmapBounds,
-		followFlags, options);
-	view->Invalidate();
-	fShowingBitmap = info;
+
+	*destination = destinationBitmapBounds;
+	*followFlagsOut = followFlags;
+	*optionsOut = options;
+}
+
+
+// The view as it shows this bitmap (the same placement, the desktop's color where the picture does not reach), in a bitmap of its
+// own: the fade from one picture to the next blends two of these.
+BBitmap*
+BackgroundImage::Render(BackgroundImageInfo* info, BView* view, BRect region, int32 workspace)
+{
+	if (info == NULL || info->fBitmap == NULL)
+		return NULL;
+	BRect viewBounds(view->Bounds());
+	BRect size(0, 0, region.IntegerWidth(), region.IntegerHeight());
+	BBitmap* result = new(std::nothrow) BBitmap(size, B_RGB32, true);
+	if (result == NULL || result->InitCheck() != B_OK) {
+		delete result;
+		return NULL;
+	}
+	BView* canvas = new BView(size, "fade canvas", B_FOLLOW_NONE, B_WILL_DRAW);
+	result->AddChild(canvas);
+	if (!result->Lock()) {
+		delete result;
+		return NULL;
+	}
+	// (the canvas shows the part of the view that is asked for)
+	canvas->SetOrigin(-region.left, -region.top);
+	canvas->SetHighColor(BScreen().DesktopColor(workspace));
+	canvas->FillRect(viewBounds);
+	BRect bitmapBounds(info->fBitmap->Bounds());
+	BRect destination;
+	uint32 followFlags, options;
+	Placement(info, view, &destination, &followFlags, &options);
+	if (options & B_TILE_BITMAP) {
+		for (float y = destination.top - ceilf(destination.top / bitmapBounds.Height()) * bitmapBounds.Height();
+				y < viewBounds.bottom; y += bitmapBounds.Height() + 1) {
+			for (float x = destination.left - ceilf(destination.left / bitmapBounds.Width()) * bitmapBounds.Width();
+					x < viewBounds.right; x += bitmapBounds.Width() + 1)
+				canvas->DrawBitmap(info->fBitmap, BPoint(x, y));
+		}
+	} else if (options & B_FILTER_BITMAP_BILINEAR)
+		canvas->DrawBitmap(info->fBitmap, bitmapBounds, destination, B_FILTER_BITMAP_BILINEAR);
+	else
+		canvas->DrawBitmap(info->fBitmap, bitmapBounds, destination);
+	canvas->Sync();
+	result->Unlock();
+	return result;
+}
+
+
+BBitmap*
+BackgroundImage::Render(BackgroundImageInfo* info, BView* view)
+{
+	return Render(info, view, view->Bounds(), current_workspace());
+}
+
+
+// The pixels of a part of the Desktop's picture on a workspace (the Deskbar asks for those under its rounded corners). NULL when
+// that workspace has no picture.
+BBitmap*
+BackgroundImage::Pixels(BView* view, int32 workspace, BRect region)
+{
+	return Render(ImageInfoForWorkspace(workspace), view, region, workspace);
 }
 
 
@@ -384,14 +466,54 @@ BackgroundImage*
 BackgroundImage::Refresh(BackgroundImage* oldBackgroundImage,
 	const BNode* fromNode, bool desktop, BPoseView* poseView)
 {
+	// A fade from the picture that shows to the next one (the desktop only, and when it is switched on in the SnakeTracker
+	// wallpaper settings): the view as it shows now is kept to blend from.
+	BBitmap* from = NULL;
+	int32 fadeMs = 0;
+	if (desktop && poseView != NULL && oldBackgroundImage != NULL && oldBackgroundImage->fShowingBitmap != NULL
+		&& poseView->ViewMode() != kListMode) {
+		BMessage settings;
+		ReadWallpaperSettings(&settings);
+		fadeMs = settings.GetInt32("fadems", 0);
+		if (fadeMs > 0)
+			from = oldBackgroundImage->Render(oldBackgroundImage->fShowingBitmap, poseView);
+	}
+
 	if (oldBackgroundImage != NULL) {
-		oldBackgroundImage->Remove();
+		SnakeFade::Cancel(oldBackgroundImage);
+		if (from == NULL)
+			oldBackgroundImage->Remove();
 		delete oldBackgroundImage;
 	}
 
 	BackgroundImage* backgroundImage = GetBackgroundImage(fromNode, desktop);
-	if (backgroundImage != NULL && poseView != NULL && poseView->ViewMode() != kListMode)
+	if (backgroundImage != NULL && poseView != NULL && poseView->ViewMode() != kListMode) {
+		BBitmap* to = NULL;
+		if (from != NULL) {
+			BackgroundImageInfo* info = backgroundImage->ImageInfoForWorkspace(current_workspace());
+			to = backgroundImage->Render(info, poseView);
+			if (to != NULL) {
+				backgroundImage->fView = poseView;
+				poseView->SetWidgetTextOutline(info->fTextWidgetOutline);
+				backgroundImage->fShowingBitmap = info;
+				if (SnakeFade::Start(poseView, from, to, (bigtime_t)fadeMs * 1000, backgroundImage))
+					return backgroundImage;
+				to = NULL;
+			}
+		}
+		delete from;
+		from = NULL;
 		backgroundImage->Show(poseView, current_workspace());
+		if (desktop)
+			SnakeFade::TellDeskbar();
+	} else {
+		if (from != NULL && poseView != NULL) {
+			// (no picture any more: the one that was kept for the fade is not shown by anything else)
+			poseView->ClearViewBitmap();
+			poseView->Invalidate();
+		}
+		delete from;
+	}
 
 	return backgroundImage;
 }

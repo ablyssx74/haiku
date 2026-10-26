@@ -35,6 +35,9 @@ public:
 			// cover now takes its picture of it now, and the Deskbar need not be hidden afterwards.
 			void				Prepare(const BRect& newFrame);
 
+			// The wallpaper changed: what the corners show of the screen behind them is old.
+			void				WallpaperChanged();
+
 private:
 			enum { kBackdropCount = 4, kStripCount = 4 };
 			// The screen behind the Deskbar's side columns and rows (the corners lie in them, whatever the Deskbar's size).
@@ -54,6 +57,7 @@ private:
 			Backdrop*			_Capture(int32 workspace, const BRect& frame, const BRect& screenFrame);
 			int					_Strip(const Backdrop* backdrop, const BRect& rect);
 			void				_DropAhead();
+			bool				_FromTracker(const bool* redo, const BRect* rects, int32 workspace, BBitmap** shots);
 			void				_PlaceEdges(const bool* want, bool atLeft, bool atRight, bool atTop, bool atBottom,
 									const rgb_color& line);
 
@@ -68,6 +72,7 @@ private:
 			BBitmap*			fAhead[kCornerCount];
 			BRect				fAheadRects[kCornerCount];
 			int32				fAheadWorkspace;
+			bool				fTrackerAnswers;		// (Tracker told the last time: no screen grabs are needed)
 };
 
 

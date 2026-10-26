@@ -18,7 +18,7 @@ CXXLIBS  := $(if $(GCC2),,-lsupc++ -lstdc++)   # gcc 2 links its own libstdc++ (
 
 TRACKER_SRCS := $(filter-out $(KIT)/FilePanel.cpp,$(wildcard $(KIT)/*.cpp))
 # libtracker.so's own list (see src/kits/tracker/Jamfile) -- the wildcard above is trimmed to it below.
-LISTED := SidePanel SnakeSelector SnakeMenuItem AttributeStream AutoMounterSettings BackgroundImage Bitmaps ContainerWindow CountView DeskWindow \
+LISTED := SidePanel SnakeSelector SnakeMenuItem SnakeWallpaperWindow SnakeFade AttributeStream AutoMounterSettings BackgroundImage Bitmaps ContainerWindow CountView DeskWindow \
   DesktopPoseView DraggableContainerIcon DialogPane DirMenu EntryIterator FBCPadding FSClipboard FSUndoRedo \
   FSUtils FavoritesMenu FilePanel FilePanelPriv FindPanel GroupedMenu IconCache IconMenuItem LiveMenu \
   MimeTypeList MiniMenuField Model MountMenu Navigator NavMenu NodePreloader NodeWalker OpenWithWindow \
@@ -39,10 +39,18 @@ HDR := -I$(TOP)/headers/private/tracker -I$(KIT) -I$(INFO) -I$(SC) \
   -I$(DEV)/headers/private/interface -I$(DEV)/headers/private/mount -I$(DEV)/headers/private/shared \
   -I$(DEV)/headers/private/storage -I$(DEV)/headers/private/support -I$(DEV)/headers/private/tracker \
   -I$(DEV)/headers/private/system -I$(DEV)/headers/private/system/arch/$(ARCH_INC) -I$(DEV)/headers/private
-CXXFLAGS := -MMD $(if $(GCC2),,-MP -Wno-deprecated-declarations) -O2 -fPIC -Wno-multichar -D_BUILDING_tracker=1 -D_SUPPORTS_RESOURCES=1 $(HDR)
+# The build of the wallpaper server, as the window of the wallpaper settings (in Tracker) and the server both know it: the window
+# restarts a server that is not of the same build (one left running after the package was updated). It follows what the server
+# and the messages between them are made of.
+SNAKE_BUILD := $(shell cat snaketracker_server.cpp $(KIT)/SnakeWallpaper.h | cksum | cut -d' ' -f1)
+SNAKE_BUILD_ID := $(shell sed -n 's/.*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' VERSION | head -1)-$(SNAKE_BUILD)
+
+CXXFLAGS := -DSNAKE_BUILD_ID=\"$(SNAKE_BUILD_ID)\" -MMD $(if $(GCC2),,-MP -Wno-deprecated-declarations) -O2 -fPIC -Wno-multichar -D_BUILDING_tracker=1 -D_SUPPORTS_RESOURCES=1 $(HDR)
 LIBS := -lbe -llocalestub -ltranslation -lshared -lcolumnlistview $(CXXLIBS)
 
 all: $(OUT)/libtracker.so
+
+$(OUT)/src/kits/tracker/SnakeWallpaperWindow.o: snaketracker_server.cpp
 
 $(OUT)/%.o: $(TOP)/%.cpp
 	@mkdir -p $(dir $@)
@@ -130,9 +138,9 @@ look: $(OUT)/SnakeControlLook
 # could not use it)
 SERVER_CXX := $(if $(GCC2),g++-x86,$(CXX))
 SERVER_LIBS := $(if $(GCC2),-L/boot/system/lib/x86,$(CXXLIBS) -L$(DEV)/lib)
-$(OUT)/snaketracker_server: snaketracker_server.cpp snaketracker_server.rdef VERSION
+$(OUT)/snaketracker_server: snaketracker_server.cpp snaketracker_server.rdef VERSION $(KIT)/SnakeWallpaper.h
 	@mkdir -p $(OUT)
-	$(SERVER_CXX) -O2 -Wno-multichar -DSNAKETRACKER_VERSION=\"$(PKG_VERSION)\" -I$(DEV)/headers/private/app -I$(DEV)/headers/private/shared -o $@ snaketracker_server.cpp -lbe -lnetwork -lcurl $(SERVER_LIBS)
+	$(SERVER_CXX) -O2 -Wno-multichar -DSNAKETRACKER_VERSION=\"$(PKG_VERSION)\" -DSNAKE_BUILD_ID=\"$(SNAKE_BUILD_ID)\" -I$(DEV)/headers/private/app -I$(DEV)/headers/private/shared -I$(KIT) -o $@ snaketracker_server.cpp -lbe -lnetwork -lcurl $(SERVER_LIBS)
 	rc -o $(OUT)/snaketracker_server.rsrc snaketracker_server.rdef
 	xres -o $@ $(OUT)/snaketracker_server.rsrc
 	mimeset -f $@ >/dev/null 2>&1 || true

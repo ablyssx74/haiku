@@ -37,13 +37,17 @@ All rights reserved.
 #include "BarWindow.h"
 
 #include <MessageRunner.h>
+#include <NodeMonitor.h>
 
 #include "SnakeCorners.h"
 
 
 static const uint32 kMsgSnakeCorners = 'SnkC';
+static const uint32 kMsgSnakeWallpaper = 'SnkW';
+static const uint32 kMsgSnakeWallpaperShown = 'SnkN';		// (also the code Tracker sends: BarApp passes it on)
 
 #include <stdio.h>
+#include <string.h>
 
 #include <Application.h>
 #include <AutoDeleter.h>
@@ -106,6 +110,7 @@ TBarWindow::TBarWindow()
 	fCorners(NULL),
 	fCornersRunner(NULL)
 {
+	fWallpaperRunner = NULL;
 	desk_settings* settings = fBarApp->Settings();
 	if (settings->alwaysOnTop)
 		SetFeel(B_FLOATING_ALL_WINDOW_FEEL);
@@ -215,6 +220,23 @@ void
 TBarWindow::MessageReceived(BMessage* message)
 {
 	switch (message->what) {
+		case kMsgSnakeWallpaperShown:
+			// Tracker shows another picture on the Desktop (it tells when it is there, after a fade too): the screen behind
+			// the corners is looked at once, a moment after, when the desktop has been drawn
+			delete fWallpaperRunner;
+			{
+				BMessage wallpaper(kMsgSnakeWallpaper);
+				fWallpaperRunner = new BMessageRunner(BMessenger(this), &wallpaper, 700000, 1);
+			}
+			break;
+
+		case kMsgSnakeWallpaper:
+			if (fCorners != NULL) {
+				fCorners->WallpaperChanged();
+				fCorners->Update(fBarApp->Settings()->autoHide && fBarView->IsHidden());
+			}
+			break;
+
 		case kMsgSnakeCorners:
 			if (fCorners != NULL) {
 				fCorners->Update(fBarApp->Settings()->autoHide && fBarView->IsHidden());
@@ -336,6 +358,8 @@ TBarWindow::QuitRequested()
 {
 	delete fCornersRunner;
 	fCornersRunner = NULL;
+	delete fWallpaperRunner;
+	fWallpaperRunner = NULL;
 	delete fCorners;
 	fCorners = NULL;
 	be_app->PostMessage(B_QUIT_REQUESTED);

@@ -643,6 +643,12 @@ TBarApp::MessageReceived(BMessage* message)
 			fBarWindow->Unlock();
 			break;
 
+		case 'SnkN':
+			// (Tracker shows another picture on the Desktop: the rounded corners of the window take the screen behind them again)
+			if (fBarWindow != NULL)
+				fBarWindow->PostMessage(message);
+			break;
+
 		case kResizeTeamIcons:
 		{
 			int32 oldIconSize = fSettings.iconSize;

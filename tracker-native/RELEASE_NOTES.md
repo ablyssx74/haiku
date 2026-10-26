@@ -1,8 +1,20 @@
-# snaketracker 1.0.54
+# snaketracker 1.0.55
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **SnakeTracker Wallpaper.** A new item in the Desktop's menu, under Hide Desktop Icons, opens a window that changes the wallpaper for you. It uses Haiku's own wallpaper setting (the one the Backgrounds preferences write), so Backgrounds and stock Tracker still work with it.
+  - **Your own pictures:** pick folders (the folders in them count too; you can drop a folder on the window). Change every minute up to once a day, in random order or one after another, the same picture on all workspaces or a different one on each, and keep your placement or choose Scale to fit, Center or Tile.
+  - **Pictures from the internet,** fetched once a day and kept (two weeks of each): Bing, Wikimedia Commons, Wallhaven (the most popular of the day, safe for work) and Picsum need no key; the Art Institute of Chicago brings public-domain paintings; Flickr, Unsplash, Pexels and Pixabay need a free key of your own, which you enter in the window. The title and the credit of a picture are shown in the window. Every picture of every ticked source and folder is equally likely.
+  - **A fade between pictures:** none, or half a second, one or two seconds. It works for any change of wallpaper, the Backgrounds preferences included.
+  - **An SVG wallpaper in the accent color:** it replaces the pictures. Waves, Bubbles and Bands come with it, or choose an SVG file of your own that uses `{accent}`, `{light}`, `{lighter}`, `{dark}`, `{darker}`, `{analog1}`, `{analog2}` and `{complement}` for its colors. It is drawn again, with a fade if you chose one, whenever the accent color changes (the SnakeTracker color of the Tracker preferences, hDesktop's Selector Color, or Haiku's selection color). It needs the `librsvg` package, which the SnakeTracker package does not require: install it from HaikuDepot to use this.
+- **The Deskbar's rounded corners no longer make it blink.** The Deskbar used to hide for a moment to take a picture of the screen behind its corners (when a program started or quit, when you changed workspace, after a wallpaper change). It now asks Tracker, which knows exactly what its wallpaper is under each corner, and never hides. (A window dragged behind a corner no longer shows through it; the wallpaper does.) If Tracker can't answer, the old way is used.
+- **SnakeTracker tells you when it was updated.** The server notices that the installed package changed and asks whether Tracker, the Deskbar and the server may be restarted now, so that the new version is the one that runs (open Tracker windows close). Later leaves it; `~/config/settings/snaketracker_no_update_ask` turns the question off. The version you update from does not have this yet, so after that one update restart Tracker and the Deskbar (ProcessController) yourself.
+- **After an update the wallpaper settings no longer need a restart of the computer:** the settings window checks that the server is the one of its own build, and restarts it when it is not.
+- **The Deskbar's rounded corners option** says in its help that the Deskbar can blink once when it first draws its corners.
+- **If a download does not work,** `~/config/settings/snaketracker_wallpaper_debug` (an empty file) makes the server and the window write what they do to `snaketracker_wallpaper.log` in the same folder.
+
+Since 1.0.54 (if you skipped it):
 - **The snake in the Deskbar's header grows with the program icons.** When you make the tab icons larger with the slider in the Deskbar preferences, the header's snake follows (8 pixels larger than they are, and never smaller than 24), and it is redrawn from the vector icon at the new size. At the default size it is as before.
 
 Since 1.0.53 (if you skipped it):
