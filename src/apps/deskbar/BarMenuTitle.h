@@ -65,6 +65,7 @@ private:
 	float fWidth;
 	float fHeight;
 	const BBitmap* fIcon;
+	BBitmap* fLeafIcon;
 	BMenu* fMenu;
 	TBarView* fBarView;
 	status_t fInitStatus;

@@ -61,6 +61,7 @@ All rights reserved.
 #include <RosterPrivate.h>
 #include "tracker_private.h"
 
+#include "BarMenuBar.h"
 #include "BarView.h"
 #include "BarWindow.h"
 #include "DeskbarUtils.h"
@@ -679,6 +680,8 @@ TBarApp::MessageReceived(BMessage* message)
 				fBarView->PlaceTray(false, false);
 			}
 			fBarView->PlaceApplicationBar();
+			if (fBarView->BarMenuBar() != NULL)
+				fBarView->BarMenuBar()->Invalidate();
 			fBarWindow->Unlock();
 			break;
 		}

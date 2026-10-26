@@ -38,13 +38,18 @@ All rights reserved.
 
 #include <Bitmap.h>
 #include <ControlLook.h>
+#include <IconUtils.h>
 #include <Debug.h>
 #include <Region.h>
+
+#include <algorithm>
 
 #include "BarApp.h"
 #include "BarView.h"
 #include "BarWindow.h"
 #include "DeskbarMenu.h"
+#include "ResourceSet.h"
+#include "icons.h"
 
 
 TBarMenuTitle::TBarMenuTitle(float width, float height, const BBitmap* icon,
@@ -54,6 +59,7 @@ TBarMenuTitle::TBarMenuTitle(float width, float height, const BBitmap* icon,
 	fWidth(width),
 	fHeight(height),
 	fIcon(icon),
+	fLeafIcon(NULL),
 	fMenu(menu),
 	fBarView(barView),
 	fInitStatus(B_NO_INIT)
@@ -67,6 +73,7 @@ TBarMenuTitle::TBarMenuTitle(float width, float height, const BBitmap* icon,
 
 TBarMenuTitle::~TBarMenuTitle()
 {
+	delete fLeafIcon;
 }
 
 
@@ -131,7 +138,30 @@ TBarMenuTitle::DrawContent()
 	menu->SetDrawingMode(B_OP_ALPHA);
 
 	const BRect frame(Frame());
-	BRect iconRect(fIcon->Bounds().OffsetToCopy(frame.LeftTop()));
+	// the header's snake grows with the icons of the tabs (Deskbar preferences), a little larger than they are
+	const BBitmap* icon = fIcon;
+	if (dynamic_cast<TDeskbarMenu*>(fMenu) != NULL) {
+		int32 size = std::max((int32)fIcon->Bounds().IntegerWidth() + 1,
+			static_cast<TBarApp*>(be_app)->TeamIconSize() + 8);
+		const int32 room = (int32)std::min(frame.Width(), frame.Height()) - 2;
+		if (size > room && room > 0)
+			size = room;
+		if (fLeafIcon == NULL || fLeafIcon->Bounds().IntegerWidth() + 1 != size) {
+			size_t dataSize;
+			const void* data = AppResSet()->FindResource(B_VECTOR_ICON_TYPE, R_LeafLogoBitmap, &dataSize);
+			BBitmap* bitmap = new BBitmap(BRect(0, 0, size - 1, size - 1), B_RGBA32);
+			if (data != NULL && bitmap->InitCheck() == B_OK
+				&& BIconUtils::GetVectorIcon((const uint8*)data, dataSize, bitmap) == B_OK) {
+				delete fLeafIcon;
+				fLeafIcon = bitmap;
+			} else
+				delete bitmap;
+		}
+		if (fLeafIcon != NULL)
+			icon = fLeafIcon;
+	}
+
+	BRect iconRect(icon->Bounds().OffsetToCopy(frame.LeftTop()));
 
 	float widthOffset = rintf((frame.Width() - iconRect.Width()) / 2);
 	float heightOffset = rintf((frame.Height() - iconRect.Height()) / 2);
@@ -147,7 +177,7 @@ TBarMenuTitle::DrawContent()
 		menu->ConstrainClippingRegion(&clipping);
 	}
 
-	menu->DrawBitmapAsync(fIcon, iconRect);
+	menu->DrawBitmapAsync(icon, iconRect);
 	menu->ConstrainClippingRegion(NULL);
 }
 

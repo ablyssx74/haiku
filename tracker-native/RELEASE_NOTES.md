@@ -1,8 +1,11 @@
-# snaketracker 1.0.53
+# snaketracker 1.0.54
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **The snake in the Deskbar's header grows with the program icons.** When you make the tab icons larger with the slider in the Deskbar preferences, the header's snake follows (8 pixels larger than they are, and never smaller than 24), and it is redrawn from the vector icon at the new size. At the default size it is as before.
+
+Since 1.0.53 (if you skipped it):
 - **The Deskbar no longer flashes when a program starts or quits, or when you change workspace.** The rounded corners need a picture of the screen behind them, and it used to be taken by hiding the Deskbar for a moment each time its size changed. Now the few pixels where a growing Deskbar's new corners will be are taken just before it grows, and the strips of screen along its four sides are kept for each workspace (up to four) and reused, so a program leaving or a return to a workspace takes no new picture. The Deskbar is hidden only when no kept strip reaches a corner (the first time on a workspace, or when the screen changes); the strips are taken again then, so they don't go stale. Only those few pixels are taken, not the screen.
 - **Rounded corners for the Deskbar have their own setting.** Tracker preferences > SnakeTracker has **Enable rounded corners on Deskbar** next to **Enable rounded corners on Tracker** (which was "on Tracker & Deskbar" and now rounds the menus). Both need the raised Snake look.
 - **The snake is in the Deskbar's header** instead of the leaf: the same picture, size (24 pixels) and place (the middle of the header) as hDeskbar's.
