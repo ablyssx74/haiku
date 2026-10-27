@@ -23,7 +23,9 @@ class BackgroundImage;
 class SnakeFade : public BHandler {
 public:
 	// Takes the two bitmaps (the view's size, B_RGB32) and begins; false when it can't (they are not taken then).
-	static bool				Start(BView* view, BBitmap* from, BBitmap* to, bigtime_t duration, BackgroundImage* image);
+	// effect: 0 fade, 1 wipe, 2 slide, 3 circle reveal (see SnakeWallpaper.h).
+	static bool				Start(BView* view, BBitmap* from, BBitmap* to, bigtime_t duration, BackgroundImage* image,
+								int32 effect = 0);
 	// Tells the Deskbar that the Desktop shows another picture now (it takes the screen behind its rounded corners again).
 	static void				TellDeskbar();
 	// Stops a fade that belongs to this picture (the picture is about to go).
@@ -33,7 +35,7 @@ public:
 
 private:
 							SnakeFade(BView* view, BBitmap* from, BBitmap* to, bigtime_t duration,
-								BackgroundImage* image);
+								BackgroundImage* image, int32 effect);
 	virtual					~SnakeFade();
 
 			void			_Step();
@@ -47,6 +49,7 @@ private:
 			bigtime_t		fStart;
 			bigtime_t		fDuration;
 			BackgroundImage* fImage;
+			int32			fEffect;
 			BMessageRunner*	fRunner;
 };
 

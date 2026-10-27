@@ -54,6 +54,7 @@ private:
 			BPopUpMenu*		fWorkspaceMenu;
 			BPopUpMenu*		fModeMenu;
 			BPopUpMenu*		fFadeMenu;
+			BPopUpMenu*		fEffectMenu;
 			BCheckBox*		fOnline[9];
 			BTextControl*	fKey[4];		// the keys of Flickr, Unsplash, Pexels and Pixabay
 			BStringView*	fCurrent;

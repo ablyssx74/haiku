@@ -470,11 +470,13 @@ BackgroundImage::Refresh(BackgroundImage* oldBackgroundImage,
 	// wallpaper settings): the view as it shows now is kept to blend from.
 	BBitmap* from = NULL;
 	int32 fadeMs = 0;
+	int32 effect = 0;
 	if (desktop && poseView != NULL && oldBackgroundImage != NULL && oldBackgroundImage->fShowingBitmap != NULL
 		&& poseView->ViewMode() != kListMode) {
 		BMessage settings;
 		ReadWallpaperSettings(&settings);
 		fadeMs = settings.GetInt32("fadems", 0);
+		effect = settings.GetInt32("fadestyle", 0);
 		if (fadeMs > 0)
 			from = oldBackgroundImage->Render(oldBackgroundImage->fShowingBitmap, poseView);
 	}
@@ -496,7 +498,7 @@ BackgroundImage::Refresh(BackgroundImage* oldBackgroundImage,
 				backgroundImage->fView = poseView;
 				poseView->SetWidgetTextOutline(info->fTextWidgetOutline);
 				backgroundImage->fShowingBitmap = info;
-				if (SnakeFade::Start(poseView, from, to, (bigtime_t)fadeMs * 1000, backgroundImage))
+				if (SnakeFade::Start(poseView, from, to, (bigtime_t)fadeMs * 1000, backgroundImage, effect))
 					return backgroundImage;
 				to = NULL;
 			}

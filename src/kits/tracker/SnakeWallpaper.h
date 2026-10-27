@@ -41,6 +41,8 @@ static const int32 kOnlineSourceCount = 9;
 //   "svg" bool           an SVG wallpaper in the accent color takes the place of the pictures
 //   "svgfile" string     its template: "builtin:waves", "builtin:bubbles", "builtin:bands" or the path of an SVG file
 //   "fadems" int32       a fade from one picture to the next, this many milliseconds (0: none; Tracker does it)
+//   "fadestyle" int32    how the picture changes: 0 fade, 1 wipe (left to right), 2 slide (the new one pushes the old one out
+//                        to the left), 3 circle reveal (from the middle of the screen)
 //   "mode" int32         placement: -1 as it is now, else Haiku's (0 manual, 1 centered, 2 scaled to fit, 3 tiled)
 static const char* const kWallpaperSettingsFile = "snaketracker_wallpaper";
 
@@ -55,6 +57,7 @@ WallpaperDefaults(BMessage* settings)
 	settings->AddBool("perworkspace", false);
 	settings->AddInt32("mode", -1);
 	settings->AddInt32("fadems", 0);
+	settings->AddInt32("fadestyle", 0);
 	settings->AddBool("svg", false);
 }
 
@@ -92,6 +95,8 @@ ReadWallpaperSettings(BMessage* settings)
 		settings->ReplaceInt32("mode", number);
 	if (saved.FindInt32("fadems", &number) == B_OK && number >= 0)
 		settings->ReplaceInt32("fadems", number);
+	if (saved.FindInt32("fadestyle", &number) == B_OK && number >= 0 && number <= 3)
+		settings->ReplaceInt32("fadestyle", number);
 	if (saved.FindBool("svg", &flag) == B_OK)
 		settings->ReplaceBool("svg", flag);
 	const char* svgFile;

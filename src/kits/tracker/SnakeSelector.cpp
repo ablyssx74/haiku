@@ -1522,14 +1522,26 @@ CaptureSubmenuTile(BMenu* submenu)
 	const BRect row = parent->ConvertToScreen(item->Frame());
 	BScreen screen(B_MAIN_SCREEN_ID);
 	const BRect frame = screen.Frame();
+	// BMenu puts a submenu to the right of its parent's row, but to the left when it would not fit, and when the parent itself
+	// was put to the left (a chain of menus that once turned left goes on to the left: BMenu::_CalcFrame); a menu that would
+	// then run off the screen's left edge is moved back to 6 pixels from it, over its parent.
+	bool shiftedLeft = false;
+	BMenu* grandparent = parent->Supermenu();
+	if (grandparent != NULL && dynamic_cast<BMenuBar*>(grandparent) == NULL && grandparent->Window() != NULL)
+		shiftedLeft = parentFrame.left < grandparent->Window()->Frame().left;
+	else if (grandparent == NULL)
+		shiftedLeft = parentFrame.right >= frame.right - 1;
 	float left, right;
-	if (parentFrame.right + 1 + width <= frame.right + 1) {
+	if (!shiftedLeft && parentFrame.right + 1 + width <= frame.right + 1) {
 		// to the right, and a little over the parent (the pill look overlaps it)
 		left = parentFrame.right - 40;
 		right = parentFrame.right + 1 + width + 8;
 	} else {
-		left = parentFrame.left - width - 8;
-		right = parentFrame.left + 40;
+		float menuLeft = parentFrame.left - width - 1;
+		if (menuLeft < 0)
+			menuLeft = 6;
+		left = menuLeft - 8;
+		right = std::max(parentFrame.left + 40, menuLeft + width + 8);
 	}
 	float top = row.top - 8;
 	if (row.top + height > frame.bottom + 1)

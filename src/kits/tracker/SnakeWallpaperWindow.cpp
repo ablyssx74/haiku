@@ -193,9 +193,14 @@ SnakeWallpaperWindow::SnakeWallpaperWindow()
 
 	fFadeMenu = BuildMenu("fade");
 	AddChoice(fFadeMenu, B_TRANSLATE("None"), 0);
-	AddChoice(fFadeMenu, B_TRANSLATE("Fade (half a second)"), 500);
-	AddChoice(fFadeMenu, B_TRANSLATE("Fade (one second)"), 1000);
-	AddChoice(fFadeMenu, B_TRANSLATE("Fade (two seconds)"), 2000);
+	AddChoice(fFadeMenu, B_TRANSLATE("Half a second"), 500);
+	AddChoice(fFadeMenu, B_TRANSLATE("One second"), 1000);
+	AddChoice(fFadeMenu, B_TRANSLATE("Two seconds"), 2000);
+	fEffectMenu = BuildMenu("effect");
+	AddChoice(fEffectMenu, B_TRANSLATE("Fade"), 0);
+	AddChoice(fEffectMenu, B_TRANSLATE("Wipe"), 1);
+	AddChoice(fEffectMenu, B_TRANSLATE("Slide"), 2);
+	AddChoice(fEffectMenu, B_TRANSLATE("Circle reveal"), 3);
 
 	fSvg = new BCheckBox("svg", B_TRANSLATE("SVG wallpaper in the accent color (replaces the pictures)"),
 		new BMessage(kMsgChanged));
@@ -223,6 +228,7 @@ SnakeWallpaperWindow::SnakeWallpaperWindow()
 	BMenuField* workspaces = new BMenuField(B_TRANSLATE("Workspaces:"), fWorkspaceMenu);
 	BMenuField* mode = new BMenuField(B_TRANSLATE("Placement:"), fModeMenu);
 	BMenuField* fade = new BMenuField(B_TRANSLATE("Transition:"), fFadeMenu);
+	BMenuField* effect = new BMenuField(B_TRANSLATE("Effect:"), fEffectMenu);
 	BMenuField* svgTemplate = new BMenuField(B_TRANSLATE("Template:"), fSvgMenu);
 
 	BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_DEFAULT_SPACING)
@@ -268,6 +274,8 @@ SnakeWallpaperWindow::SnakeWallpaperWindow()
 			.Add(mode->CreateMenuBarLayoutItem(), 1, 3)
 			.Add(fade->CreateLabelLayoutItem(), 0, 4)
 			.Add(fade->CreateMenuBarLayoutItem(), 1, 4)
+			.Add(effect->CreateLabelLayoutItem(), 0, 5)
+			.Add(effect->CreateMenuBarLayoutItem(), 1, 5)
 			.End()
 		.Add(fCurrent)
 		.AddGroup(B_HORIZONTAL)
@@ -323,6 +331,7 @@ SnakeWallpaperWindow::_Load()
 	Mark(fWorkspaceMenu, settings.GetBool("perworkspace", false) ? 1 : 0);
 	Mark(fModeMenu, settings.GetInt32("mode", -1));
 	Mark(fFadeMenu, settings.GetInt32("fadems", 0));
+	Mark(fEffectMenu, settings.GetInt32("fadestyle", 0));
 	fSvg->SetValue(settings.GetBool("svg", false) ? B_CONTROL_ON : B_CONTROL_OFF);
 	_MarkSvg(settings.GetString("svgfile", "builtin:waves"));
 	_UpdateControls();
@@ -353,6 +362,7 @@ SnakeWallpaperWindow::_Save(bool changeNow, bool notify)
 	settings.AddBool("perworkspace", Marked(fWorkspaceMenu) == 1);
 	settings.AddInt32("mode", Marked(fModeMenu));
 	settings.AddInt32("fadems", Marked(fFadeMenu));
+	settings.AddInt32("fadestyle", Marked(fEffectMenu));
 	settings.AddBool("svg", fSvg->Value() == B_CONTROL_ON);
 	{
 		BMenuItem* marked = fSvgMenu->FindMarked();
