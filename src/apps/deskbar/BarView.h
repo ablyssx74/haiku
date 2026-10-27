@@ -172,6 +172,9 @@ public:
 			TBarMenuBar*		BarMenuBar() const;
 			TDragRegion*		DragRegion() const { return fDragRegion; }
 			TReplicantTray*		ReplicantTray() const { return fReplicantTray; }
+			// (called every second by the clock) the Snake look was switched on or off, or its color changed: the panels take
+			// the colors again and the tray is laid out again
+			void				CheckLook();
 
 			float			TeamMenuItemHeight() const;
 			float			TabHeight() const { return fTabHeight; };
@@ -200,6 +203,8 @@ private:
 			TDragRegion*	fDragRegion;
 			TResizeControl*	fResizeControl;
 			TReplicantTray*	fReplicantTray;
+			bool			fLookWasPill;
+			uint32			fLookFill;
 
 			bool			fIsRaised : 1;
 			bool			fMouseDownOutside : 1;

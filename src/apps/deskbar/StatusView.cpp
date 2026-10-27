@@ -1329,6 +1329,25 @@ TReplicantTray::RealignReplicants(int32 startIndex)
 }
 
 
+void
+TReplicantTray::LookChanged()
+{
+	TDragRegion* region = dynamic_cast<TDragRegion*>(Parent());
+	if (region != NULL)
+		region->ApplyLook();
+	AdoptParentColors();
+	if (fTime != NULL) {
+		fTime->AdoptParentColors();
+		fTime->Update();
+	}
+	RealignReplicants();
+	AdjustPlacement();
+	if (Parent() != NULL)
+		Parent()->Invalidate();
+	Invalidate();
+}
+
+
 status_t
 TReplicantTray::_SaveSettings()
 {
@@ -1383,14 +1402,21 @@ TDragRegion::AttachedToWindow()
 
 	CalculateRegions();
 
+	ApplyLook();
+
+	ResizeToPreferred();
+}
+
+
+void
+TDragRegion::ApplyLook()
+{
 	SetViewUIColor(B_MENU_BACKGROUND_COLOR, 1.1);
 	if (fBarView->PillLook()) {
 		rgb_color fill;
 		fBarView->PillColors(&fill, NULL, NULL, NULL, NULL);
 		SetViewColor(fill);
 	}
-
-	ResizeToPreferred();
 }
 
 
@@ -1417,9 +1443,8 @@ void
 TDragRegion::Draw(BRect updateRect)
 {
 	if (fBarView->PillLook()) {
-		// (the lavender panel has no lines)
-		SetHighColor(ViewColor());
-		FillRect(updateRect);
+		// (the lavender panel has no lines; its color is the view's, which the window system has painted already: painting it
+		// again here covered the Workspaces replicant, which is drawn by the window system under what the parent draws)
 		return;
 	}
 

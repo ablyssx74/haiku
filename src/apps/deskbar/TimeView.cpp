@@ -273,6 +273,13 @@ TTimeView::MouseDown(BPoint point)
 void
 TTimeView::Pulse()
 {
+	{
+		// (the Snake look can be switched on or off while the Deskbar runs)
+		TBarView* barView = static_cast<TBarApp*>(be_app)->BarView();
+		if (barView != NULL)
+			barView->CheckLook();
+	}
+
 	time_t curTime = time(NULL);
 	tm* ct = localtime(&curTime);
 	if (ct == NULL)

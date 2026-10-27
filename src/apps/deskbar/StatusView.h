@@ -114,6 +114,9 @@ public:
 				bool				AcceptAddon(BRect frame,
 										BMessage* message);
 				void				RealignReplicants(int32 startIndex = -1);
+				// the Snake look was switched on or off: the colours of the tray and the clock, and the places of the
+				// replicants (the clock's text may be another size)
+				void				LookChanged();
 
 				void				SaveTimeSettings();
 
@@ -198,6 +201,8 @@ public:
 	virtual void GetPreferredSize(float*, float*);
 	virtual void Draw(BRect);
 	virtual void DrawAfterChildren(BRect);
+	// the colours of the panel again, when the Snake look is switched on or off while the Deskbar runs
+	void ApplyLook();
 	virtual void MouseDown(BPoint);
 	virtual void MouseUp(BPoint);
 	virtual void MouseMoved(BPoint, uint32, const BMessage*);

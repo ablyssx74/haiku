@@ -1,8 +1,13 @@
-# snaketracker 1.0.57
+# snaketracker 1.0.58
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **The Workspaces program's tray item shows with the raised Snake look.** With "Live in the Deskbar" on in Workspaces, its little picture of the workspaces was not drawn at all when the raised look was on (the Deskbar's lavender panel was painted over it). It is drawn now.
+- **The Deskbar is laid out again when you move it.** Moving the Deskbar to the top or the bottom of the screen and back left every tray item in one row, so the Workspaces item sat on top of the clock and the other icons. The tray now takes the width of its new place first and the items are put in their rows after that.
+- **Switching the raised Snake look on or off while the Deskbar runs changes all of it.** The header, the clock and the panels used to be left half in the old look (dark header, white clock text on a lavender panel); now they take the new colors at once and the tray is laid out again.
+
+Since 1.0.57 (if you skipped it):
 - **SnakeTracker Workspaces...** is a new item of the Desktop's menu, under SnakeTracker Wallpaper. It opens a window with the same Transition (none, half a second, one second, two seconds) and Effect (fade, wipe, slide, circle reveal) choices as the wallpaper's. When you go to another workspace (with the Workspaces preferences, the Deskbar or hDesktop's workspace widget) and the two workspaces show different wallpapers, the wallpaper changes with that effect. Only the wallpaper takes part: windows and icons still change at once, because Haiku switches them before Tracker is told. It is off by default (None), and hDesktop's dock follows the same transition (hDesktop 1.0.73).
 
 Since 1.0.56 (if you skipped it):

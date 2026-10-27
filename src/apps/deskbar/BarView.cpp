@@ -146,6 +146,8 @@ TBarView::TBarView(BRect frame, bool vertical, bool left, bool top,
 	fRefsRcvdOnly(true),
 	fDragMessage(NULL),
 	fCachedTypesList(NULL),
+	fLookWasPill(false),
+	fLookFill(0),
 	fMaxRecentDocs(kDefaultRecentDocCount),
 	fMaxRecentApps(kDefaultRecentAppCount),
 	fLastDragItem(NULL),
@@ -219,6 +221,29 @@ TBarView::~TBarView()
 
 
 void
+TBarView::CheckLook()
+{
+	rgb_color fill = { 0, 0, 0, 255 };
+	const bool pill = PillColors(&fill, NULL, NULL, NULL, NULL);
+	const uint32 key = pill ? ((uint32)fill.red << 16 | (uint32)fill.green << 8 | fill.blue) : 0;
+	if (pill == fLookWasPill && key == fLookFill)
+		return;
+	fLookWasPill = pill;
+	fLookFill = key;
+
+	if (Window() == NULL || !Window()->Lock())
+		return;
+	SetViewUIColor(B_MENU_BACKGROUND_COLOR);
+	if (pill)
+		SetViewColor(fill);
+	if (fReplicantTray != NULL)
+		fReplicantTray->LookChanged();
+	Invalidate();
+	Window()->Unlock();
+}
+
+
+void
 TBarView::AttachedToWindow()
 {
 	BView::AttachedToWindow();
@@ -226,6 +251,9 @@ TBarView::AttachedToWindow()
 	fBarWindow = dynamic_cast<TBarWindow*>(Window());
 
 	SetViewUIColor(B_MENU_BACKGROUND_COLOR);
+	rgb_color lookFill = { 0, 0, 0, 255 };
+	fLookWasPill = PillColors(&lookFill, NULL, NULL, NULL, NULL);
+	fLookFill = fLookWasPill ? ((uint32)lookFill.red << 16 | (uint32)lookFill.green << 8 | lookFill.blue) : 0;
 	if (PillLook()) {
 		rgb_color fill;
 		PillColors(&fill, NULL, NULL, NULL, NULL);
@@ -262,11 +290,8 @@ TBarView::Draw(BRect)
 	BRect bounds(Bounds());
 
 	if (PillLook()) {
-		// one lavender panel: no lines between the parts
-		rgb_color fill;
-		PillColors(&fill, NULL, NULL, NULL, NULL);
-		SetHighColor(fill);
-		FillRect(bounds);
+		// one lavender panel: no lines between the parts (the view's color is the panel: it is not painted again, which
+		// would cover the Workspaces replicant, whose picture the window system draws under what the parent draws)
 		return;
 	}
 
@@ -529,6 +554,9 @@ TBarView::PlaceTray(bool vertSwap, bool leftSwap)
 	} else if (fReplicantTray->IsHidden())
 		fReplicantTray->Show();
 
+	// The tray has the width of the new place before the replicants are put in their rows: realigned while it still had the old
+	// one (a horizontal Deskbar's is as wide as one row of them), they all stayed in the first row, on top of the clock.
+	fDragRegion->ResizeToPreferred();
 	fReplicantTray->RealignReplicants();
 	fDragRegion->ResizeToPreferred();
 		// also resizes replicant tray
