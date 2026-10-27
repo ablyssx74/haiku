@@ -41,6 +41,7 @@ All rights reserved.
 #include "DesktopPoseView.h"
 
 #include "SnakeWallpaperWindow.h"
+#include "SnakeWorkspacesWindow.h"
 
 #include <NodeMonitor.h>
 #include <Path.h>
@@ -114,6 +115,11 @@ DesktopPoseView::MessageReceived(BMessage* message)
 		case kSnakeWallpaper:
 			if (!IsFilePanel())
 				SnakeWallpaperWindow::Open();
+			break;
+
+		case kSnakeWorkspaces:
+			if (!IsFilePanel())
+				SnakeWorkspacesWindow::Open();
 			break;
 
 		case kHideDesktopIcons:

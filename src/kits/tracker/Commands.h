@@ -153,6 +153,7 @@ const uint32 kSnakeSysDeskbarChanged = 'SnC2';
 const uint32 kSnakeSysTrackerChanged = 'SnC3';
 const uint32 kSnakeRestart = 'SnC4';
 const uint32 kSnakeWallpaper = 'SnWw';
+const uint32 kSnakeWorkspaces = 'SnWs';
 const uint32 kSnakeCornerPixels = 'SnkP';
 const uint32 kSnakeAllAppsChanged = 'SnC5';
 const uint32 kSnakeArrowsChanged = 'SnkR';

@@ -18,7 +18,7 @@ CXXLIBS  := $(if $(GCC2),,-lsupc++ -lstdc++)   # gcc 2 links its own libstdc++ (
 
 TRACKER_SRCS := $(filter-out $(KIT)/FilePanel.cpp,$(wildcard $(KIT)/*.cpp))
 # libtracker.so's own list (see src/kits/tracker/Jamfile) -- the wildcard above is trimmed to it below.
-LISTED := SidePanel SnakeSelector SnakeMenuItem SnakeWallpaperWindow SnakeFade AttributeStream AutoMounterSettings BackgroundImage Bitmaps ContainerWindow CountView DeskWindow \
+LISTED := SidePanel SnakeSelector SnakeMenuItem SnakeWallpaperWindow SnakeWorkspacesWindow SnakeFade AttributeStream AutoMounterSettings BackgroundImage Bitmaps ContainerWindow CountView DeskWindow \
   DesktopPoseView DraggableContainerIcon DialogPane DirMenu EntryIterator FBCPadding FSClipboard FSUndoRedo \
   FSUtils FavoritesMenu FilePanel FilePanelPriv FindPanel GroupedMenu IconCache IconMenuItem LiveMenu \
   MimeTypeList MiniMenuField Model MountMenu Navigator NavMenu NodePreloader NodeWalker OpenWithWindow \

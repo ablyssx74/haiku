@@ -2709,6 +2709,12 @@ BContainerWindow::AddWindowContextMenu(BMenu* menu)
 		wallpaper->SetTarget(PoseView());
 		menu->AddItem(wallpaper);
 
+		// how the wallpaper changes when you go to another workspace
+		BMenuItem* workspaces = new SnakeMenuItem(B_TRANSLATE("SnakeTracker Workspaces" B_UTF8_ELLIPSIS),
+			new BMessage(kSnakeWorkspaces));
+		workspaces->SetTarget(PoseView());
+		menu->AddItem(workspaces);
+
 		// the icons are put in rows or columns once, when this is chosen (and keep their places after that)
 		BMenu* arrangeMenu = new SnakeMenu(B_TRANSLATE("Arrange"));
 		BMenuItem* arrangeItem = new SnakeMenuItem(B_TRANSLATE("In Columns"),

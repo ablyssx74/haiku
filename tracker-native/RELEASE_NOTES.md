@@ -1,8 +1,11 @@
-# snaketracker 1.0.56
+# snaketracker 1.0.57
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **SnakeTracker Workspaces...** is a new item of the Desktop's menu, under SnakeTracker Wallpaper. It opens a window with the same Transition (none, half a second, one second, two seconds) and Effect (fade, wipe, slide, circle reveal) choices as the wallpaper's. When you go to another workspace (with the Workspaces preferences, the Deskbar or hDesktop's workspace widget) and the two workspaces show different wallpapers, the wallpaper changes with that effect. Only the wallpaper takes part: windows and icons still change at once, because Haiku switches them before Tracker is told. It is off by default (None), and hDesktop's dock follows the same transition (hDesktop 1.0.73).
+
+Since 1.0.56 (if you skipped it):
 - **A Deskbar at the right of the screen opens all of its menus to the left,** with their chevrons on the left, pointing left (the way hDeskbar does it). Recent folders, Recent documents, Mount, Shutdown and every folder below them used to go to the right over the Deskbar when they fitted there; now the whole chain goes left, and the picture of the screen behind each menu follows.
 - **Change header icon...** is a new item of the Deskbar's menu, under About this system. A small window shows the header's current icon (the built-in snake by default); **Choose file...** takes an HVIF vector icon of your own, which replaces the snake in the header at once and stays after a restart (a copy is kept in `~/config/settings/deskbar/header_icon.hvif`); **Use default** brings the snake back.
 - **Wallpaper effects:** the wallpaper change has three more effects besides the fade (wipe, slide and circle reveal, in the SnakeTracker Wallpaper window), and hDesktop's dock is told when one starts, so the dock's own wallpaper changes in step with the desktop's.

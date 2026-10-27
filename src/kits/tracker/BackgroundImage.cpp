@@ -51,6 +51,7 @@ All rights reserved.
 #include "Commands.h"
 #include "PoseView.h"
 #include "SnakeFade.h"
+#include "SnakeWorkspaces.h"
 #include "SnakeWallpaper.h"
 
 
@@ -425,6 +426,26 @@ BackgroundImage::WorkspaceActivated(BView* view, int32 workspace, bool state)
 
 	BackgroundImageInfo* info = ImageInfoForWorkspace(workspace);
 	if (info != fShowingBitmap) {
+		// A transition from the picture of the workspace left to the one of this (SnakeTracker Workspaces), when the two are
+		// different pictures and a transition is switched on.
+		BPoseView* fadingView = dynamic_cast<BPoseView*>(view);
+		int32 ms, effect;
+		ReadWorkspaceSettings(&ms, &effect);
+		if (ms > 0 && info != NULL && fShowingBitmap != NULL && fadingView != NULL && fadingView->ViewMode() != kListMode
+			&& view->Window() != NULL) {
+			BBitmap* from = Render(fShowingBitmap, view);
+			BBitmap* to = Render(info, view, view->Bounds(), workspace);
+			if (from != NULL && to != NULL) {
+				fView = view;
+				fadingView->SetWidgetTextOutline(info->fTextWidgetOutline);
+				fShowingBitmap = info;
+				if (SnakeFade::Start(view, from, to, (bigtime_t)ms * 1000, this, effect))
+					return;
+			}
+			delete from;
+			delete to;
+		}
+
 		if (info != NULL)
 			Show(info, view);
 		else {
