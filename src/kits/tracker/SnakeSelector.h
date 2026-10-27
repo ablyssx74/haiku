@@ -81,6 +81,10 @@ void		CaptureSubmenuTile(BMenu* submenu);
 bool		PillMenu(BMenu* menu, rgb_color* fill, rgb_color* text);
 // whether the arrow of an item is under the trail's bar (the snake passes through it), so it is not drawn
 bool		ArrowHidden(BMenu* menu, BMenuItem* item);
+// whether the menu is one of a Deskbar at the right of the screen, which open to the left; and where a submenu goes then
+// (\a stock is where BMenu would put it: its y is kept)
+bool		OpensLeft(BMenu* menu);
+BPoint		LeftOpening(BMenu* menu, BPoint stock);
 // the colours of the pill look, for the Deskbar's own panel (false when the Snake control look is not in use): the pill, the
 // lit row, the dark box for a program's windows, the text on the pill and the text on the box
 // draws a block in the selector colour, rounded and shaded like a raised bar (a lit row of the trail): \a round has the corners

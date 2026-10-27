@@ -299,6 +299,13 @@ SnakeMenu::DrawBackground(BRect updateRect)
 }
 
 
+BPoint
+SnakeMenu::ScreenLocation()
+{
+	return SnakeSelector::LeftOpening(this, BMenu::ScreenLocation());
+}
+
+
 SnakePopUpMenu::SnakePopUpMenu(const char* name, bool radioMode, bool labelFromMarked,
 	menu_layout layout)
 	:

@@ -66,6 +66,7 @@ private:
 	float fHeight;
 	const BBitmap* fIcon;
 	BBitmap* fLeafIcon;
+	int64 fLeafStamp;		// of the user's header icon the picture was made from
 	BMenu* fMenu;
 	TBarView* fBarView;
 	status_t fInitStatus;

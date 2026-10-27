@@ -89,7 +89,7 @@ $(OUT)/Tracker: $(APP)/main.cpp $(OUT)/Tracker.rsrc $(OUT)/libtracker.so
 # is built here too and installed next to the library for the same reason as Tracker.
 DESK := $(TOP)/src/apps/deskbar
 DESK_SRCS := BarApp BarMenuBar BarMenuTitle BarView BarWindow DeskbarMenu DeskbarUtils ExpandoMenuBar \
-  InlineScrollView PreferencesWindow ScreenCornerSelector ShowHideMenuItem StatusView StatusViewShelf \
+  InlineScrollView PreferencesWindow ScreenCornerSelector HeaderIconWindow ShowHideMenuItem StatusView StatusViewShelf \
   TeamMenu TeamMenuItem TimeView TruncatableMenuItem WindowMenu WindowMenuItem ResourceSet Switcher \
   CalendarMenuWindow SnakeCorners
 DESK_OBJS := $(addprefix $(OUT)/deskbar/,$(addsuffix .o,$(DESK_SRCS)))

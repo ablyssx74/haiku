@@ -36,6 +36,7 @@
 #include <MessageRunner.h>
 #include <Messenger.h>
 #include <Menu.h>
+#include <MenuPrivate.h>
 #include <MenuBar.h>
 #include <map>
 #include <MenuItem.h>
@@ -1301,6 +1302,7 @@ static bool (*sWantsTile)(BMenu*) = NULL;
 static bool (*sCustomLook)() = NULL;
 static bool (*sPillMenu)(BMenu*, rgb_color*, rgb_color*) = NULL;
 static bool (*sArrowHidden)(BMenu*, BMenuItem*) = NULL;
+static bool (*sGoesLeft)(BMenu*) = NULL;
 static void (*sDrawRaised)(BView*, BRect, float, uint32, uint32, int, int) = NULL;
 static void (*sPillColors)(rgb_color*, rgb_color*, rgb_color*, rgb_color*, rgb_color*) = NULL;
 
@@ -1339,6 +1341,7 @@ FindPillSymbols()
 		get_image_symbol(info.id, "snake_custom_look", B_SYMBOL_TYPE_TEXT, (void**)&sCustomLook);
 		get_image_symbol(info.id, "snake_pill_menu", B_SYMBOL_TYPE_TEXT, (void**)&sPillMenu);
 		get_image_symbol(info.id, "snake_arrow_hidden", B_SYMBOL_TYPE_TEXT, (void**)&sArrowHidden);
+		get_image_symbol(info.id, "snake_menu_goes_left", B_SYMBOL_TYPE_TEXT, (void**)&sGoesLeft);
 		get_image_symbol(info.id, "snake_draw_raised", B_SYMBOL_TYPE_TEXT, (void**)&sDrawRaised);
 		get_image_symbol(info.id, "snake_pill_colors", B_SYMBOL_TYPE_TEXT, (void**)&sPillColors);
 		break;
@@ -1531,6 +1534,8 @@ CaptureSubmenuTile(BMenu* submenu)
 		shiftedLeft = parentFrame.left < grandparent->Window()->Frame().left;
 	else if (grandparent == NULL)
 		shiftedLeft = parentFrame.right >= frame.right - 1;
+	if (OpensLeft(submenu))
+		shiftedLeft = true;
 	float left, right;
 	if (!shiftedLeft && parentFrame.right + 1 + width <= frame.right + 1) {
 		// to the right, and a little over the parent (the pill look overlaps it)
@@ -1583,6 +1588,32 @@ DrawRaised(BView* view, BRect rect, float radius, uint32 round, uint32 closed, i
 		return false;
 	sDrawRaised(view, rect, radius, round, closed, openFrom, openTo);
 	return true;
+}
+
+
+bool
+OpensLeft(BMenu* menu)
+{
+	FindPillSymbols();
+	return sGoesLeft != NULL && sGoesLeft(menu);
+}
+
+
+BPoint
+LeftOpening(BMenu* menu, BPoint stock)
+{
+	// (BMenu puts a submenu right of its parent's row unless it does not fit; the Deskbar at the right of the screen has all
+	// of its menus go to the left, so the place is given from the row's left edge: BMenu::_CalcFrame() puts a menu that
+	// turned left there as well)
+	BMenu* parent = menu->Supermenu();
+	BMenuItem* item = menu->Superitem();
+	if (parent == NULL || item == NULL || parent->Window() == NULL || dynamic_cast<BMenuBar*>(parent) != NULL
+		|| BPrivate::MenuPrivate(parent).Layout() != B_ITEMS_IN_COLUMN || !OpensLeft(menu))
+		return stock;
+	BPoint left = item->Frame().LeftTop();
+	parent->ConvertToScreen(&left);
+	stock.x = left.x - menu->Bounds().Width() - 1;
+	return stock;
 }
 
 

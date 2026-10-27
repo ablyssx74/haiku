@@ -262,9 +262,22 @@ TTeamMenuItem::Draw()
 				shape.left -= 2 * radius;
 			else
 				shape.right += 2 * radius;
+			// (the round end is the plain colour: raised, it showed as a dark crescent behind the icon)
+			const BRect cap = flatLeft ? BRect(pill.right - radius, pill.top, pill.right, pill.bottom)
+				: BRect(pill.left, pill.top, pill.left + radius, pill.bottom);
 			BRegion clip(pill);
+			clip.Exclude(cap);
 			menu->ConstrainClippingRegion(&clip);
 			SnakeSelector::DrawRaised(menu, shape, radius, flatLeft ? 2 | 4 : 1 | 8, 0);
+			{
+				BRegion capClip(cap);
+				menu->ConstrainClippingRegion(&capClip);
+				menu->SetDrawingMode(B_OP_ALPHA);
+				menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+				menu->SetHighColor(hot);
+				menu->FillRoundRect(pill, radius, radius);
+				menu->ConstrainClippingRegion(&clip);
+			}
 			{
 				// the same fade as the leaf's block: the left 30% keeps its colour, then it melts into the panel's
 				rgb_color fill;
@@ -309,11 +322,13 @@ TTeamMenuItem::Draw()
 		// (the right end is flat: the shading is drawn on a bar that runs on past it, and clipped, and the end is the plain
 		// colour; shaded, the end showed as a dark crescent)
 		{
-			BRegion clip(BRect(pill.left, pill.top, pill.right - radius, pill.bottom));
+			// (the left end is the plain colour as well)
+			BRegion clip(BRect(pill.left + radius, pill.top, pill.right - radius, pill.bottom));
 			menu->ConstrainClippingRegion(&clip);
 			BRect longer(pill.left, pill.top, pill.right + 2 * radius, pill.bottom);
 			SnakeSelector::DrawRaised(menu, longer, radius, 1 | 8, 0);
 			BRegion endClip(BRect(pill.right - radius, pill.top, pill.right, pill.bottom));
+			endClip.Include(BRect(pill.left, pill.top, pill.left + radius, pill.bottom));
 			menu->ConstrainClippingRegion(&endClip);
 			menu->SetDrawingMode(B_OP_ALPHA);
 			menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);

@@ -47,6 +47,7 @@ public:
 	virtual void AttachedToWindow();
 	virtual void DetachedFromWindow();
 	virtual void DrawBackground(BRect updateRect);
+	virtual BPoint ScreenLocation();
 
 protected:
 	virtual bool AddDynamicItem(add_state state);

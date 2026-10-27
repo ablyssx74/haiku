@@ -66,6 +66,7 @@ All rights reserved.
 #include "BarWindow.h"
 #include "DeskbarUtils.h"
 #include "FSUtils.h"
+#include "HeaderIconWindow.h"
 #include "PreferencesWindow.h"
 #include "ResourceSet.h"
 #include "StatusView.h"
@@ -440,6 +441,20 @@ TBarApp::MessageReceived(BMessage* message)
 
 		case kConfigShow:
 			ShowPreferencesWindow();
+			break;
+
+		case kHeaderIconShow:
+			HeaderIconWindow::ShowWindow();
+			break;
+
+		case kHeaderIconChanged:
+			// (the header's picture is made again the next time it is drawn)
+			if (fBarWindow->Lock()) {
+				fBarWindow->BarView()->Invalidate();
+				if (fBarWindow->BarView()->BarMenuBar() != NULL)
+					fBarWindow->BarView()->BarMenuBar()->Invalidate();
+				fBarWindow->Unlock();
+			}
 			break;
 
 		case kConfigQuit:

@@ -54,6 +54,7 @@
 #include <image.h>
 #include <Path.h>
 #include <Roster.h>
+#include <MenuPrivate.h>
 #include <Screen.h>
 #include <View.h>
 #include <Window.h>
@@ -401,6 +402,7 @@ struct Piece {
 struct Fillet {
 	float x, y;
 	int dx, dy;
+	float limit;	// the fillet is not drawn past this row, away from y (the end of the bar it rounds into)
 };
 
 
@@ -595,6 +597,39 @@ FindParentLink(BMenu* menu)
 }
 
 
+// A Deskbar at the right of the screen: its menus, and all that open from them, open to the left, and the chevrons of their
+// rows that open a submenu point left, in the column on the left that check marks use.
+static bool
+MenuGoesLeft(BMenu* menu)
+{
+	if (menu == NULL)
+		return false;
+	// (up to the Deskbar's menu: above it is the bar it hangs from)
+	BMenu* root = menu;
+	for (int depth = 0; root->Supermenu() != NULL && dynamic_cast<BMenuBar*>(root->Supermenu()) == NULL && depth < 32; depth++)
+		root = root->Supermenu();
+	if (strstr(typeid(*root).name(), "TDeskbarMenu") == NULL)
+		return false;
+	// (the Deskbar's window is the one the leaf menu hangs from: a Deskbar at the right is in the right half of the screen)
+	BWindow* barWindow = NULL;
+	BMenu* bar = root->Supermenu();
+	if (bar != NULL)
+		barWindow = bar->Window();
+	if (barWindow == NULL)
+		return false;
+	static float screenWidth = 0;
+	static bigtime_t checked = 0;
+	const bigtime_t now = system_time();
+	if (screenWidth <= 0 || now - checked > 5000000) {
+		BScreen screen(B_MAIN_SCREEN_ID);
+		screenWidth = screen.Frame().Width() + 1;
+		checked = now;
+	}
+	const BRect frame = barWindow->Frame();
+	return (frame.left + frame.right) / 2 > screenWidth / 2;
+}
+
+
 // The Deskbar's own menu (the leaf menu) has no parent menu, but its trail starts at the Deskbar. The menu opens
 // beside the Deskbar when that is a vertical, expanded one, and below or above the leaf (a menu bar title) in
 // the other layouts; the strip of the trail runs down the edge that faces the Deskbar, or the side the leaf is
@@ -751,6 +786,8 @@ public:
 			fSkipFrom = skipFrom;
 			fSkipTo = skipTo;
 			fRounded = rounded;
+			if (height != fHeight || top != fTop)
+				fRows.clear();
 			fHeight = height;
 			fLeft = left;
 			fTop = top;
@@ -820,6 +857,36 @@ public:
 		BMessage hide('Hide');
 		hide.AddInt32("gen", atomic_get(&fGeneration));
 		PostMessage(&hide);
+	}
+
+	// from the submenu's thread: the colours the strip's rows take (the lit row is shaded, and a flat strip shows as a line
+	// beside it). Rows given with alpha 0 are left as they were.
+	void SetRows(const std::vector<rgb_color>& rows)
+	{
+		if (LockWithTimeout(20000) != B_OK)
+			return;
+		bool changed = false;
+		if (fRows.size() < rows.size())
+			fRows.resize(rows.size(), make_color(0, 0, 0, 0));
+		for (size_t i = 0; i < rows.size(); i++) {
+			if (rows[i].alpha == 0)
+				continue;
+			rgb_color& mine = fRows[i];
+			if (mine.alpha == 0 || mine.red != rows[i].red || mine.green != rows[i].green || mine.blue != rows[i].blue) {
+				mine = rows[i];
+				changed = true;
+			}
+		}
+		if (changed)
+			ChildAt(0)->Invalidate();
+		Unlock();
+	}
+
+	rgb_color RowColor(int y) const
+	{
+		if (y >= 0 && (size_t)y < fRows.size() && fRows[y].alpha != 0)
+			return fRows[y];
+		return make_color(0, 0, 0, 0);
 	}
 
 	rgb_color Color() const { return fAccent; }
@@ -907,8 +974,11 @@ private:
 			const bool twoColours = fBridge->FillColor().alpha != 0;
 			const int length = horizontal ? fBridge->Width() : h;
 			for (int y = 0; y < length; y++) {
-				if (twoColours)
-					SetHighColor((y < fBridge->HotFrom() || y > fBridge->HotTo()) ? fBridge->FillColor() : accent);
+				if (twoColours) {
+					const bool hot = y >= fBridge->HotFrom() && y <= fBridge->HotTo();
+					rgb_color shaded = hot ? fBridge->RowColor(y) : make_color(0, 0, 0, 0);
+					SetHighColor(!hot ? fBridge->FillColor() : (shaded.alpha != 0 ? shaded : accent));
+				}
 				else if (y == 0 && !flat)
 					SetHighColor(Light(accent));
 				else if (y == length - 1 && !flat)
@@ -941,6 +1011,7 @@ private:
 	rgb_color		fFill;		// the colour outside the lit part, when there is one (alpha 0: none)
 	int				fHotFrom;
 	int				fHotTo;
+	std::vector<rgb_color>	fRows;	// the colour of each row of the strip, where known (alpha 0: not yet)
 	int32			fGeneration;	// counts the placements: a hide asked for before one is out of date
 };
 
@@ -1278,6 +1349,22 @@ PlaceVBulge(BMenu* menu, BRect strip, bool right, bool edgeTop, bool edgeBottom,
 			bulge = it->second;
 	}
 	bulge->Place(strip, Accent(), right, edgeTop, edgeBottom, skipFrom, skipTo, rounded);
+}
+
+
+// the shading the lit row has at the strip's rows, handed to the strip along the border (see PlaceBridge())
+static void
+ShadeBridge(BWindow* child, const std::vector<rgb_color>& rows)
+{
+	SeamBridge* bridge = NULL;
+	{
+		BAutolock lock(LinkLock());
+		std::map<BWindow*, SeamBridge*>::iterator it = Bridges().find(child);
+		if (it != Bridges().end())
+			bridge = it->second;
+	}
+	if (bridge != NULL)
+		bridge->SetRows(rows);
 }
 
 
@@ -2320,6 +2407,14 @@ snake_draw_raised(BView* view, BRect rect, float radius, uint32 round, uint32 cl
 }
 
 
+// ...and whether a menu belongs to a Deskbar at the right of the screen, whose menus all open to the left.
+extern "C" _EXPORT bool
+snake_menu_goes_left(BMenu* menu)
+{
+	return MenuGoesLeft(menu);
+}
+
+
 // ...and asks whether the arrow of one of its items is under the trail (so it is not drawn).
 extern "C" _EXPORT bool
 snake_arrow_hidden(BMenu* menu, BMenuItem* item)
@@ -2336,7 +2431,10 @@ snake_arrow_hidden(BMenu* menu, BMenuItem* item)
 		BMenu* submenu = open != NULL ? open->Submenu() : NULL;
 		if (submenu != NULL && submenu->Window() != NULL && !submenu->Window()->IsHidden()) {
 			const BRect childFrame = submenu->Window()->Frame();
-			if (childFrame.left > menu->Window()->Frame().left) {
+			const float parentLeft = menu->Window()->Frame().left;
+			// (a submenu to the right covers the arrows at the right edge; with the chevrons on the left, the submenu to the left
+			// leaves them in the clear)
+			if (childFrame.left > parentLeft) {
 				const BRect row = menu->ConvertToScreen(item->Frame());
 				const float middle = (row.top + row.bottom) / 2;
 				covered = middle >= childFrame.top - 1 && middle <= childFrame.bottom + 1;
@@ -2368,7 +2466,8 @@ snake_arrow_hidden(BMenu* menu, BMenuItem* item)
 	}
 	const BRect frame = item->Frame();
 	const float middle = (frame.top + frame.bottom) / 2;
-	return bar.valid && bar.onRight && middle >= bar.top && middle <= bar.bottom;
+	// (the chevrons of a menu that opens to the left are on its left, away from the trail along the right edge)
+	return bar.valid && bar.onRight && middle >= bar.top && middle <= bar.bottom && !MenuGoesLeft(menu);
 }
 
 
@@ -2905,13 +3004,14 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 				// the menu opens lower than the Deskbar's block; it is lifted three pixels and moved a pixel over the Deskbar's edge, once for each time
 				// it is shown (a window that has already been lifted is at the place it was left)
 				static std::map<BWindow*, float>* lifted = new std::map<BWindow*, float>();
+				const float kLift = 1;		// (was 3: lifted 1, the menu sits 2 pixels lower than it did)
 				BWindow* window = menu->Window();
 				const float top = window->Frame().top;
 				BAutolock lock(LinkLock());
 				std::map<BWindow*, float>::iterator it = lifted->find(window);
 				if (it == lifted->end() || it->second != top) {
-					window->MoveBy(stripOnLeft ? -1 : 1, -3);
-					(*lifted)[window] = top - 3;
+					window->MoveBy(stripOnLeft ? -1 : 1, -kLift);
+					(*lifted)[window] = top - kLift;
 				}
 			}
 			link.valid = true;
@@ -3053,8 +3153,14 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		const float x = parentOnLeft ? frame.left - 1 : frame.right + 1;
 		float y1 = std::min(frame.bottom, deskbarLeaf.bottom);
 		if (hasOwn && ownBottom > ownTop) {
-			// (on down to the lit row, along the whole of the trail's bar)
-			y1 = std::max(y1, std::min(frame.bottom, menu->ConvertToScreen(BPoint(0, ownBottom + vt)).y - 1));
+			// (on down to the lit row, along the whole of the trail's bar, but not past the round end of the bar: where the
+			// bar runs on beyond the leaf its corner on the Deskbar's side is round like a pill's end, and a strip that went on
+			// down to the bottom of the window stuck out past the curve)
+			const float litBottom = menu->ConvertToScreen(BPoint(0, ownBottom + vt)).y - 1;
+			float end = std::min(frame.bottom, litBottom);
+			if (end > deskbarLeaf.bottom)
+				end = std::max((float)deskbarLeaf.bottom, end - pillR);
+			y1 = std::max(y1, end);
 		}
 		if (y1 > frame.top) {
 			rgb_color fillColor, hotColor, textUnused;
@@ -3063,6 +3169,10 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 			bridged = true;
 		}
 	}
+
+	// where the strip along the parent's border is, for the shading it is given once the lit row is shaded
+	float seamY0 = 0;
+	int seamFrom = -1, seamTo = -2, seamLength = 0;
 
 	// the elbow bar down the edge that faces the parent, from the parent's row to our own
 	if (link.valid) {
@@ -3085,6 +3195,9 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 				// where the bar runs past the parent's row its free end (the corner on the parent's side) is round like
 				// a pill's end; otherwise the corner beside the lit row is
 				const bool extTop = top < pTop - tol, extBottom = bottom > pBottom + tol;
+				// (the corner beside the lit row is round; where the bar runs on past the row, that end has no fillet as well, or the
+				// two left a crease between them)
+				const bool rowBelowTop = hasOwn && ownTop - top > 0.5f, rowAboveBottom = hasOwn && bottom - ownBottom > 0.5f;
 				const float outerT = extTop ? pillR : 0.0f, innerT = extTop ? 0.0f : pillR;
 				const float outerB = extBottom ? pillR : 0.0f, innerB = extBottom ? 0.0f : pillR;
 				if (parentOnLeft) {
@@ -3121,6 +3234,10 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 						PlaceBridge(menu, BRect(x, y0, x, y1), link.parentTop, link.parentBottom, hotColor, fillColor,
 							(int)(sTop - y0), (int)(sBottom - y0));
 						bridged = true;
+						seamY0 = y0;
+						seamFrom = (int)(sTop - y0);
+						seamTo = (int)(sBottom - y0);
+						seamLength = (int)(y1 - y0) + 1;
 
 						const float lx = parentOnLeft ? frame.left - 1 : link.windowLeft;
 						if (kShiftSideways && frame.top - 1 >= link.parentTop && frame.top - 1 <= link.parentBottom)
@@ -3149,12 +3266,12 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 			if (hasOwn && ownBottom > ownTop) {
 				float ex = parentOnLeft ? barW : w - barW;
 				int dx = parentOnLeft ? 1 : -1;
-				if (top < ownTop - 0.5f) {
-					Fillet fl = {ex, ownTop, dx, -1};
+				if (top < ownTop - 0.5f && (!pill || top < pTop - tol)) {
+					Fillet fl = {ex, ownTop, dx, -1, top};
 					fillets.push_back(fl);
 				}
-				if (bottom > ownBottom + 0.5f) {
-					Fillet fl = {ex, ownBottom, dx, 1};
+				if (bottom > ownBottom + 0.5f && (!pill || bottom > pBottom + tol)) {
+					Fillet fl = {ex, ownBottom, dx, 1, bottom};
 					fillets.push_back(fl);
 				}
 			}
@@ -3254,6 +3371,9 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		for (int y = y0; y <= y1; ++y) {
 			for (int x = x0; x <= x1; ++x) {
 				float c = FilletCoverage(x + 0.5f, y + 0.5f, f.x, f.y, f.dx, f.dy, filletR);
+				// (a bar that ends less than a radius from the row would have it stick out past its end as a thin spike)
+				if (f.dy < 0 ? y + 0.5f < f.limit : y + 0.5f > f.limit)
+					c = 0;
 				float& dst = cover[(size_t)(y - cy0) * cw + (x - cx0)];
 				dst = std::max(dst, c);
 			}
@@ -3321,6 +3441,25 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 		// (the window's own edges are the shape's edges beside the Deskbar; the box's other sides lie where nothing is lit)
 		RaisedShade(lit, bw, bh, shadow, deskbarRoot && parentOnLeft && bx0 == 0,
 			deskbarRoot && !parentOnLeft && bx1 == w - 1, std::max(0, edgeFrom - by0));
+		if (seamTo >= seamFrom && seamLength > 0) {
+			// the strip over the border runs on from the lit row's edge column: it takes that column's shading
+			const int ex = parentOnLeft ? 0 : w - 1;
+			const float base = menu->ConvertFromScreen(BPoint(0, seamY0)).y - vt;
+			std::vector<rgb_color> rows(seamLength, make_color(0, 0, 0, 0));
+			if (ex >= bx0 && ex <= bx1) {
+				for (int i = std::max(0, seamFrom); i <= seamTo && i < seamLength; i++) {
+					const int ry = (int)floorf(base + i) - by0;
+					if (ry < 0 || ry >= bh)
+						continue;
+					const size_t k = (size_t)ry * bw + (ex - bx0);
+					if (lit[k] < 0.5f)
+						continue;
+					rows[i] = make_color(Shaded(hot.red, shadow[k]), Shaded(hot.green, shadow[k]),
+						Shaded(hot.blue, shadow[k]));
+				}
+			}
+			ShadeBridge(menu->Window(), rows);
+		}
 		if (StockMenu(menu) && BarMenu(menu)) {
 			BBitmap* layerBitmap = new(std::nothrow) BBitmap(BRect(0, 0, bw - 1, bh - 1), B_RGBA32);
 			BBitmap* restoreBitmap = new(std::nothrow) BBitmap(BRect(0, 0, bw - 1, bh - 1), B_RGBA32);
@@ -4725,6 +4864,17 @@ public:
 			BMenu* menu = dynamic_cast<BMenu*>(view);
 			if (menu != NULL && menu->Window() != NULL && StockMenu(menu) && BarMenu(menu))
 				return;
+			// the submenu chevron of a menu that opens to the left: on the left, pointing left
+			if (menu != NULL && menu->Window() != NULL && rect.Width() > 3 && MenuGoesLeft(menu)
+				&& rect.right > menu->Bounds().Width() / 2) {
+				float leftMargin, unused;
+				MenuPrivate(menu).GetItemMargins(&leftMargin, &unused, &unused, &unused);
+				BRect mirrored = rect;
+				// (next to the label, clear of the part of a submenu slid over this menu's left edge)
+				mirrored.OffsetTo(std::max(1.0f, leftMargin - rect.Width() - 1), rect.top);
+				HaikuControlLook::DrawArrowShape(view, mirrored, mirrored, base, B_LEFT_ARROW, flags, tint);
+				return;
+			}
 		}
 		HaikuControlLook::DrawArrowShape(view, rect, updateRect, base, direction, flags, tint);
 	}

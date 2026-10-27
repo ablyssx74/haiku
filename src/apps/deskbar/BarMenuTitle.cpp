@@ -48,6 +48,7 @@ All rights reserved.
 #include "BarView.h"
 #include "BarWindow.h"
 #include "DeskbarMenu.h"
+#include "HeaderIconWindow.h"
 #include "ResourceSet.h"
 #include "icons.h"
 
@@ -60,6 +61,7 @@ TBarMenuTitle::TBarMenuTitle(float width, float height, const BBitmap* icon,
 	fHeight(height),
 	fIcon(icon),
 	fLeafIcon(NULL),
+	fLeafStamp(0),
 	fMenu(menu),
 	fBarView(barView),
 	fInitStatus(B_NO_INIT)
@@ -146,16 +148,15 @@ TBarMenuTitle::DrawContent()
 		const int32 room = (int32)std::min(frame.Width(), frame.Height()) - 2;
 		if (size > room && room > 0)
 			size = room;
-		if (fLeafIcon == NULL || fLeafIcon->Bounds().IntegerWidth() + 1 != size) {
-			size_t dataSize;
-			const void* data = AppResSet()->FindResource(B_VECTOR_ICON_TYPE, R_LeafLogoBitmap, &dataSize);
-			BBitmap* bitmap = new BBitmap(BRect(0, 0, size - 1, size - 1), B_RGBA32);
-			if (data != NULL && bitmap->InitCheck() == B_OK
-				&& BIconUtils::GetVectorIcon((const uint8*)data, dataSize, bitmap) == B_OK) {
+		const int64 stamp = HeaderIconStamp();
+		if (fLeafIcon == NULL || fLeafIcon->Bounds().IntegerWidth() + 1 != size || fLeafStamp != stamp) {
+			// (the built-in snake, or the vector icon the user chose)
+			BBitmap* bitmap = HeaderIconBitmap(size);
+			if (bitmap != NULL) {
 				delete fLeafIcon;
 				fLeafIcon = bitmap;
-			} else
-				delete bitmap;
+				fLeafStamp = stamp;
+			}
 		}
 		if (fLeafIcon != NULL)
 			icon = fLeafIcon;

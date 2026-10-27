@@ -261,3 +261,10 @@ MountMenu::DrawBackground(BRect updateRect)
 	BMenu::DrawBackground(updateRect);
 	SnakeSelector::DrawTrail(this);
 }
+
+
+BPoint
+MountMenu::ScreenLocation()
+{
+	return SnakeSelector::LeftOpening(this, BMenu::ScreenLocation());
+}

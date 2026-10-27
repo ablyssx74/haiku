@@ -143,3 +143,10 @@ BSlowMenu::DrawBackground(BRect updateRect)
 	BMenu::DrawBackground(updateRect);
 	SnakeSelector::DrawTrail(this);
 }
+
+
+BPoint
+BSlowMenu::ScreenLocation()
+{
+	return SnakeSelector::LeftOpening(this, BMenu::ScreenLocation());
+}

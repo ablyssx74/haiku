@@ -1,8 +1,17 @@
-# snaketracker 1.0.55
+# snaketracker 1.0.56
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **A Deskbar at the right of the screen opens all of its menus to the left,** with their chevrons on the left, pointing left (the way hDeskbar does it). Recent folders, Recent documents, Mount, Shutdown and every folder below them used to go to the right over the Deskbar when they fitted there; now the whole chain goes left, and the picture of the screen behind each menu follows.
+- **Change header icon...** is a new item of the Deskbar's menu, under About this system. A small window shows the header's current icon (the built-in snake by default); **Choose file...** takes an HVIF vector icon of your own, which replaces the snake in the header at once and stays after a restart (a copy is kept in `~/config/settings/deskbar/header_icon.hvif`); **Use default** brings the snake back.
+- **Wallpaper effects:** the wallpaper change has three more effects besides the fade (wipe, slide and circle reveal, in the SnakeTracker Wallpaper window), and hDesktop's dock is told when one starts, so the dock's own wallpaper changes in step with the desktop's.
+- **Deep folder menus keep the snake look.** Browsing through many nested folder menus (a chain that turned left at the edge of the screen) could fall back to the stock dark menu; the picture of the screen behind each submenu is now taken on the side BMenu really puts it.
+- **Fixes to the trail where menus join:** the seam between a menu and its submenu follows the shading of the lit row instead of showing as a lighter vertical line; the Deskbar's main menu no longer has a line that sticks out past its rounded bottom corner; a small spike where the trail bar met a lower row is gone, and that corner is rounded like the others; the main menu sits 2 pixels lower, which suits the trail better.
+- **The program headers of the Deskbar have a plain round end** instead of a dark crescent behind the icon.
+- **The Deskbar blink tooltip of the rounded corners option is gone:** the blink was fixed in 1.0.55.
+
+Since 1.0.55 (if you skipped it):
 - **SnakeTracker Wallpaper.** A new item in the Desktop's menu, under Hide Desktop Icons, opens a window that changes the wallpaper for you. It uses Haiku's own wallpaper setting (the one the Backgrounds preferences write), so Backgrounds and stock Tracker still work with it.
   - **Your own pictures:** pick folders (the folders in them count too; you can drop a folder on the window). Change every minute up to once a day, in random order or one after another, the same picture on all workspaces or a different one on each, and keep your placement or choose Scale to fit, Center or Tile.
   - **Pictures from the internet,** fetched once a day and kept (two weeks of each): Bing, Wikimedia Commons, Wallhaven (the most popular of the day, safe for work) and Picsum need no key; the Art Institute of Chicago brings public-domain paintings; Flickr, Unsplash, Pexels and Pixabay need a free key of your own, which you enter in the window. The title and the credit of a picture are shown in the window. Every picture of every ticked source and folder is equally likely.
