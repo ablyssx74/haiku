@@ -69,18 +69,25 @@ struct Program {
 	const char*	job;			// the launch daemon's name for the service
 	const char*	signature;		// the program's application signature
 	const char*	path;			// ours
+	const char*	stockPath;		// Haiku's own (what runs when ours can not)
 };
 
 static const Program kPrograms[] = {
-	{ "x-vnd.be-trak", "application/x-vnd.Be-TRAK", "/boot/system/apps/SnakeTracker/Tracker" },
-	{ "x-vnd.be-tskb", "application/x-vnd.Be-TSKB", "/boot/system/apps/SnakeTracker/Deskbar" },
+	{ "x-vnd.be-trak", "application/x-vnd.Be-TRAK", "/boot/system/apps/SnakeTracker/Tracker", "/boot/system/Tracker" },
+	{ "x-vnd.be-tskb", "application/x-vnd.Be-TSKB", "/boot/system/apps/SnakeTracker/Deskbar", "/boot/system/Deskbar" },
 };
 static const int kProgramCount = 2;
 
 extern char** environ;
 
+static void DebugLog(const char* format, ...);
+
 static volatile int32 sStop = 0;
 static int32 sSupervising[kProgramCount];	// 1 while a thread keeps program i running
+// 1 when ours could not be started (a Haiku update that it does not fit, say): Haiku's own runs in its place, and nothing puts
+// ours back until this server runs again (at the next start-up, or after an update of SnakeTracker)
+static int32 sFallback[kProgramCount];
+static int32 sFallbackTold = 0;
 
 
 // does the launch daemon start ours for this service?
@@ -132,38 +139,85 @@ OtherInstanceRunning(const Program& program)
 // stopped that job). It waits a few seconds first: a restart right away would run into the copy that is still shutting
 // down, and when the system itself is shutting down this server is asked to quit within that time, which ends this.
 // (The registrar does not start programs during a shutdown anyway.)
+// Tells the user, once, that Haiku's own Tracker and Deskbar run instead of ours.
+static int32
+FallbackAlertThread(void* cookie)
+{
+	BString* reason = (BString*)cookie;
+	BString text("SnakeTracker's Tracker or Deskbar could not start (");
+	text << reason->String() << ").\n\nHaiku's own Tracker and Deskbar are running instead. SnakeTracker probably needs "
+		"an update for this version of Haiku; it tries its own again the next time you start the computer.";
+	delete reason;
+	BAlert* alert = new BAlert("", text.String(), "OK", NULL, NULL, B_WIDTH_AS_USUAL, B_STOP_ALERT);
+	alert->Go();
+	return 0;
+}
+
+
+static void StartSupervising(int i);
+
+
+// Ours could not start: Haiku's own takes its place (kept running the same way), and the user is told once.
+static void
+StartStock(int i, const char* reason)
+{
+	if (atomic_test_and_set(&sFallback[i], 1, 0) != 0)
+		return;
+	DebugLog("falling back to Haiku's own %s: %s", kPrograms[i].stockPath, reason);
+	if (atomic_test_and_set(&sFallbackTold, 1, 0) == 0) {
+		thread_id thread = spawn_thread(FallbackAlertThread, "snaketracker alert", B_LOW_PRIORITY, new BString(reason));
+		if (thread >= 0)
+			resume_thread(thread);
+	}
+	StartSupervising(i);
+}
+
+
 static int32
 SuperviseThread(void* cookie)
 {
 	const Program* program = (const Program*)cookie;
+	const int index = program - kPrograms;
 	int tries = 0;
 
 	while (!sStop) {
-		const char* argv[] = { program->path, NULL };
+		const bool stock = sFallback[index] != 0;
+		const char* argv[] = { stock ? program->stockPath : program->path, NULL };
 		time_t started = time(NULL);
+		BString failure;
 
 		thread_id thread = load_image(1, argv, (const char**)environ);
 		if (thread < 0) {
 			tries++;
+			failure << "it could not be loaded: " << strerror(thread);
 		} else {
 			resume_thread(thread);
 			// (wait_for_thread() says 0 even for a program that was killed or crashed; waitpid() tells them apart)
 			int status = 0;
 			bool quitNormally = waitpid(thread, &status, 0) == thread && WIFEXITED(status)
 				&& WEXITSTATUS(status) == 0;
-			// (one that quits cleanly right away was probably refused, as a second copy, and counts as a failure)
-			if (quitNormally && time(NULL) - started >= 5)
+			const time_t ran = time(NULL) - started;
+			// (one that quits cleanly right away was probably refused, as a second copy, and counts as a failure; one that ran for
+			// a while and then crashed is not a program that can't start)
+			if (ran >= 20 || (quitNormally && ran >= 5))
 				tries = 0;
 			else
 				tries++;
+			if (!quitNormally)
+				failure << "it stopped at once";
 		}
 
+		// three failures in a row: Haiku's own instead of ours
+		if (!stock && tries >= 3) {
+			StartStock(index, failure.Length() > 0 ? failure.String() : "it would not start");
+			tries = 0;
+		}
 		if (tries > 20)
 			break;
 		for (int i = 0; i < 30 && !sStop; i++)
 			snooze(100000);
 	}
-	atomic_set(&sSupervising[program - kPrograms], 0);
+	atomic_set(&sSupervising[index], 0);
 	return 0;
 }
 
@@ -232,6 +286,44 @@ IsTracker(const Program& program)
 }
 
 
+// After start-up: when the launch daemon is the one that starts ours (so nothing here keeps them running), a Tracker or Deskbar that
+// is still not running half a minute on may have failed to load (an update of Haiku can change what it needs). Ours is started
+// here to see; if it can not even be loaded, or dies at once, Haiku's own takes its place.
+static int32
+BootWatchThread(void*)
+{
+	for (int i = 0; i < 300 && !sStop; i++)
+		snooze(100000);
+	for (int i = 0; i < kProgramCount && !sStop; i++) {
+		const Program& program = kPrograms[i];
+		if (sFallback[i] || sSupervising[i] || be_roster->IsRunning(program.signature))
+			continue;
+		const char* argv[] = { program.path, NULL };
+		thread_id thread = load_image(1, argv, (const char**)environ);
+		if (thread < 0) {
+			BString reason("it could not be loaded: ");
+			reason << strerror(thread);
+			StartStock(i, reason.String());
+			continue;
+		}
+		resume_thread(thread);
+		// (a program that stays up is the answer; one that quits cleanly was refused as a second copy)
+		int status = 0;
+		bool crashed = false;
+		for (int n = 0; n < 50 && !sStop; n++) {
+			if (waitpid(thread, &status, WNOHANG) == thread) {
+				crashed = !(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+				break;
+			}
+			snooze(100000);
+		}
+		if (crashed)
+			StartStock(i, "it stopped at once");
+	}
+	return 0;
+}
+
+
 static int32
 HandoffThread(void*)
 {
@@ -266,6 +358,8 @@ ReplaceThread(void* cookie)
 {
 	const int i = (int)(addr_t)cookie;
 	const Program& program = kPrograms[i];
+	if (sFallback[i])
+		return 0;	// (Haiku's own runs because ours can not)
 	team_id team = be_roster->TeamFor(program.signature);
 	BString saved;
 	if (team >= 0) {
@@ -1662,6 +1756,9 @@ public:
 		thread_id thread = spawn_thread(HandoffThread, "snaketracker handoff", B_LOW_PRIORITY, NULL);
 		if (thread >= 0)
 			resume_thread(thread);
+		thread = spawn_thread(BootWatchThread, "snaketracker boot watch", B_LOW_PRIORITY, NULL);
+		if (thread >= 0)
+			resume_thread(thread);
 		be_roster->StartWatching(BMessenger(this), B_REQUEST_LAUNCHED);
 		thread = spawn_thread(UpdateThread, "snaketracker update check", B_LOW_PRIORITY, NULL);
 		if (thread >= 0)
@@ -1737,7 +1834,7 @@ public:
 		if (path.Path() == NULL || strncmp(path.Path(), kAppFolder, strlen(kAppFolder)) == 0)
 			return;
 		for (int i = 0; i < kProgramCount; i++) {
-			if (strcasecmp(signature, kPrograms[i].signature) != 0)
+			if (strcasecmp(signature, kPrograms[i].signature) != 0 || sFallback[i])
 				continue;
 			thread_id thread = spawn_thread(ReplaceThread, "snaketracker replace", B_LOW_PRIORITY, (void*)(addr_t)i);
 			if (thread >= 0)

@@ -1,8 +1,11 @@
-# snaketracker 1.0.59
+# snaketracker 1.0.60
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **If SnakeTracker's Tracker or Deskbar can not start, Haiku's own take their place.** After a Haiku update that SnakeTracker does not fit (as with hrev60299_6 before 1.0.59), they could fail to load, and the desktop was left with no Tracker and no Deskbar at all: the server that keeps them running gave up after a minute. Now, when ours fail to start three times in a row (or can't be loaded at all when the computer has started), the server starts Haiku's own Tracker and Deskbar and keeps those running, and tells you once what happened and why. It tries ours again the next time you start the computer, or after you update SnakeTracker. A Tracker that ran for a while and then crashed is not counted as one that can't start.
+
+Since 1.0.59 (if you skipped it):
 - **Works with the latest Haiku nightly (hrev60299_6 and later).** With that update, Tracker and the Deskbar did not start at all: Haiku changed a private class of its own, `JobQueue`, which SnakeTracker used to make thumbnails, and SnakeTracker's library could not be loaded any more. The thumbnails now have a small job queue of their own that does not depend on Haiku's private classes, so a change like that can't stop Tracker from starting again. Thumbnails of images are made as before.
 
 Since 1.0.58 (if you skipped it):
