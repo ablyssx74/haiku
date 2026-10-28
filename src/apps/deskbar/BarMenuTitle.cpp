@@ -48,7 +48,7 @@ All rights reserved.
 #include "BarView.h"
 #include "BarWindow.h"
 #include "DeskbarMenu.h"
-#include "HeaderIconWindow.h"
+#include "HeaderIcon.h"
 #include "ResourceSet.h"
 #include "icons.h"
 
@@ -143,11 +143,15 @@ TBarMenuTitle::DrawContent()
 	// the header's snake grows with the icons of the tabs (Deskbar preferences), a little larger than they are
 	const BBitmap* icon = fIcon;
 	if (dynamic_cast<TDeskbarMenu*>(fMenu) != NULL) {
+		// (a taller header, set in the SnakeTracker Settings, has a larger icon: it fills the header, or the part of it that was set)
 		int32 size = std::max((int32)fIcon->Bounds().IntegerWidth() + 1,
-			static_cast<TBarApp*>(be_app)->TeamIconSize() + 8);
+			static_cast<TBarApp*>(be_app)->TeamIconSize() + 8) + HeaderExtraHeight();
 		const int32 room = (int32)std::min(frame.Width(), frame.Height()) - 2;
 		if (size > room && room > 0)
 			size = room;
+		// (less of the header, when it was set so: the rest is room to put the icon at the top or the bottom)
+		if (HeaderIconPercent() < 100 && size > 8)
+			size = std::max((int32)8, (size * HeaderIconPercent()) / 100);
 		const int64 stamp = HeaderIconStamp();
 		if (fLeafIcon == NULL || fLeafIcon->Bounds().IntegerWidth() + 1 != size || fLeafStamp != stamp) {
 			// (the built-in snake, or the vector icon the user chose)
@@ -166,8 +170,25 @@ TBarMenuTitle::DrawContent()
 
 	float widthOffset = rintf((frame.Width() - iconRect.Width()) / 2);
 	float heightOffset = rintf((frame.Height() - iconRect.Height()) / 2);
+	if (dynamic_cast<TDeskbarMenu*>(fMenu) != NULL) {
+		// (the icon sits at the left or the right of the header, a little in from the edge, when it is set to)
+		const int32 alignment = HeaderAlignment();
+		if (alignment == 0)
+			widthOffset = std::min(widthOffset, 6.0f);
+		else if (alignment == 2)
+			widthOffset = std::max(widthOffset, frame.Width() - iconRect.Width() - 6.0f);
+	}
 
-	// (the snake sits in the middle of the header)
+	if (dynamic_cast<TDeskbarMenu*>(fMenu) != NULL) {
+		// (and at the top or the bottom, a little in from the edge, when it is set to)
+		const int32 vertical = HeaderVerticalAlignment();
+		if (vertical == 0)
+			heightOffset = std::min(heightOffset, 2.0f);
+		else if (vertical == 2)
+			heightOffset = std::max(heightOffset, frame.Height() - iconRect.Height() - 2.0f);
+	}
+
+	// (the snake sits in the middle of the header, unless it was set to the left or the right, the top or the bottom)
 	iconRect.OffsetBy(widthOffset, heightOffset);
 
 	// clip to menu item frame

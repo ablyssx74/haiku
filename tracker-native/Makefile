@@ -18,7 +18,7 @@ CXXLIBS  := $(if $(GCC2),,-lsupc++ -lstdc++)   # gcc 2 links its own libstdc++ (
 
 TRACKER_SRCS := $(filter-out $(KIT)/FilePanel.cpp,$(wildcard $(KIT)/*.cpp))
 # libtracker.so's own list (see src/kits/tracker/Jamfile) -- the wildcard above is trimmed to it below.
-LISTED := SidePanel SnakeSelector SnakeMenuItem SnakeWallpaperWindow SnakeWorkspacesWindow SnakeFade AttributeStream AutoMounterSettings BackgroundImage Bitmaps ContainerWindow CountView DeskWindow \
+LISTED := SidePanel SnakeSelector SnakeMenuItem SnakeWallpaperView SnakeWorkspacesView SnakeHeaderIconView SnakeSettingsWindow SnakeFade AttributeStream AutoMounterSettings BackgroundImage Bitmaps ContainerWindow CountView DeskWindow \
   DesktopPoseView DraggableContainerIcon DialogPane DirMenu EntryIterator FBCPadding FSClipboard FSUndoRedo \
   FSUtils FavoritesMenu FilePanel FilePanelPriv FindPanel GroupedMenu IconCache IconMenuItem LiveMenu \
   MimeTypeList MiniMenuField Model MountMenu Navigator NavMenu NodePreloader NodeWalker OpenWithWindow \
@@ -50,7 +50,7 @@ LIBS := -lbe -llocalestub -ltranslation -lshared -lcolumnlistview $(CXXLIBS)
 
 all: $(OUT)/libtracker.so
 
-$(OUT)/src/kits/tracker/SnakeWallpaperWindow.o: snaketracker_server.cpp
+$(OUT)/src/kits/tracker/SnakeWallpaperView.o: snaketracker_server.cpp
 
 $(OUT)/%.o: $(TOP)/%.cpp
 	@mkdir -p $(dir $@)
@@ -89,7 +89,7 @@ $(OUT)/Tracker: $(APP)/main.cpp $(OUT)/Tracker.rsrc $(OUT)/libtracker.so
 # is built here too and installed next to the library for the same reason as Tracker.
 DESK := $(TOP)/src/apps/deskbar
 DESK_SRCS := BarApp BarMenuBar BarMenuTitle BarView BarWindow DeskbarMenu DeskbarUtils ExpandoMenuBar \
-  InlineScrollView PreferencesWindow ScreenCornerSelector HeaderIconWindow ShowHideMenuItem StatusView StatusViewShelf \
+  InlineScrollView PreferencesWindow ScreenCornerSelector HeaderIcon ShowHideMenuItem StatusView StatusViewShelf \
   TeamMenu TeamMenuItem TimeView TruncatableMenuItem WindowMenu WindowMenuItem ResourceSet Switcher \
   CalendarMenuWindow SnakeCorners
 DESK_OBJS := $(addprefix $(OUT)/deskbar/,$(addsuffix .o,$(DESK_SRCS)))

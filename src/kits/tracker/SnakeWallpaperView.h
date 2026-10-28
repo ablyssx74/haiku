@@ -1,14 +1,14 @@
 /*
- * The "SnakeTracker Wallpaper" window of the Desktop's menu: the folders the wallpapers come from, how often and in what
+ * The Wallpaper tab of the SnakeTracker Settings window: the folders the wallpapers come from, how often and in what
  * order they change, and whether each workspace has its own. The settings go to a file the SnakeTracker server reads; the
  * server changes the wallpaper with Haiku's own settings (see SnakeWallpaper.h).
  */
-#ifndef SNAKE_WALLPAPER_WINDOW_H
-#define SNAKE_WALLPAPER_WINDOW_H
+#ifndef SNAKE_WALLPAPER_VIEW_H
+#define SNAKE_WALLPAPER_VIEW_H
 
 
+#include <GroupView.h>
 #include <String.h>
-#include <Window.h>
 
 
 class BButton;
@@ -23,20 +23,20 @@ class BPopUpMenu;
 
 namespace BPrivate {
 
-class SnakeWallpaperWindow : public BWindow {
+class SnakeWallpaperView : public BGroupView {
 public:
-	// opens the window, or brings the open one to the front
-	static void				Open();
+							SnakeWallpaperView();
+	virtual					~SnakeWallpaperView();
 
-	virtual bool			QuitRequested();
 	virtual void			MessageReceived(BMessage* message);
-	virtual void			WindowActivated(bool active);
-	virtual void			WorkspaceActivated(int32 workspace, bool active);
+
+	// the window was brought forward, or went to another workspace: the picture shown is the current one again
+	void					Refresh() { _ShowCurrent(); }
+	// the window is closing: what was typed is kept (and the server, if it is running, reads it again; one of another build is
+	// left alone: starting that over is not for a window that is closing, which may be a Tracker that is quitting)
+	void					Save();
 
 private:
-							SnakeWallpaperWindow();
-	virtual					~SnakeWallpaperWindow();
-
 			void			_Load();
 			void			_Save(bool changeNow, bool notify = true);
 			void			_AddFolder(const char* path);
@@ -69,4 +69,4 @@ private:
 }	// namespace BPrivate
 
 
-#endif	// SNAKE_WALLPAPER_WINDOW_H
+#endif	// SNAKE_WALLPAPER_VIEW_H

@@ -1,8 +1,19 @@
-# snaketracker 1.0.60
+# snaketracker 1.0.61
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **SnakeTracker Settings.** One window, "SnakeTracker Settings...", in the Desktop's menu, with a tab for each part of SnakeTracker. It replaces the two items SnakeTracker Wallpaper... and SnakeTracker Workspaces..., and the SnakeTracker pane of Tracker's preferences (which is gone; Tracker's preferences have Desktop, Windows, Volume icons and Disk mount as they did before).
+  - **Core settings:** the same options the SnakeTracker pane had (raised look, snake trail, flat selector, scroll bar arrows, rounded corners, system colors, all programs, the SnakeTracker color, restart), with Defaults and Revert. They apply at once.
+  - **Wallpaper:** the wallpaper window, as it was.
+  - **Workspaces:** the transition and the effect when you go to another workspace.
+  - **Custom HVIF Icons:** see below.
+- **A header icon of your own, bigger or smaller, and where you want it.** The Custom HVIF Icons tab has what the Deskbar menu's "Change header icon..." had (which is gone from the Deskbar's menu): choose an HVIF file or go back to the snake. It also sets how much taller the Deskbar's header is (up to 64 pixels, and the icon grows with it, to fill it), how much of the header the icon fills (30 to 100 percent), and where it sits across (left, center, right) and up and down (top, center, bottom). The Deskbar follows at once. The taller header is for a Deskbar at the side of the screen.
+- **An icon of your own for Tracker.** The same tab can give Tracker another icon (an HVIF file). The Deskbar shows it for Tracker's tab, and hDesktop's dock does for Tracker's icon (hDesktop 1.0.74; the dock changes it as soon as you choose it).
+- **SnakeTracker's fall back to Haiku's own Tracker and Deskbar does not mistake a second copy for a failure.** If Tracker or the Deskbar is running already (you started it yourself, say), the server's own start of it is refused, and that used to count as ours failing to start, with the message that Haiku's own were running instead. Only a program that can not be loaded, or dies at once, counts now.
+- **Closing the Settings window does not start the server over.** It used to, when the server was of another build than the Tracker (after an update), and that held up Tracker quitting and left the desktop black for a while.
+
+Since 1.0.60 (if you skipped it):
 - **If SnakeTracker's Tracker or Deskbar can not start, Haiku's own take their place.** After a Haiku update that SnakeTracker does not fit (as with hrev60299_6 before 1.0.59), they could fail to load, and the desktop was left with no Tracker and no Deskbar at all: the server that keeps them running gave up after a minute. Now, when ours fail to start three times in a row (or can't be loaded at all when the computer has started), the server starts Haiku's own Tracker and Deskbar and keeps those running, and tells you once what happened and why. It tries ours again the next time you start the computer, or after you update SnakeTracker. A Tracker that ran for a while and then crashed is not counted as one that can't start.
 
 Since 1.0.59 (if you skipped it):

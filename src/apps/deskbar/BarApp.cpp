@@ -64,9 +64,11 @@ All rights reserved.
 #include "BarMenuBar.h"
 #include "BarView.h"
 #include "BarWindow.h"
+#include "ExpandoMenuBar.h"
 #include "DeskbarUtils.h"
 #include "FSUtils.h"
-#include "HeaderIconWindow.h"
+#include "HeaderIcon.h"
+#include "SnakeHeader.h"
 #include "PreferencesWindow.h"
 #include "ResourceSet.h"
 #include "StatusView.h"
@@ -443,16 +445,12 @@ TBarApp::MessageReceived(BMessage* message)
 			ShowPreferencesWindow();
 			break;
 
-		case kHeaderIconShow:
-			HeaderIconWindow::ShowWindow();
-			break;
-
-		case kHeaderIconChanged:
-			// (the header's picture is made again the next time it is drawn)
+		case kMsgHeaderChanged:
+			// the header's icon, height or alignment, or Tracker's icon, was set in the SnakeTracker Settings window: Tracker's
+			// icon is made again, and the Deskbar is laid out and drawn again
+			RefreshTrackerIcon();
 			if (fBarWindow->Lock()) {
-				fBarWindow->BarView()->Invalidate();
-				if (fBarWindow->BarView()->BarMenuBar() != NULL)
-					fBarWindow->BarView()->BarMenuBar()->Invalidate();
+				fBarWindow->BarView()->HeaderChanged();
 				fBarWindow->Unlock();
 			}
 			break;
@@ -827,6 +825,43 @@ TBarApp::Unsubscribe(const BMessenger &subscriber)
 }
 
 
+// Tracker's tab is given the icon the user chose (or the one of Tracker's file again, when they went back to it).
+void
+TBarApp::RefreshTrackerIcon()
+{
+	BBitmap* fresh = NULL;
+	{
+		BAutolock autolock(sSubscriberLock);
+		if (!autolock.IsLocked())
+			return;
+		const int32 teamCount = sBarTeamInfoList.CountItems();
+		for (int32 i = 0; i < teamCount; i++) {
+			BarTeamInfo* barInfo = (BarTeamInfo*)sBarTeamInfoList.ItemAt(i);
+			if (strcasecmp(barInfo->sig, kTrackerSignature) != 0)
+				continue;
+			// (the pictures made before are not used again)
+			for (int32 n = 0; n < kIconCacheCount; n++) {
+				delete barInfo->iconCache[n];
+				barInfo->iconCache[n] = NULL;
+			}
+			barInfo->icon = NULL;
+			_CacheTeamIcon(barInfo, fSettings.iconSize);
+			if (barInfo->icon != NULL)
+				fresh = new BBitmap(barInfo->icon);
+			break;
+		}
+	}
+	if (fresh == NULL)
+		return;
+	if (fBarWindow->Lock()) {
+		if (fBarWindow->BarView()->ExpandoMenuBar() != NULL)
+			fBarWindow->BarView()->ExpandoMenuBar()->UpdateTrackerIcon(fresh);
+		fBarWindow->Unlock();
+	}
+	delete fresh;
+}
+
+
 BBitmap*
 TBarApp::FetchTeamIcon(team_id team, int32 size)
 {
@@ -1093,6 +1128,12 @@ TBarApp::_CacheTeamIcon(BarTeamInfo* barInfo, int32 size)
 	int32 composed = be_control_look->ComposeIconSize(size).IntegerWidth() + 1;
 	BRect iconRect = BRect(0, 0, composed - 1, composed - 1);
 	BBitmap* icon = new BBitmap(iconRect, B_RGBA32);
+
+	// Tracker with an icon the user chose in the SnakeTracker Settings
+	if (strcasecmp(barInfo->sig, kTrackerSignature) == 0 && CustomTrackerIcon(icon)) {
+		barInfo->iconCache[index] = barInfo->icon = icon;
+		return B_OK;
+	}
 
 	// icon wasn't in cache, get it from be_roster and cache it
 	app_info appInfo;

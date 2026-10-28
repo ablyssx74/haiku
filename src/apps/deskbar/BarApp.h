@@ -157,6 +157,8 @@ public:
 			int32					TeamIconSize();
 
 			BBitmap*				FetchTeamIcon(team_id team, int32 size);
+			// Tracker's tab has the icon the user chose (or the one of its file again)
+			void					RefreshTrackerIcon();
 			BBitmap*				FetchWindowIcon(bool local = true,
 										bool minimized = false);
 

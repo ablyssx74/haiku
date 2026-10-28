@@ -1153,3 +1153,16 @@ TExpandoMenuBar::_FinishedDrag(bool invoke)
 	if (!invoke && fBarView != NULL && fBarView->Dragging())
 		fBarView->DragStop(true);
 }
+
+
+void
+TExpandoMenuBar::UpdateTrackerIcon(const BBitmap* icon)
+{
+	for (int32 i = 0; i < CountItems(); i++) {
+		TTeamMenuItem* item = dynamic_cast<TTeamMenuItem*>(ItemAt(i));
+		if (item != NULL && item->Signature() != NULL && strcasecmp(item->Signature(), kTrackerSignature) == 0) {
+			item->SetIcon(new BBitmap(icon));
+			Invalidate(item->Frame());
+		}
+	}
+}

@@ -5,8 +5,8 @@ Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 * Tracker and Deskbar menus: a rounded selector with a dark outline that stays joined through every open submenu. The selected row sticks out of the menu on its outer edge as a small outlined tab. Where a submenu's row is not level with the row that opened it, the strip joining them hangs a little into the parent menu too. It is flat by default; Tracker preferences > Windows > "Flat menu selector" brings back the beveled edges.
 * **SnakeControlLook** (Appearance > Control look): the same look for every program's menus, tray
   replicants (ProcessController and the like) and software installed later.
-* Selector colour: hDesktop's Selector Color while hDesktop is running; otherwise Tracker preferences >
-  Windows > "SnakeTracker color"; otherwise blue.
+* Selector colour: hDesktop's Selector Color while hDesktop is running; otherwise the SnakeTracker color
+  (Desktop menu > SnakeTracker Settings > Core settings); otherwise blue.
 
 **Install it for the whole system** (the launch files point at `/system/apps`): double-click the `.hpkg` and choose "System", or copy it to `/boot/system/packages/`. A "home" install puts the files under `~/config` and the launch files then point at nothing.
 

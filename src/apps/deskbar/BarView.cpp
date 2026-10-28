@@ -52,6 +52,7 @@ All rights reserved.
 #include "BarApp.h"
 #include "BarMenuBar.h"
 #include "BarWindow.h"
+#include "HeaderIcon.h"
 #include "DeskbarMenu.h"
 #include "DeskbarUtils.h"
 #include "ExpandoMenuBar.h"
@@ -502,7 +503,8 @@ TBarView::PlaceDeskbarMenu()
 	BRect menuFrame(Bounds());
 	if (Vertical()) {
 		width = fBarApp->Settings()->width;
-		height = fTabHeight;
+		height = fTabHeight + HeaderExtraHeight();
+			// (the header can be made taller in the SnakeTracker Settings)
 	} else {
 		// horizontal
 		if (State() == kMiniState) {
@@ -539,6 +541,20 @@ TBarView::PlaceDeskbarMenu()
 
 	fBarMenuBar->SmartResize(width, height);
 	fBarMenuBar->MoveTo(B_ORIGIN);
+}
+
+
+// The icon, the height or the position of the icon in the header was set in the SnakeTracker Settings: the Deskbar is laid out again
+// (the header can be of another height) and drawn again.
+void
+TBarView::HeaderChanged()
+{
+	if (Window() == NULL)
+		return;
+	if (fBarMenuBar != NULL)
+		fBarMenuBar->Invalidate();
+	UpdatePlacement();
+	Invalidate();
 }
 
 

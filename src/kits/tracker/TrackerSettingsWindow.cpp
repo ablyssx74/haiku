@@ -119,8 +119,7 @@ TrackerSettingsWindow::TrackerSettingsWindow()
 		new DesktopSettingsView()), kDesktopSettings);
 	fSettingsTypeListView->AddItem(new SettingsItem(B_TRANSLATE("Windows"),
 		new WindowsSettingsView()), kWindowsSettings);
-	fSettingsTypeListView->AddItem(new SettingsItem(B_TRANSLATE("SnakeTracker"),
-		new SnakeSettingsView()), kSnakeSettings);
+	// (the SnakeTracker settings are in the SnakeTracker Settings window of the Desktop's menu, on its Core settings tab)
 	fSettingsTypeListView->AddItem(new SettingsItem(
 		B_TRANSLATE("Volume icons"), new SpaceBarSettingsView()),
 		kSpaceBarSettings);

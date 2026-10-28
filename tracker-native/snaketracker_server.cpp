@@ -179,6 +179,9 @@ SuperviseThread(void* cookie)
 	const Program* program = (const Program*)cookie;
 	const int index = program - kPrograms;
 	int tries = 0;
+	// The failures that say ours can not run: it could not be loaded, or it died. (One that quits cleanly right away was refused
+	// as a second copy, because one is running already: that is no reason to put Haiku's own in its place.)
+	int hard = 0;
 
 	while (!sStop) {
 		const bool stock = sFallback[index] != 0;
@@ -189,6 +192,7 @@ SuperviseThread(void* cookie)
 		thread_id thread = load_image(1, argv, (const char**)environ);
 		if (thread < 0) {
 			tries++;
+			hard++;
 			failure << "it could not be loaded: " << strerror(thread);
 		} else {
 			resume_thread(thread);
@@ -199,18 +203,23 @@ SuperviseThread(void* cookie)
 			const time_t ran = time(NULL) - started;
 			// (one that quits cleanly right away was probably refused, as a second copy, and counts as a failure; one that ran for
 			// a while and then crashed is not a program that can't start)
-			if (ran >= 20 || (quitNormally && ran >= 5))
+			if (ran >= 20 || (quitNormally && ran >= 5)) {
 				tries = 0;
-			else
+				hard = 0;
+			} else {
 				tries++;
+				if (!quitNormally)
+					hard++;
+			}
 			if (!quitNormally)
 				failure << "it stopped at once";
 		}
 
-		// three failures in a row: Haiku's own instead of ours
-		if (!stock && tries >= 3) {
+		// three failures in a row that mean it can not run: Haiku's own instead of ours
+		if (!stock && hard >= 3) {
 			StartStock(index, failure.Length() > 0 ? failure.String() : "it would not start");
 			tries = 0;
+			hard = 0;
 		}
 		if (tries > 20)
 			break;

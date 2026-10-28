@@ -50,7 +50,6 @@ All rights reserved.
 #include "BarApp.h"
 #include "BarView.h"
 #include "DeskbarUtils.h"
-#include "HeaderIconWindow.h"
 #include "IconMenuItem.h"
 #include "MountMenu.h"
 #include "RecentItems.h"
@@ -263,10 +262,6 @@ B_TRANSLATE_MARK_VOID("About this system")
 	item->SetEnabled(!dragging);
 	AddItem(item);
 
-	item = new SnakeMenuItem(B_TRANSLATE("Change header icon" B_UTF8_ELLIPSIS), new BMessage(kHeaderIconShow));
-	item->SetTarget(be_app);
-	AddItem(item);
-
 	static const char* kFindMenuItemStr
 		= B_TRANSLATE_MARK("Find" B_UTF8_ELLIPSIS);
 
@@ -381,7 +376,6 @@ TDeskbarMenu::ResetTargets()
 				case kShowSplash:
 				case kToggleDraggers:
 				case kConfigShow:
-				case kHeaderIconShow:
 				case kConfigQuit:
 				case kAlwaysTop:
 				case kExpandNewTeams:

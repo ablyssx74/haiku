@@ -175,6 +175,8 @@ public:
 			// (called every second by the clock) the Snake look was switched on or off, or its color changed: the panels take
 			// the colors again and the tray is laid out again
 			void				CheckLook();
+			// the header's icon, height or alignment was set: laid out and drawn again
+			void				HeaderChanged();
 
 			float			TeamMenuItemHeight() const;
 			float			TabHeight() const { return fTabHeight; };

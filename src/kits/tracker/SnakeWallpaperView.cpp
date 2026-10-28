@@ -1,9 +1,9 @@
 /*
- * The "SnakeTracker Wallpaper" window: see SnakeWallpaperWindow.h.
+ * The Wallpaper tab: see SnakeWallpaperView.h.
  */
 
 
-#include "SnakeWallpaperWindow.h"
+#include "SnakeWallpaperView.h"
 
 #include <Alert.h>
 #include <Button.h>
@@ -54,8 +54,6 @@ static const uint32 kMsgPickSvg = 'wpSv';
 static const uint32 kMsgSvgPicked = 'wpSp';
 
 static const char* const kKeyNames[4] = { "flickrkey", "unsplashkey", "pexelskey", "pixabaykey" };
-
-static SnakeWallpaperWindow* sWindow = NULL;
 
 static const int32 kIntervals[] = { 1, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1440 };
 static const int32 kIntervalCount = sizeof(kIntervals) / sizeof(kIntervals[0]);
@@ -122,28 +120,9 @@ Marked(BPopUpMenu* menu)
 }
 
 
-void
-SnakeWallpaperWindow::Open()
-{
-	if (sWindow != NULL) {
-		if (sWindow->Lock()) {
-			// (the window follows to the workspace it is asked for on, and shows that workspace's picture)
-			sWindow->SetWorkspaces(B_CURRENT_WORKSPACE);
-			sWindow->_ShowCurrent();
-			sWindow->Activate();
-			sWindow->Unlock();
-		}
-		return;
-	}
-	sWindow = new SnakeWallpaperWindow();
-	sWindow->Show();
-}
-
-
-SnakeWallpaperWindow::SnakeWallpaperWindow()
+SnakeWallpaperView::SnakeWallpaperView()
 	:
-	BWindow(BRect(120, 120, 560, 480), B_TRANSLATE("SnakeTracker Wallpaper"), B_TITLED_WINDOW,
-		B_NOT_ZOOMABLE | B_AUTO_UPDATE_SIZE_LIMITS | B_ASYNCHRONOUS_CONTROLS),
+	BGroupView("wallpaper", B_VERTICAL),
 	fSvgPanel(NULL),
 	fPanel(NULL)
 {
@@ -205,7 +184,7 @@ SnakeWallpaperWindow::SnakeWallpaperWindow()
 	fSvg = new BCheckBox("svg", B_TRANSLATE("SVG wallpaper in the accent color (replaces the pictures)"),
 		new BMessage(kMsgChanged));
 	fSvg->SetToolTip(B_TRANSLATE("A drawing that is made again in the accent color whenever that changes (the SnakeTracker\n"
-		"color of the Tracker preferences, or Haiku's selection color). It needs the librsvg package."));
+		"color of the SnakeTracker Settings, or Haiku's selection color). It needs the librsvg package."));
 	fSvgMenu = BuildMenu("svg template");
 	{
 		static const char* const kTemplates[3][2] = { { "builtin:waves", "Waves" }, { "builtin:bubbles", "Bubbles" },
@@ -221,7 +200,6 @@ SnakeWallpaperWindow::SnakeWallpaperWindow()
 	}
 
 	fNext = new BButton("next", B_TRANSLATE("Next wallpaper"), new BMessage(kMsgNextNow));
-	BButton* close = new BButton("close", B_TRANSLATE("Close"), new BMessage(B_QUIT_REQUESTED));
 
 	BMenuField* interval = new BMenuField(B_TRANSLATE("Change every:"), fIntervalMenu);
 	BMenuField* order = new BMenuField(B_TRANSLATE("Order:"), fOrderMenu);
@@ -281,33 +259,23 @@ SnakeWallpaperWindow::SnakeWallpaperWindow()
 		.AddGroup(B_HORIZONTAL)
 			.Add(fNext)
 			.AddGlue()
-			.Add(close)
-			.End();
+			.End()
+		.SetInsets(B_USE_WINDOW_INSETS);
 
 	_Load();
 	_ShowCurrent();
-	CenterOnScreen();
 }
 
 
-SnakeWallpaperWindow::~SnakeWallpaperWindow()
+SnakeWallpaperView::~SnakeWallpaperView()
 {
 	delete fPanel;
 	delete fSvgPanel;
 }
 
 
-bool
-SnakeWallpaperWindow::QuitRequested()
-{
-	_Save(false);
-	sWindow = NULL;
-	return true;
-}
-
-
 void
-SnakeWallpaperWindow::_Load()
+SnakeWallpaperView::_Load()
 {
 	BMessage settings;
 	ReadWallpaperSettings(&settings);
@@ -338,9 +306,22 @@ SnakeWallpaperWindow::_Load()
 }
 
 
+static bool ServerIsCurrent();
+
+
+void
+SnakeWallpaperView::Save()
+{
+	_Save(false, false);
+	if (ServerIsCurrent())
+		BMessenger(kSnakeServerSignature).SendMessage(kMsgWallpaperReload);
+}
+
+
+// Writes the settings and tells the server; changeNow: and has it change the wallpaper at once (new folders, just switched on).
 // Writes the settings and tells the server; changeNow: and has it change the wallpaper at once (new folders, just switched on).
 void
-SnakeWallpaperWindow::_Save(bool changeNow, bool notify)
+SnakeWallpaperView::_Save(bool changeNow, bool notify)
 {
 	BMessage settings;
 	settings.AddBool("enabled", fEnable->Value() == B_CONTROL_ON);
@@ -421,7 +402,7 @@ ServerIsCurrent()
 
 
 bool
-SnakeWallpaperWindow::_ServerReady()
+SnakeWallpaperView::_ServerReady()
 {
 	if (ServerIsCurrent())
 		return true;
@@ -454,7 +435,7 @@ SnakeWallpaperWindow::_ServerReady()
 
 
 void
-SnakeWallpaperWindow::_UpdateControls()
+SnakeWallpaperView::_UpdateControls()
 {
 	fRemove->SetEnabled(fFolders->CurrentSelection() >= 0);
 	bool online = false;
@@ -466,7 +447,7 @@ SnakeWallpaperWindow::_UpdateControls()
 
 // Marks the template of the settings in the menu ("Other file" shows the name of the file that was chosen).
 void
-SnakeWallpaperWindow::_MarkSvg(const char* file)
+SnakeWallpaperView::_MarkSvg(const char* file)
 {
 	for (int32 i = 0; i < fSvgMenu->CountItems(); i++) {
 		BMenuItem* item = fSvgMenu->ItemAt(i);
@@ -492,7 +473,7 @@ SnakeWallpaperWindow::_MarkSvg(const char* file)
 
 // What the picture on the Desktop is, when it came from the internet (its title and copyright stay with the file).
 void
-SnakeWallpaperWindow::_ShowCurrent()
+SnakeWallpaperView::_ShowCurrent()
 {
 	BString text;
 	BPath desktop;
@@ -543,24 +524,10 @@ SnakeWallpaperWindow::_ShowCurrent()
 }
 
 
-void
-SnakeWallpaperWindow::WorkspaceActivated(int32 workspace, bool active)
-{
-	if (active)
-		_ShowCurrent();
-}
 
 
 void
-SnakeWallpaperWindow::WindowActivated(bool active)
-{
-	if (active)
-		_ShowCurrent();
-}
-
-
-void
-SnakeWallpaperWindow::_AddFolder(const char* path)
+SnakeWallpaperView::_AddFolder(const char* path)
 {
 	for (int32 i = 0; i < fFolders->CountItems(); i++) {
 		if (strcmp(((BStringItem*)fFolders->ItemAt(i))->Text(), path) == 0)
@@ -571,7 +538,7 @@ SnakeWallpaperWindow::_AddFolder(const char* path)
 
 
 void
-SnakeWallpaperWindow::MessageReceived(BMessage* message)
+SnakeWallpaperView::MessageReceived(BMessage* message)
 {
 	switch (message->what) {
 		case kMsgChanged:
@@ -663,7 +630,7 @@ SnakeWallpaperWindow::MessageReceived(BMessage* message)
 		}
 
 		default:
-			BWindow::MessageReceived(message);
+			BGroupView::MessageReceived(message);
 			break;
 	}
 }

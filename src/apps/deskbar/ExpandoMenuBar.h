@@ -100,6 +100,8 @@ public:
 			bool			CheckForSizeOverrun();
 
 			void			StartMonitoringWindows();
+			// Tracker's tab shows this icon (a copy of it is kept)
+			void				UpdateTrackerIcon(const BBitmap* icon);
 			void			StopMonitoringWindows();
 
 private:
