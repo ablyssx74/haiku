@@ -25,7 +25,10 @@
 #include <Volume.h>
 
 #include <AutoDeleter.h>
-#include <JobQueue.h>
+#include <Autolock.h>
+#include <Locker.h>
+
+#include <deque>
 
 #include "Attributes.h"
 #include "Commands.h"
@@ -51,8 +54,56 @@ enum ThumbnailWorkers {
 
 	TOTAL_THUMBNAIL_WORKERS
 };
-using BSupportKit::BPrivate::JobQueue;
-static JobQueue* sThumbnailWorkers[TOTAL_THUMBNAIL_WORKERS];
+class GenerateThumbnailJob;
+
+// The jobs of a thumbnail worker, one after another. (Haiku's own private BSupportKit::JobQueue, which this used to be, changed its
+// constructor in a nightly, and a Tracker that called the old one could not even load: this does not depend on it.)
+class ThumbnailQueue {
+public:
+	ThumbnailQueue()
+		:
+		fLock("thumbnail jobs"),
+		fJobsSem(create_sem(0, "thumbnail jobs"))
+	{
+	}
+
+	~ThumbnailQueue() { delete_sem(fJobsSem); }
+
+	status_t InitCheck() const { return fJobsSem >= 0 ? B_OK : fJobsSem; }
+
+	status_t AddJob(GenerateThumbnailJob* job)
+	{
+		{
+			BAutolock lock(fLock);
+			fJobs.push_back(job);
+		}
+		return release_sem(fJobsSem);
+	}
+
+	// waits for a job; NULL when the queue is gone
+	GenerateThumbnailJob* Pop()
+	{
+		status_t status;
+		do {
+			status = acquire_sem(fJobsSem);
+		} while (status == B_INTERRUPTED);
+		if (status != B_OK)
+			return NULL;
+		BAutolock lock(fLock);
+		if (fJobs.empty())
+			return NULL;
+		GenerateThumbnailJob* job = fJobs.front();
+		fJobs.pop_front();
+		return job;
+	}
+
+private:
+	BLocker						fLock;
+	sem_id						fJobsSem;
+	std::deque<GenerateThumbnailJob*>	fJobs;
+};
+
+static ThumbnailQueue* sThumbnailWorkers[TOTAL_THUMBNAIL_WORKERS];
 
 static std::list<GenerateThumbnailJob*> sActiveJobs;
 static BLocker sActiveJobsLock;
@@ -119,12 +170,11 @@ ScaleBitmap(BBitmap* source, BBitmap& dest, BSize size, color_space colorSpace)
 }
 
 
-class GenerateThumbnailJob : public BSupportKit::BJob {
+class GenerateThumbnailJob {
 public:
 	GenerateThumbnailJob(Model* model, const BFile& file,
 			BSize requestedSize, color_space colorSpace)
-		: BJob("GenerateThumbnail"),
-		  fMimeType(model->MimeType()),
+		: fMimeType(model->MimeType()),
 		  fRequestedSize(requestedSize),
 		  fColorSpace(colorSpace)
 	{
@@ -146,10 +196,12 @@ public:
 	{
 		if (fFile == NULL)
 			return B_NO_MEMORY;
-		return BJob::InitCheck();
+		return B_OK;
 	}
 
 	virtual status_t Execute();
+
+	void Run() { Execute(); }
 
 public:
 	const BString fMimeType;
@@ -248,13 +300,10 @@ GenerateThumbnailJob::Execute()
 static status_t
 thumbnail_worker(void* castToJobQueue)
 {
-	JobQueue* queue = (JobQueue*)castToJobQueue;
+	ThumbnailQueue* queue = (ThumbnailQueue*)castToJobQueue;
 	while (true) {
-		BSupportKit::BJob* job;
-		status_t status = queue->Pop(B_INFINITE_TIMEOUT, false, &job);
-		if (status == B_INTERRUPTED)
-			continue;
-		if (status != B_OK)
+		GenerateThumbnailJob* job = queue->Pop();
+		if (job == NULL)
 			break;
 
 		job->Run();
@@ -294,7 +343,7 @@ GenerateThumbnail(Model* model, color_space colorSpace, BSize size)
 	if (job->InitCheck() != B_OK)
 		return job->InitCheck();
 
-	JobQueue** jobQueue;
+	ThumbnailQueue** jobQueue;
 	if (st.st_size >= (128 * kKBSize)) {
 		jobQueue = &sThumbnailWorkers[LARGER_FILES_WORKER];
 	} else {
@@ -303,7 +352,7 @@ GenerateThumbnail(Model* model, color_space colorSpace, BSize size)
 
 	if ((*jobQueue) == NULL) {
 		// We need to create the worker.
-		*jobQueue = new(std::nothrow) JobQueue();
+		*jobQueue = new(std::nothrow) ThumbnailQueue();
 		if ((*jobQueue) == NULL)
 			return B_NO_MEMORY;
 		if ((*jobQueue)->InitCheck() != B_OK)

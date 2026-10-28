@@ -1,8 +1,11 @@
-# snaketracker 1.0.58
+# snaketracker 1.0.59
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Works with the latest Haiku nightly (hrev60299_6 and later).** With that update, Tracker and the Deskbar did not start at all: Haiku changed a private class of its own, `JobQueue`, which SnakeTracker used to make thumbnails, and SnakeTracker's library could not be loaded any more. The thumbnails now have a small job queue of their own that does not depend on Haiku's private classes, so a change like that can't stop Tracker from starting again. Thumbnails of images are made as before.
+
+Since 1.0.58 (if you skipped it):
 - **The Workspaces program's tray item shows with the raised Snake look.** With "Live in the Deskbar" on in Workspaces, its little picture of the workspaces was not drawn at all when the raised look was on (the Deskbar's lavender panel was painted over it). It is drawn now.
 - **The Deskbar is laid out again when you move it.** Moving the Deskbar to the top or the bottom of the screen and back left every tray item in one row, so the Workspaces item sat on top of the clock and the other icons. The tray now takes the width of its new place first and the items are put in their rows after that.
 - **Switching the raised Snake look on or off while the Deskbar runs changes all of it.** The header, the clock and the panels used to be left half in the old look (dark header, white clock text on a lavender panel); now they take the new colors at once and the tray is laid out again.
