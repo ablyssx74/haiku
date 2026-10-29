@@ -310,7 +310,7 @@ SnakeHeaderIconView::SnakeHeaderIconView()
 {
 	fPreview = new HeaderPreview();
 	fSource = new BStringView("source", "");
-	fSource->SetAlignment(B_ALIGN_CENTER);
+	fSource->SetAlignment(B_ALIGN_LEFT);
 
 	BButton* choose = new BButton("choose", B_TRANSLATE("Choose file" B_UTF8_ELLIPSIS), new BMessage(kMsgChoose));
 	BButton* reset = new BButton("default", B_TRANSLATE("Use default"), new BMessage(kMsgDefault));
@@ -366,30 +366,42 @@ SnakeHeaderIconView::SnakeHeaderIconView()
 	BStringView* trackerTitle = new BStringView("tracker title", B_TRANSLATE("Tracker icon"));
 	trackerTitle->SetFont(be_bold_font);
 
-	BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_DEFAULT_SPACING)
+	// (the labels change as the sliders move: room is kept for the longest, so that nothing shifts)
+	fHeightLabel->SetExplicitMinSize(BSize(be_plain_font->StringWidth(B_TRANSLATE("Header height: taller by 64 pixels")) + 8,
+		B_SIZE_UNSET));
+	fSizeLabel->SetExplicitMinSize(BSize(be_plain_font->StringWidth(B_TRANSLATE("Icon size: 100% of the header")) + 8,
+		B_SIZE_UNSET));
+	fHeightLabel->SetAlignment(B_ALIGN_LEFT);
+	fSizeLabel->SetAlignment(B_ALIGN_LEFT);
+
+	BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_SMALL_SPACING)
+		.SetInsets(B_USE_WINDOW_INSETS)
 		.Add(headerTitle)
-		.AddGroup(B_HORIZONTAL)
-			.AddGlue()
+		.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
 			.Add(fPreview)
+			.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING)
+				.AddGlue()
+				.Add(fSource)
+				.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
+					.Add(choose)
+					.Add(reset)
+					.AddGlue()
+					.End()
+				.AddGlue()
+				.End()
 			.AddGlue()
 			.End()
-		.Add(fSource)
-		.AddGroup(B_HORIZONTAL)
-			.AddGlue()
-			.Add(choose)
-			.Add(reset)
-			.AddGlue()
-			.End()
-		.Add(fHeightLabel)
-		.Add(fHeight)
-		.Add(fSizeLabel)
-		.Add(fSize)
 		.AddGrid(B_USE_DEFAULT_SPACING, B_USE_SMALL_SPACING)
-			.Add(align->CreateLabelLayoutItem(), 0, 0).Add(align->CreateMenuBarLayoutItem(), 1, 0)
-			.Add(valign->CreateLabelLayoutItem(), 0, 1).Add(valign->CreateMenuBarLayoutItem(), 1, 1)
+			.Add(fHeightLabel, 0, 0).Add(fHeight, 1, 0)
+			.Add(fSizeLabel, 0, 1).Add(fSize, 1, 1)
+			.SetColumnWeight(0, 0)
+			.End()
+		.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
+			.Add(align)
+			.Add(valign)
+			.AddGlue()
 			.End()
 		.Add(new BStringView("note", B_TRANSLATE("The icon grows with the header. Choose an HVIF (vector icon) file.")))
-		.AddStrut(B_USE_BIG_SPACING)
 		.Add(new BSeparatorView(B_HORIZONTAL))
 		.Add(trackerTitle)
 		.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
@@ -405,8 +417,7 @@ SnakeHeaderIconView::SnakeHeaderIconView()
 			.AddGlue()
 			.End()
 		.Add(new BStringView("tracker note", B_TRANSLATE("Used for Tracker in the Deskbar and, if it runs, in hDesktop's dock.")))
-		.AddGlue()
-		.SetInsets(B_USE_WINDOW_INSETS);
+		.AddGlue();
 
 	_Update();
 }

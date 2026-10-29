@@ -6,6 +6,9 @@
 #include "SnakeWallpaperView.h"
 
 #include <Alert.h>
+#include <Box.h>
+#include <GroupView.h>
+#include <ScrollBar.h>
 #include <Button.h>
 #include <Catalog.h>
 #include <CheckBox.h>
@@ -131,7 +134,10 @@ SnakeWallpaperView::SnakeWallpaperView()
 	fFolders = new BListView("folders");
 	fFolders->SetSelectionMessage(new BMessage(kMsgSelection));
 	BScrollView* scroll = new BScrollView("scroll", fFolders, 0, false, true);
-	scroll->SetExplicitMinSize(BSize(360, 80));
+	// two or three folders show; more are scrolled to (the box does not grow with the window)
+	scroll->SetExplicitMinSize(BSize(300, 46));
+	scroll->SetExplicitPreferredSize(BSize(B_SIZE_UNSET, 66));
+	scroll->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, 66));
 
 	fAdd = new BButton("add", B_TRANSLATE("Add folder" B_UTF8_ELLIPSIS), new BMessage(kMsgAddFolder));
 	fRemove = new BButton("remove", B_TRANSLATE("Remove"), new BMessage(kMsgRemoveFolder));
@@ -151,7 +157,7 @@ SnakeWallpaperView::SnakeWallpaperView()
 	AddChoice(fModeMenu, B_TRANSLATE("Center"), 1);
 	AddChoice(fModeMenu, B_TRANSLATE("Tile"), 3);
 
-	static const char* const kOnlineLabels[9] = { "Bing: picture of the day", "Wikimedia Commons: picture of the day",
+	static const char* const kOnlineLabels[9] = { "Bing: picture of the day", "Wikimedia: picture of the day",
 		"Wallhaven: most popular of the day", "Picsum: random photos", "Art Institute of Chicago: paintings",
 		"Flickr: interesting pictures", "Unsplash: random landscapes", "Pexels: curated photos",
 		"Pixabay: editor's choice" };
@@ -159,11 +165,14 @@ SnakeWallpaperView::SnakeWallpaperView()
 		fOnline[i] = new BCheckBox(kOnlineSources[i], kOnlineLabels[i], new BMessage(kMsgChanged));
 	static const char* const kKeyHints[4] = { "your Flickr API key", "your Unsplash access key", "your Pexels API key",
 		"your Pixabay API key" };
+	static const char* const kKeyLabels[4] = { "Flickr key:", "Unsplash key:", "Pexels key:", "Pixabay key:" };
 	for (int i = 0; i < 4; i++) {
-		fKey[i] = new BTextControl(kKeyNames[i], "", "", new BMessage(kMsgKeyEdited));
+		// (a key field is shown only for a source that is switched on)
+		fKey[i] = new BTextControl(kKeyNames[i], B_TRANSLATE_NOCOLLECT(kKeyLabels[i]), "", new BMessage(kMsgKeyEdited));
 		fKey[i]->SetModificationMessage(new BMessage(kMsgKeyEdited));
 		fKey[i]->TextView()->SetExplicitMinSize(BSize(190, B_SIZE_UNSET));
 		fKey[i]->SetToolTip(kKeyHints[i]);
+		fKeyShown[i] = true;    // (until the first _UpdateControls)
 	}
 	fCurrent = new BStringView("current", "");
 	// (a long title and credit are cut off at the end, not made the window wider; the tooltip has all of it)
@@ -209,33 +218,38 @@ SnakeWallpaperView::SnakeWallpaperView()
 	BMenuField* effect = new BMenuField(B_TRANSLATE("Effect:"), fEffectMenu);
 	BMenuField* svgTemplate = new BMenuField(B_TRANSLATE("Template:"), fSvgMenu);
 
-	BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_DEFAULT_SPACING)
+	// the folders are in a box of their own, with the buttons at the side to save a row
+	BBox* foldersBox = new BBox("folders box");
+	foldersBox->SetLabel(B_TRANSLATE("Wallpaper folders"));
+	BGroupView* foldersGroup = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
+	BLayoutBuilder::Group<>(foldersGroup)
+		.SetInsets(B_USE_DEFAULT_SPACING, B_USE_SMALL_SPACING, B_USE_DEFAULT_SPACING, B_USE_SMALL_SPACING)
+		.Add(scroll)
+		.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING)
+			.Add(fAdd)
+			.Add(fRemove)
+			.AddGlue()
+			.End();
+	foldersBox->AddChild(foldersGroup);
+
+	BGroupView* content = new BGroupView(B_VERTICAL, B_USE_SMALL_SPACING);
+	BLayoutBuilder::Group<>(content)
 		.SetInsets(B_USE_WINDOW_INSETS)
 		.Add(fEnable)
-		.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING)
-			.Add(new BStringView("folders label", B_TRANSLATE("Pictures come from these folders (and the folders in them):")))
-			.Add(scroll)
-			.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
-				.Add(fAdd)
-				.Add(fRemove)
-				.AddGlue()
-				.End()
+		.Add(foldersBox)
+		.Add(new BStringView("online label", B_TRANSLATE("Pictures from the internet (fetched once a day):")))
+		.AddGrid(B_USE_DEFAULT_SPACING, 0)
+			.Add(fOnline[0], 0, 0).Add(fOnline[1], 1, 0)
+			.Add(fOnline[2], 0, 1).Add(fOnline[3], 1, 1)
+			.Add(fOnline[4], 0, 2).Add(fOnline[5], 1, 2)
+			.Add(fOnline[6], 0, 3).Add(fOnline[7], 1, 3)
+			.Add(fOnline[8], 0, 4)
 			.End()
-		.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING)
-			.Add(new BStringView("online label", B_TRANSLATE("Pictures from the internet (fetched once a day):")))
-			.AddGrid(B_USE_DEFAULT_SPACING, 0)
-				.Add(fOnline[0], 0, 0)
-				.Add(fOnline[1], 0, 1)
-				.Add(fOnline[2], 0, 2)
-				.Add(fOnline[3], 0, 3)
-				.Add(fOnline[4], 0, 4)
-				.Add(fOnline[5], 0, 5).Add(fKey[0], 1, 5)
-				.Add(fOnline[6], 0, 6).Add(fKey[1], 1, 6)
-				.Add(fOnline[7], 0, 7).Add(fKey[2], 1, 7)
-				.Add(fOnline[8], 0, 8).Add(fKey[3], 1, 8)
-				.End()
-			.Add(new BStringView("key note", B_TRANSLATE("Flickr, Unsplash, Pexels and Pixabay need a (free) key of your own.")))
-			.End()
+		.Add(fKey[0])
+		.Add(fKey[1])
+		.Add(fKey[2])
+		.Add(fKey[3])
+		.Add(new BStringView("key note", B_TRANSLATE("Flickr, Unsplash, Pexels and Pixabay need a (free) key of your own.")))
 		.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
 			.Add(fSvg)
 			.AddGlue()
@@ -244,23 +258,25 @@ SnakeWallpaperView::SnakeWallpaperView()
 		.AddGrid(B_USE_DEFAULT_SPACING, B_USE_SMALL_SPACING)
 			.Add(interval->CreateLabelLayoutItem(), 0, 0)
 			.Add(interval->CreateMenuBarLayoutItem(), 1, 0)
-			.Add(order->CreateLabelLayoutItem(), 0, 1)
-			.Add(order->CreateMenuBarLayoutItem(), 1, 1)
-			.Add(workspaces->CreateLabelLayoutItem(), 0, 2)
-			.Add(workspaces->CreateMenuBarLayoutItem(), 1, 2)
-			.Add(mode->CreateLabelLayoutItem(), 0, 3)
-			.Add(mode->CreateMenuBarLayoutItem(), 1, 3)
-			.Add(fade->CreateLabelLayoutItem(), 0, 4)
-			.Add(fade->CreateMenuBarLayoutItem(), 1, 4)
-			.Add(effect->CreateLabelLayoutItem(), 0, 5)
-			.Add(effect->CreateMenuBarLayoutItem(), 1, 5)
+			.Add(order->CreateLabelLayoutItem(), 2, 0)
+			.Add(order->CreateMenuBarLayoutItem(), 3, 0)
+			.Add(workspaces->CreateLabelLayoutItem(), 0, 1)
+			.Add(workspaces->CreateMenuBarLayoutItem(), 1, 1)
+			.Add(mode->CreateLabelLayoutItem(), 2, 1)
+			.Add(mode->CreateMenuBarLayoutItem(), 3, 1)
+			.Add(fade->CreateLabelLayoutItem(), 0, 2)
+			.Add(fade->CreateMenuBarLayoutItem(), 1, 2)
+			.Add(effect->CreateLabelLayoutItem(), 2, 2)
+			.Add(effect->CreateMenuBarLayoutItem(), 3, 2)
 			.End()
-		.Add(fCurrent)
-		.AddGroup(B_HORIZONTAL)
+		.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
 			.Add(fNext)
-			.AddGlue()
+			.Add(fCurrent)
 			.End()
-		.SetInsets(B_USE_WINDOW_INSETS);
+		.AddGlue();
+
+	GroupLayout()->SetInsets(0, 0, 0, 0);
+	AddChild(content);
 
 	_Load();
 	_ShowCurrent();
@@ -442,6 +458,17 @@ SnakeWallpaperView::_UpdateControls()
 	for (int i = 0; i < 9; i++)
 		online = online || fOnline[i]->Value() == B_CONTROL_ON;
 	fNext->SetEnabled(fFolders->CountItems() > 0 || online);
+	for (int i = 0; i < 4; i++) {
+		// a key field for a source that is on (the four that need a key are the last four)
+		bool wanted = fOnline[5 + i]->Value() == B_CONTROL_ON;
+		if (wanted && !fKeyShown[i]) {
+			fKey[i]->Show();
+			fKeyShown[i] = true;
+		} else if (!wanted && fKeyShown[i]) {
+			fKey[i]->Hide();
+			fKeyShown[i] = false;
+		}
+	}
 }
 
 

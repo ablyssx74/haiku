@@ -57,6 +57,7 @@ private:
 			BPopUpMenu*		fEffectMenu;
 			BCheckBox*		fOnline[9];
 			BTextControl*	fKey[4];		// the keys of Flickr, Unsplash, Pexels and Pixabay
+			bool			fKeyShown[4];	// (a key field is shown for a source that is switched on)
 			BStringView*	fCurrent;
 			BCheckBox*		fSvg;
 			BPopUpMenu*		fSvgMenu;

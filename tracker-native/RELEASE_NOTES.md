@@ -1,8 +1,14 @@
-# snaketracker 1.0.61
+# snaketracker 1.0.62
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **The SnakeTracker Settings window fits small screens.** Every tab scrolls when the window is too short for it, and the window is never made taller than the screen (a Wallpaper tab that was about 700 pixels high did not fit a 768-pixel-high screen with the Deskbar).
+- **A shorter Wallpaper tab.** The folders are in a box of their own ("Wallpaper folders") that shows two or three folders and scrolls for more, with Add folder... and Remove beside it. The internet sources are in two columns, the menus are in pairs (Change every and Order, Workspaces and Placement, Transition and Effect), and Next wallpaper is on the same row as the picture's credit.
+- **A key field only for the sources that need it.** The boxes for the keys of Flickr, Unsplash, Pexels and Pixabay show up when you switch that source on, with the name of the source ("Flickr key:"), and go away when you switch it off. The keys you typed are kept.
+- **A shorter Custom HVIF Icons tab.** The file name and its buttons are beside the picture of the header, each slider has its label on its row, and the two position menus are on one row.
+
+Since 1.0.61 (if you skipped it):
 - **SnakeTracker Settings.** One window, "SnakeTracker Settings...", in the Desktop's menu, with a tab for each part of SnakeTracker. It replaces the two items SnakeTracker Wallpaper... and SnakeTracker Workspaces..., and the SnakeTracker pane of Tracker's preferences (which is gone; Tracker's preferences have Desktop, Windows, Volume icons and Disk mount as they did before).
   - **Core settings:** the same options the SnakeTracker pane had (raised look, snake trail, flat selector, scroll bar arrows, rounded corners, system colors, all programs, the SnakeTracker color, restart), with Defaults and Revert. They apply at once.
   - **Wallpaper:** the wallpaper window, as it was.

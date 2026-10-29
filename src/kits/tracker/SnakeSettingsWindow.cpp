@@ -6,14 +6,17 @@
 #include "SnakeSettingsWindow.h"
 
 #include <Button.h>
+#include <algorithm>
 #include <Catalog.h>
 #include <GroupView.h>
 #include <LayoutBuilder.h>
 #include <Locale.h>
+#include <Screen.h>
 #include <TabView.h>
 
 #include "SettingsViews.h"
 #include "SnakeHeaderIconView.h"
+#include "SnakeScrollPane.h"
 #include "SnakeWallpaperView.h"
 #include "SnakeWorkspacesView.h"
 #include "TrackerSettings.h"
@@ -75,13 +78,17 @@ SnakeSettingsWindow::SnakeSettingsWindow()
 	fWallpaper = new SnakeWallpaperView();
 
 	fTabs = new BTabView("tabs", B_WIDTH_FROM_LABEL);
-	fTabs->AddTab(core, new BTab());
+	fPages[0] = core;
+	fPages[1] = fWallpaper;
+	fPages[2] = new SnakeWorkspacesView();
+	fPages[3] = new SnakeHeaderIconView();
+	fTabs->AddTab(MakeScrollable(core), new BTab());
 	fTabs->TabAt(0)->SetLabel(B_TRANSLATE("Core settings"));
-	fTabs->AddTab(fWallpaper, new BTab());
+	fTabs->AddTab(MakeScrollable(fWallpaper), new BTab());
 	fTabs->TabAt(1)->SetLabel(B_TRANSLATE("Wallpaper"));
-	fTabs->AddTab(new SnakeWorkspacesView(), new BTab());
+	fTabs->AddTab(MakeScrollable(fPages[2]), new BTab());
 	fTabs->TabAt(2)->SetLabel(B_TRANSLATE("Workspaces"));
-	fTabs->AddTab(new SnakeHeaderIconView(), new BTab());
+	fTabs->AddTab(MakeScrollable(fPages[3]), new BTab());
 	fTabs->TabAt(3)->SetLabel(B_TRANSLATE("Custom HVIF Icons"));
 
 	BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
@@ -90,6 +97,14 @@ SnakeSettingsWindow::SnakeSettingsWindow()
 
 	fCore->RecordRevertSettings();
 	fCore->ShowCurrentSettings();
+
+	// never taller than the screen (every page scrolls when it is cut): room is left for the title and the Deskbar
+	ResizeToPreferred();
+	BRect screenFrame = BScreen(this).Frame();
+	float maxHeight = screenFrame.Height() - 90;
+	float maxWidth = screenFrame.Width() - 40;
+	if (Bounds().Height() > maxHeight || Bounds().Width() > maxWidth)
+		ResizeTo(std::min(Bounds().Width(), maxWidth), std::min(Bounds().Height(), maxHeight));
 	CenterOnScreen();
 }
 
@@ -150,8 +165,8 @@ SnakeSettingsWindow::MessageReceived(BMessage* message)
 			const uint32 family = message->what >> 24;
 			const bool tabs = family == 'w' || family == 'h' || message->what == B_REFS_RECEIVED
 				|| message->what == B_SIMPLE_DATA;
-			BView* tab = fTabs != NULL && fTabs->TabAt(fTabs->Selection()) != NULL
-				? fTabs->TabAt(fTabs->Selection())->View() : NULL;
+			BView* tab = fTabs != NULL && fTabs->Selection() >= 0 && fTabs->Selection() < 4
+				? fPages[fTabs->Selection()] : NULL;
 			if (tab != NULL && tabs && !passing) {
 				passing = true;
 				tab->MessageReceived(message);

@@ -33,6 +33,7 @@ private:
 			BTabView*		fTabs;
 			SnakeSettingsView* fCore;
 			SnakeWallpaperView* fWallpaper;
+			BView*				fPages[4];	// the page of each tab (what its scroll view holds)
 };
 
 }	// namespace BPrivate
