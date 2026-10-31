@@ -56,6 +56,7 @@ All rights reserved.
 #include <Mime.h>
 #include <Path.h>
 #include <Roster.h>
+#include <String.h>
 
 #include <DeskbarPrivate.h>
 #include <RosterPrivate.h>
@@ -929,12 +930,60 @@ TBarApp::FetchWindowIcon(bool local, bool minimized)
 }
 
 
+// Applications whose signature is listed in the file "hidden_apps" in the Deskbar's settings
+// folder (one per line, empty lines and lines starting with # are ignored) get no entry in the
+// list of running applications, whatever their flags are.
+static bool
+IsHiddenApp(const char* sig)
+{
+	if (sig == NULL || sig[0] == '\0')
+		return false;
+
+	BPath path;
+	if (GetDeskbarSettingsDirectory(path, false) != B_OK
+		|| path.Append("hidden_apps") != B_OK) {
+		return false;
+	}
+
+	BFile file(path.Path(), B_READ_ONLY);
+	off_t size;
+	if (file.InitCheck() != B_OK || file.GetSize(&size) != B_OK || size <= 0
+		|| size > 64 * 1024) {
+		return false;
+	}
+
+	BString text;
+	char* buffer = text.LockBuffer(size);
+	if (buffer == NULL)
+		return false;
+	ssize_t read = file.Read(buffer, size);
+	text.UnlockBuffer(read > 0 ? read : 0);
+
+	int32 start = 0;
+	while (start < text.Length()) {
+		int32 end = text.FindFirst('\n', start);
+		if (end < 0)
+			end = text.Length();
+
+		BString line;
+		text.CopyInto(line, start, end - start);
+		line.Trim();
+		if (line.Length() > 0 && line[0] != '#' && line.ICompare(sig) == 0)
+			return true;
+
+		start = end + 1;
+	}
+
+	return false;
+}
+
+
 void
 TBarApp::AddTeam(team_id team, uint32 flags, const char* sig, entry_ref* ref)
 {
 	if ((flags & B_BACKGROUND_APP) != 0
-		|| strcasecmp(sig, kDeskbarSignature) == 0) {
-		// don't add if a background app or Deskbar itself
+		|| strcasecmp(sig, kDeskbarSignature) == 0 || IsHiddenApp(sig)) {
+		// don't add if a background app, Deskbar itself, or an app the user hides
 		return;
 	}
 

@@ -1,8 +1,11 @@
-# snaketracker 1.0.62
+# snaketracker 1.0.63
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Programs you choose can be kept out of the Deskbar's list.** Put the signature of a program on a line of its own in the file `~/config/settings/deskbar/hidden_apps` (for example `application/x-vnd.Be-SYS.SleepWalker`) and the Deskbar shows no tab for it. Empty lines and lines starting with # are ignored, and capital letters do not matter. The program is not changed in any way: it keeps running and keeps its normal flags, so it can still do things such as run commands when the computer shuts down (marking it a background application, the other way to hide it, would have it closed at shutdown like the system's servers). The file is read when a program starts, so restart the Deskbar (or the program) after you change it.
+
+Since 1.0.62 (if you skipped it):
 - **The SnakeTracker Settings window fits small screens.** Every tab scrolls when the window is too short for it, and the window is never made taller than the screen (a Wallpaper tab that was about 700 pixels high did not fit a 768-pixel-high screen with the Deskbar).
 - **A shorter Wallpaper tab.** The folders are in a box of their own ("Wallpaper folders") that shows two or three folders and scrolls for more, with Add folder... and Remove beside it. The internet sources are in two columns, the menus are in pairs (Change every and Order, Workspaces and Placement, Transition and Effect), and Next wallpaper is on the same row as the picture's credit.
 - **A key field only for the sources that need it.** The boxes for the keys of Flickr, Unsplash, Pexels and Pixabay show up when you switch that source on, with the name of the source ("Flickr key:"), and go away when you switch it off. The keys you typed are kept.
