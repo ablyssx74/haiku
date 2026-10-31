@@ -250,10 +250,29 @@ SystemColors()
 }
 
 
+// Whether this is a program that takes the screen behind its popup menus before they open (as Tracker does), so that they can be
+// drawn with rounded corners like Tracker's own: Cricket for Haiku, which hands the pictures over with the same functions.
+static bool
+RoundedProgram()
+{
+	static int rounded = -1;
+	if (rounded < 0) {
+		app_info info;
+		rounded = 0;
+		if (be_app != NULL && be_app->GetAppInfo(&info) == B_OK && strcmp(info.signature, "application/x-vnd.cricket") == 0)
+			rounded = 1;
+	}
+	return rounded == 1;
+}
+
+
+static bool AllAppsLook();
+
+
 static bool
 RoundCorners()
 {
-	if (SnakeProgram() == 0)
+	if (SnakeProgram() == 0 && !(RoundedProgram() && AllAppsLook()))
 		return false;
 	RefreshSettings();
 	BAutolock lock(SettingsLock());
@@ -456,7 +475,7 @@ LinkLock()
 // the chain going and the window's thread busy for as long as the menu is up. So each kind of such work is allowed only so
 // many times a second for a window (or menu): past that it is simply not done, and the chain ends. If the file
 // ~/config/settings/snake_debug exists, the times it came to that are written to snake_debug.log.
-enum StormKind { kStormMove = 1, kStormOverlap, kStormRefresh, kStormRetry, kStormParent };
+enum StormKind { kStormMove = 1, kStormOverlap, kStormRefresh, kStormRetry, kStormParent, kStormPlace };
 
 static bool
 StormGuard(const void* key, int kind, int perSecond)
@@ -1663,10 +1682,31 @@ PillMenu(BMenu* menu)
 		return false;
 	BMenu* root = RootMenu(menu);
 	if (StockMenu(menu)) {
-		// another program's menu: a popup menu, or one under a menu bar; nothing is captured (the corners are square), and its
-		// items are stock ones, which draw their text in Haiku's own menu colors
-		return dynamic_cast<BPopUpMenu*>(root) != NULL
-			|| (root->Supermenu() != NULL && dynamic_cast<BMenuBar*>(root->Supermenu()) != NULL);
+		// another program's menu: a popup menu, or one under a menu bar; its items are stock ones, which draw their text in
+		// Haiku's own menu colors. Nothing is captured for most programs (the corners are square); one that hands over the
+		// pictures (RoundedProgram()) has its popup menus drawn with rounded corners, from the screen taken before they opened
+		const bool popup = dynamic_cast<BPopUpMenu*>(root) != NULL;
+		const bool ok = popup || (root->Supermenu() != NULL && dynamic_cast<BMenuBar*>(root->Supermenu()) != NULL);
+		if (!ok || !popup || !RoundCorners())
+			return ok;
+		BAutolock lock(BackdropLock());
+		BackdropState& state = Backdrop();
+		if (state.tiles.empty())
+			return false;
+		if (state.root == NULL && system_time() - state.time > kBackdropValid)
+			return false;
+		if (state.root == NULL)
+			state.root = root;
+		else if (state.root != root || root->Window() == NULL || root->Window()->IsHidden())
+			return false;
+		const BRect bounds = menu->Bounds();
+		const BPoint origin = menu->ConvertToScreen(bounds.LeftTop());
+		const BRect menuRect(origin.x, origin.y, origin.x + bounds.Width(), origin.y + bounds.Height());
+		for (size_t i = 0; i < state.tiles.size(); i++) {
+			if ((state.tiles[i].rect & menuRect).IsValid())
+				return true;
+		}
+		return false;
 	}
 	// a popup menu, or the Deskbar's own menu
 	// (or the Deskbar's list of programs, when it is a menu, or the window menu of a program in it)
@@ -1976,6 +2016,9 @@ ForgetFrameStrip(FrameStrip* strip)
 }
 
 
+static void PlaceSoon(BWindow* window, const BRect& frame);
+static BMenu* MenuOfWindow(BWindow* window);
+
 // Cover the border round this menu's window with the screen behind it (the menu has to be one drawn in the pill look).
 static void
 PlaceFrame(BMenu* menu)
@@ -2101,6 +2144,10 @@ PlaceFrame(BMenu* menu)
 			set.strips[i]->PostHide();
 	}
 	RetryLater(window, placed);
+	// (a menu is moved into its place just after it is first drawn, and nothing draws it again until the pointer is over it:
+	// the strips were put round the window where it was, and are taken away as stale; they are put again once the window
+	// has settled, without drawing the menu, so there is nothing to flicker)
+	PlaceSoon(window, f);
 }
 
 
@@ -2298,6 +2345,14 @@ snake_wants_tile(BMenu* menu)
 	if (menu == NULL)
 		return false;
 	BMenu* root = RootMenu(menu);
+	// (a popup menu of a program that hands the pictures over: its items are stock ones, not Tracker's)
+	if (StockMenu(menu) && RoundedProgram() && RoundCorners() && dynamic_cast<BPopUpMenu*>(root) != NULL) {
+		BAutolock lock(BackdropLock());
+		BackdropState& state = Backdrop();
+		if (state.root == NULL)
+			return system_time() - state.time <= kBackdropValid;
+		return state.root == root;
+	}
 	// (or a menu under the menu bar of one of Tracker's windows)
 	const bool underBar = SnakeProgram() == 2 && root->Supermenu() != NULL
 		&& dynamic_cast<BMenuBar*>(root->Supermenu()) != NULL;
@@ -2703,6 +2758,56 @@ VerifyLater(BWindow* window)
 		when = now;
 	}
 	RefreshSoon(window, 250000);
+}
+
+
+// The strips are put round the menu's window once more a moment after they were last put, when the window is not where they
+// were put for (not drawing the menu: only the strips are placed, and only while the window keeps changing its place).
+class PlaceFilter : public BMessageFilter {
+public:
+	PlaceFilter() : BMessageFilter(B_ANY_DELIVERY, B_ANY_SOURCE, 'SnPl') {}
+
+	virtual filter_result Filter(BMessage* message, BHandler** target)
+	{
+		BWindow* window = dynamic_cast<BWindow*>(Looper());
+		if (window == NULL || window->IsHidden() || !RoundCorners())
+			return B_SKIP_MESSAGE;
+		BMenu* menu = MenuOfWindow(window);
+		if (menu != NULL && PillMenu(menu))
+			PlaceFrame(menu);
+		return B_SKIP_MESSAGE;
+	}
+};
+
+
+static void
+PlaceSoon(BWindow* window, const BRect& frame)
+{
+	static std::map<BWindow*, BRect>* placedFor = new std::map<BWindow*, BRect>();
+	static std::map<BWindow*, BMessageRunner*>* runners = new std::map<BWindow*, BMessageRunner*>();
+	{
+		BAutolock lock(LinkLock());
+		BRect& last = (*placedFor)[window];
+		if (last == frame)
+			return;			// the strips were put for this very place: nothing to do
+		last = frame;
+	}
+	if (!StormGuard(window, kStormPlace, 8))
+		return;
+	bool hasFilter = false;
+	BList* filters = window->CommonFilterList();
+	for (int32 i = 0; filters != NULL && i < filters->CountItems(); i++) {
+		if (dynamic_cast<PlaceFilter*>((BMessageFilter*)filters->ItemAt(i)) != NULL)
+			hasFilter = true;
+	}
+	if (!hasFilter)
+		window->AddCommonFilter(new PlaceFilter());
+	BMessage again('SnPl');
+	BMessageRunner* runner = new BMessageRunner(BMessenger(window), &again, 100000, 1);
+	BAutolock lock(LinkLock());
+	BMessageRunner*& old = (*runners)[window];
+	delete old;
+	old = runner;
 }
 
 

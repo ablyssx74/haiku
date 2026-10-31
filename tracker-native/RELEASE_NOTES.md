@@ -1,8 +1,12 @@
-# snaketracker 1.0.63
+# snaketracker 1.0.64
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **The Deskbar's menu has its rounded corners as soon as it opens.** The square outline that the window system draws round a menu was covered by four thin windows put round the menu's window as it was drawn the first time; the menu is moved into its place just after that, so the strips were put where it no longer was, and stayed away until the pointer moved over the menu and it was drawn again. The strips are now put again a moment after the menu opens, wherever it ended up, without drawing the menu a second time (so there is nothing to flicker).
+- **A program can have the rounded popup menus too.** Cricket for Haiku (0.0.77 and later) hands over the part of the screen behind each popup menu before it opens, and SnakeTracker draws the menu as a rounded pill, as Tracker's own. It needs "Snake look in all programs" and "Rounded corners" in the SnakeTracker Settings to be on, and the program started after SnakeTracker was installed. Other programs' menus are as before (the pill look, with square corners).
+
+Since 1.0.63 (if you skipped it):
 - **Programs you choose can be kept out of the Deskbar's list.** Put the signature of a program on a line of its own in the file `~/config/settings/deskbar/hidden_apps` (for example `application/x-vnd.Be-SYS.SleepWalker`) and the Deskbar shows no tab for it. Empty lines and lines starting with # are ignored, and capital letters do not matter. The program is not changed in any way: it keeps running and keeps its normal flags, so it can still do things such as run commands when the computer shuts down (marking it a background application, the other way to hide it, would have it closed at shutdown like the system's servers). The file is read when a program starts, so restart the Deskbar (or the program) after you change it.
 
 Since 1.0.62 (if you skipped it):
