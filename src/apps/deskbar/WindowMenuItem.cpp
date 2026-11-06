@@ -42,6 +42,10 @@ All rights reserved.
 #include <ControlLook.h>
 #include <Debug.h>
 #include <NaturalCompare.h>
+#include <WindowInfo.h>
+#include <stdlib.h>
+#include <Application.h>
+#include <Window.h>
 
 #include "BarApp.h"
 #include "BarMenuBar.h"
@@ -264,12 +268,43 @@ TWindowMenuItem::DrawContent()
 }
 
 
+// Is this the window in front of all the others (a normal one, visible in the current workspace)?
+static bool
+IsFrontWindow(int32 id)
+{
+	int32* tokens = NULL;
+	int32 count = 0;
+	if (BPrivate::get_window_order(-1, &tokens, &count) != B_OK || tokens == NULL)
+		return false;
+
+	bool isFront = false;
+	for (int32 i = 0; i < count; i++) {
+		client_window_info* info = get_window_info(tokens[i]);
+		if (info == NULL)
+			continue;
+		// (the Deskbar's own windows come to the front when they are clicked: they do not count)
+		bool candidate = info->feel == B_NORMAL_WINDOW_FEEL && info->layer > 2
+			&& !info->is_mini && info->team != be_app->Team();
+		free(info);
+		if (candidate) {
+			isFront = tokens[i] == id;
+			break;
+		}
+	}
+	free(tokens);
+	return isFront;
+}
+
+
 status_t
 TWindowMenuItem::Invoke(BMessage* /*message*/)
 {
 	if (!fDragging) {
 		if (fID >= 0) {
-			int32 action = (modifiers() & B_CONTROL_KEY) != 0
+			// a click minimizes the window that is in front, and brings any other to the front (Control
+			// minimizes it in any case)
+			int32 action = ((modifiers() & B_CONTROL_KEY) != 0
+					|| (!fIsMinimized && IsFrontWindow(fID)))
 				? B_MINIMIZE_WINDOW : B_BRING_TO_FRONT;
 
 			bool doZoom = false;
