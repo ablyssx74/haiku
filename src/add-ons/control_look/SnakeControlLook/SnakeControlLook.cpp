@@ -110,14 +110,22 @@ static void
 ReadTrackerSettings(rgb_color& accent, bool& trail, bool& flat, bool& arrows, bool& look, bool& round, bool& sysDeskbar,
 	bool& sysTracker, bool& allApps)
 {
+	// (SnakeSettings; TrackerSettings in the versions before it had a file of its own)
 	BPath path;
 	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) != B_OK
-		|| path.Append("Tracker/TrackerSettings") != B_OK) {
+		|| path.Append("Tracker/SnakeSettings") != B_OK) {
 		return;
 	}
 	FILE* file = fopen(path.Path(), "r");
-	if (file == NULL)
-		return;
+	if (file == NULL) {
+		if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) != B_OK
+			|| path.Append("Tracker/TrackerSettings") != B_OK) {
+			return;
+		}
+		file = fopen(path.Path(), "r");
+		if (file == NULL)
+			return;
+	}
 	char line[256];
 	while (fgets(line, sizeof(line), file) != NULL) {
 		if (strncmp(line, "SnakeAccent ", 12) == 0) {

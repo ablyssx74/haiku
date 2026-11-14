@@ -1,8 +1,11 @@
-# snaketracker 1.0.67
+# snaketracker 1.0.68
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **SnakeTracker's own settings are in a file of their own, so other programs stop printing "unknown command".** SnakeTracker kept its settings (the snake look and trail, the colour, the side panel, the corners, and Hide desktop icons) in Tracker's `TrackerSettings` file. Haiku's own library for Tracker, which every program that has a file open or save panel loads, reads that file too and printed a line "unknown command" in its terminal for each setting it did not know, thirteen of them every time the program started. They are now in `~/config/settings/Tracker/SnakeSettings`, and `TrackerSettings` has only the settings Haiku knows. The first time 1.0.68 starts it takes your settings over from the old file, so nothing has to be set again. Going back to an older SnakeTracker would find no settings of its own and use the defaults.
+
+Since 1.0.67 (if you skipped it):
 - **"Next wallpaper" changes the picture at once.** It used to wait for the day's picture lists of every online source that had not been fetched yet, so when one of them was slow or down (picsum.photos did not answer for a minute or more) nothing seemed to happen. It now takes a picture that is already on the computer (the folders you chose, and the pictures kept from earlier days) right away, and fetches the day's pictures afterwards, for the next time. With nothing kept yet, it fetches first, as before.
 - **A change in the Wallpaper tab of the SnakeTracker Settings no longer freezes the window (64-bit package of 1.0.66).** The window asks the server for its build number before it tells it about a change. In the 64-bit 1.0.66 package the window still had the number of 1.0.65 (the part of the build that holds it was not made again after the version changed), so it took the server for an old one and restarted it at every click, which held the window for several seconds each time. The build is now made again whenever the version changes, and the package has the right number. The 32-bit 1.0.66 package was not affected.
 
@@ -249,4 +252,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.52-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.52-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.68-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.68-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.

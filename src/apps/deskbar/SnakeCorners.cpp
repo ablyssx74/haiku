@@ -54,20 +54,25 @@ Enabled()
 {
 	bool round = true, look = true;
 	BPath path;
-	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) == B_OK && path.Append("Tracker/TrackerSettings") == B_OK) {
-		FILE* file = fopen(path.Path(), "r");
-		if (file != NULL) {
-			char line[256];
-			while (fgets(line, sizeof(line), file) != NULL) {
-				const bool off = strstr(line, " off") != NULL || strstr(line, " 0") != NULL
-					|| strstr(line, " false") != NULL;
-				if (strncmp(line, "SnakeDeskbarRoundCorners ", 25) == 0)
-					round = !off;
-				else if (strncmp(line, "SnakeLook ", 10) == 0)
-					look = !off;
-			}
-			fclose(file);
+	// (SnakeSettings; TrackerSettings in the versions before it had a file of its own)
+	FILE* file = NULL;
+	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) == B_OK && path.Append("Tracker/SnakeSettings") == B_OK)
+		file = fopen(path.Path(), "r");
+	if (file == NULL && find_directory(B_USER_SETTINGS_DIRECTORY, &path) == B_OK
+		&& path.Append("Tracker/TrackerSettings") == B_OK) {
+		file = fopen(path.Path(), "r");
+	}
+	if (file != NULL) {
+		char line[256];
+		while (fgets(line, sizeof(line), file) != NULL) {
+			const bool off = strstr(line, " off") != NULL || strstr(line, " 0") != NULL
+				|| strstr(line, " false") != NULL;
+			if (strncmp(line, "SnakeDeskbarRoundCorners ", 25) == 0)
+				round = !off;
+			else if (strncmp(line, "SnakeLook ", 10) == 0)
+				look = !off;
 		}
+		fclose(file);
 	}
 	return round && look;
 }

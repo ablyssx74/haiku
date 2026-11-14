@@ -36,6 +36,12 @@ All rights reserved.
 #include "TrackerSettings.h"
 
 #include <Debug.h>
+#include <Entry.h>
+#include <FindDirectory.h>
+#include <Path.h>
+
+#include <stdio.h>
+#include <string.h>
 
 #include "Tracker.h"
 #include "TrackerDefaults.h"
@@ -52,6 +58,7 @@ public:
 
 	void LoadSettingsIfNeeded();
 	void SaveSettings(bool onlyIfNonDefault = true);
+	void _MigrateSnakeSettings();
 
 	TTrackerState();
 	~TTrackerState();
@@ -61,6 +68,11 @@ private:
 
 	static void InitIfNeeded();
 	TTrackerState(const TTrackerState&);
+
+	// SnakeTracker's own settings (and "HideDesktopIcons") are in a file of their own,
+	// "SnakeSettings": the system's libtracker, which every program using a file panel
+	// loads, reads TrackerSettings and prints "unknown command" for every line it does not know.
+	Settings fSnake;
 
 	BooleanValueSetting* fShowDisksIcon;
 	BooleanValueSetting* fMountVolumesOntoDesktop;
@@ -138,6 +150,7 @@ int32 ColorToValue(rgb_color color)
 TTrackerState::TTrackerState()
 	:
 	Settings("TrackerSettings", "Tracker"),
+	fSnake("SnakeSettings", "Tracker"),
 	fShowDisksIcon(NULL),
 	fMountVolumesOntoDesktop(NULL),
 	fDesktopFilePanelRoot(NULL),
@@ -181,6 +194,7 @@ TTrackerState::TTrackerState()
 TTrackerState::TTrackerState(const TTrackerState&)
 	:
 	Settings("", ""),
+	fSnake("", ""),
 	fShowDisksIcon(NULL),
 	fMountVolumesOntoDesktop(NULL),
 	fDesktopFilePanelRoot(NULL),
@@ -233,8 +247,10 @@ TTrackerState::~TTrackerState()
 void
 TTrackerState::SaveSettings(bool onlyIfNonDefault)
 {
-	if (fSettingsLoaded)
+	if (fSettingsLoaded) {
 		_inherited::SaveSettings(onlyIfNonDefault);
+		fSnake.SaveSettings(onlyIfNonDefault);
+	}
 }
 
 
@@ -269,26 +285,26 @@ TTrackerState::LoadSettingsIfNeeded()
 	Add(fSortFolderNamesFirst
 		= new BooleanValueSetting("SortFolderNamesFirst", kDefaultSortFolderNamesFirst));
 	Add(fHideDotFiles = new BooleanValueSetting("HideDotFiles", kDefaultHideDotFiles));
-	Add(fHideDesktopIcons
+	fSnake.Add(fHideDesktopIcons
 		= new BooleanValueSetting("HideDesktopIcons", kDefaultHideDesktopIcons));
 	Add(fTypeAheadFiltering
 		= new BooleanValueSetting("TypeAheadFiltering", kDefaultTypeAheadFiltering));
 	Add(fGenerateImageThumbnails
 		= new BooleanValueSetting("GenerateImageThumbnails", kDefaultGenerateImageThumbnails));
 
-	Add(fSnakeTrail = new BooleanValueSetting("SnakeTrail", kDefaultSnakeTrail));
-	Add(fSnakeFlat = new BooleanValueSetting("SnakeFlat", kDefaultSnakeFlat));
-	Add(fSnakeLook = new BooleanValueSetting("SnakeLook", kDefaultSnakeLook));
-	Add(fSnakeRoundCorners = new BooleanValueSetting("SnakeRoundCorners", kDefaultSnakeRoundCorners));
-	Add(fSnakeDeskbarRoundCorners
+	fSnake.Add(fSnakeTrail = new BooleanValueSetting("SnakeTrail", kDefaultSnakeTrail));
+	fSnake.Add(fSnakeFlat = new BooleanValueSetting("SnakeFlat", kDefaultSnakeFlat));
+	fSnake.Add(fSnakeLook = new BooleanValueSetting("SnakeLook", kDefaultSnakeLook));
+	fSnake.Add(fSnakeRoundCorners = new BooleanValueSetting("SnakeRoundCorners", kDefaultSnakeRoundCorners));
+	fSnake.Add(fSnakeDeskbarRoundCorners
 		= new BooleanValueSetting("SnakeDeskbarRoundCorners", kDefaultSnakeDeskbarRoundCorners));
-	Add(fSnakeSystemColorsDeskbar = new BooleanValueSetting("SnakeSystemColorsDeskbar", kDefaultSnakeSystemColorsDeskbar));
-	Add(fSnakeSystemColorsTracker = new BooleanValueSetting("SnakeSystemColorsTracker", kDefaultSnakeSystemColorsTracker));
-	Add(fSnakeAllApps = new BooleanValueSetting("SnakeAllApps", kDefaultSnakeAllApps));
-	Add(fSnakeArrows = new BooleanValueSetting("SnakeArrows", kDefaultSnakeArrows));
-	Add(fSnakeSidePanel = new BooleanValueSetting("SnakeSidePanel", kDefaultSnakeSidePanel));
-	Add(fSnakeSidePanelTrash = new BooleanValueSetting("SnakeSidePanelTrash", kDefaultSnakeSidePanelTrash));
-	Add(fSnakeAccent
+	fSnake.Add(fSnakeSystemColorsDeskbar = new BooleanValueSetting("SnakeSystemColorsDeskbar", kDefaultSnakeSystemColorsDeskbar));
+	fSnake.Add(fSnakeSystemColorsTracker = new BooleanValueSetting("SnakeSystemColorsTracker", kDefaultSnakeSystemColorsTracker));
+	fSnake.Add(fSnakeAllApps = new BooleanValueSetting("SnakeAllApps", kDefaultSnakeAllApps));
+	fSnake.Add(fSnakeArrows = new BooleanValueSetting("SnakeArrows", kDefaultSnakeArrows));
+	fSnake.Add(fSnakeSidePanel = new BooleanValueSetting("SnakeSidePanel", kDefaultSnakeSidePanel));
+	fSnake.Add(fSnakeSidePanelTrash = new BooleanValueSetting("SnakeSidePanelTrash", kDefaultSnakeSidePanelTrash));
+	fSnake.Add(fSnakeAccent
 		= new HexScalarValueSetting("SnakeAccent", RGBTOHEX(kDefaultSnakeAccent), "", ""));
 
 	Add(fRecentApplicationsCount
@@ -309,6 +325,8 @@ TTrackerState::LoadSettingsIfNeeded()
 			"", ""));
 
 	TryReadingSettings();
+	fSnake.TryReadingSettings();
+	_MigrateSnakeSettings();
 
 	NameAttributeText::SetSortFolderNamesFirst(
 		fSortFolderNamesFirst->Value());
@@ -316,6 +334,49 @@ TTrackerState::LoadSettingsIfNeeded()
 		fSortFolderNamesFirst->Value());
 
 	fSettingsLoaded = true;
+}
+
+
+// The first time with a separate file: the values SnakeTracker 1.0.67 and older kept in TrackerSettings are taken
+// over, and TrackerSettings is written again without them.
+void
+TTrackerState::_MigrateSnakeSettings()
+{
+	BPath snakePath;
+	if (find_directory(B_USER_SETTINGS_DIRECTORY, &snakePath) != B_OK
+		|| snakePath.Append("Tracker/SnakeSettings") != B_OK || BEntry(snakePath.Path()).Exists()) {
+		return;
+	}
+
+	BPath oldPath;
+	if (find_directory(B_USER_SETTINGS_DIRECTORY, &oldPath) == B_OK
+		&& oldPath.Append("Tracker/TrackerSettings") == B_OK) {
+		SettingsArgvDispatcher* snake[] = {
+			fHideDesktopIcons, fSnakeTrail, fSnakeFlat, fSnakeLook, fSnakeRoundCorners,
+			fSnakeDeskbarRoundCorners, fSnakeSystemColorsDeskbar, fSnakeSystemColorsTracker,
+			fSnakeAllApps, fSnakeArrows, fSnakeSidePanel, fSnakeSidePanelTrash, fSnakeAccent
+		};
+		FILE* file = fopen(oldPath.Path(), "r");
+		if (file != NULL) {
+			char line[256];
+			while (fgets(line, sizeof(line), file) != NULL) {
+				char name[64];
+				char value[64];
+				if (sscanf(line, "%63s %63s", name, value) != 2)
+					continue;
+				for (size_t i = 0; i < sizeof(snake) / sizeof(snake[0]); i++) {
+					if (strcmp(snake[i]->Name(), name) == 0) {
+						const char* argv[] = { name, value, NULL };
+						snake[i]->Handle(argv);
+					}
+				}
+			}
+			fclose(file);
+		}
+	}
+
+	_inherited::SaveSettings(true);
+	fSnake.SaveSettings(true);
 }
 
 
