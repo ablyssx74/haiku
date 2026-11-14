@@ -1,8 +1,12 @@
-# snaketracker 1.0.66
+# snaketracker 1.0.67
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **"Next wallpaper" changes the picture at once.** It used to wait for the day's picture lists of every online source that had not been fetched yet, so when one of them was slow or down (picsum.photos did not answer for a minute or more) nothing seemed to happen. It now takes a picture that is already on the computer (the folders you chose, and the pictures kept from earlier days) right away, and fetches the day's pictures afterwards, for the next time. With nothing kept yet, it fetches first, as before.
+- **A change in the Wallpaper tab of the SnakeTracker Settings no longer freezes the window (64-bit package of 1.0.66).** The window asks the server for its build number before it tells it about a change. In the 64-bit 1.0.66 package the window still had the number of 1.0.65 (the part of the build that holds it was not made again after the version changed), so it took the server for an old one and restarted it at every click, which held the window for several seconds each time. The build is now made again whenever the version changes, and the package has the right number. The 32-bit 1.0.66 package was not affected.
+
+Since 1.0.66 (if you skipped it):
 - **The side panel keeps up with the folders.** A folder you make, delete or move (to the Trash, or to another folder) under a folder that is open in the side panel shows up there (or goes) a moment later; it used to stay as it was until the panel was closed and opened again. The folders you had opened stay open, a folder that is closed is read again when you open it, and the folder the window shows stays selected.
 
 Since 1.0.65 (if you skipped it):

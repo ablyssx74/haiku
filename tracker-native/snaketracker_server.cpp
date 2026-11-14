@@ -1257,8 +1257,9 @@ WriteBackgrounds(BNode& node, const CurrentBackground& current, const std::vecto
 
 
 // Puts the chosen images into the Desktop folder's background setting (one for all workspaces, or one for each) and has Tracker
-// show them. The placement and the text outline stay as they are unless the settings say otherwise.
-static void
+// show them. The placement and the text outline stay as they are unless the settings say otherwise. False when there was no
+// picture to choose from (nothing was changed).
+static bool
 ChangeWallpaper(const BMessage& settings, uint32* cursor)
 {
 	std::vector<std::string> images;
@@ -1271,7 +1272,7 @@ ChangeWallpaper(const BMessage& settings, uint32* cursor)
 			CollectImages(cache.Path(), 0, images);
 	}
 	if (images.empty())
-		return;
+		return false;
 	std::sort(images.begin(), images.end());
 
 	const bool perWorkspace = settings.GetBool("perworkspace", false);
@@ -1280,10 +1281,10 @@ ChangeWallpaper(const BMessage& settings, uint32* cursor)
 
 	BPath desktop;
 	if (find_directory(B_DESKTOP_DIRECTORY, &desktop) != B_OK)
-		return;
+		return false;
 	BNode node(desktop.Path());
 	if (node.InitCheck() != B_OK)
-		return;
+		return false;
 	CurrentBackground current;
 	ReadCurrentBackground(node, &current);
 
@@ -1305,6 +1306,7 @@ ChangeWallpaper(const BMessage& settings, uint32* cursor)
 		chosen.push_back(images[pick]);
 	}
 	WriteBackgrounds(node, current, chosen, perWorkspace, settings.GetInt32("mode", -1));
+	return true;
 }
 
 
@@ -1811,6 +1813,10 @@ public:
 				ReadWallpaperSettings(&fWallpaper);
 				if (fWallpaper.GetBool("svg", false))
 					ShowSvg(true);
+				else if (ChangeWallpaper(fWallpaper, &fCursor))
+					// (a picture that is here already, at once: a source that is slow or down held the change back for a
+					// minute or more; the pictures of the day are brought in afterwards, for the next time)
+					StartFetch(false);
 				else
 					StartFetch(true);
 				return;
