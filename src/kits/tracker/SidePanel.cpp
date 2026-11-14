@@ -43,6 +43,7 @@ namespace BPrivate {
 
 static const uint32 kFollowFolder = 'sdFl';
 static const uint32 kNavigateTo = 'sdNv';
+static const uint32 kSyncFolders = 'sdSy';
 static const uint32 kAddFavorite = 'sfAd';
 static const uint32 kRemoveFavorite = 'sfRm';
 static const uint32 kMoveFavorite = 'sfMv';
@@ -66,7 +67,8 @@ public:
 		fFavorite(false),
 		fTrash(false),		fFavoriteIndex(-1),
 		fHint(false),
-		fVolume(-1)
+		fVolume(-1),
+		fHasNode(false)
 	{
 		if (ref != NULL) {
 			fRef = *ref;
@@ -169,6 +171,10 @@ public:
 	bool				IsPlaceholder() const { return fPlaceholder; }
 	bool				IsLoaded() const { return fLoaded; }
 	void				SetLoaded() { fLoaded = true; }
+	void				SetUnloaded() { fLoaded = false; }
+	bool				HasNode() const { return fHasNode; }
+	const node_ref&		Node() const { return fNode; }
+	void				SetNode(const node_ref& node) { fNode = node; fHasNode = true; }
 	const char*			Path() const { return fPath.String(); }
 	void				SetPath(const char* path) { fPath = path; }
 	bool				IsTrash() const { return fTrash; }
@@ -195,6 +201,8 @@ private:
 	int32		fFavoriteIndex;
 	bool		fHint;
 	dev_t		fVolume;
+	node_ref	fNode;
+	bool		fHasNode;
 };
 
 
@@ -810,23 +818,11 @@ private:
 		AddItem(new SideItem(NULL, "", folder->OutlineLevel() + 1, false, true), FullListIndexOf(folder) + 1);
 	}
 
-	void _Load(SideItem* folder)
+	// the subfolders of a folder (not the hidden ones), in the order they are listed
+	static std::vector<SideFolder> _ReadFolders(const entry_ref& ref)
 	{
-		folder->SetLoaded();
-		// the line that stood for what is below
-		for (int32 i = FullListIndexOf(folder) + 1; i < FullListCountItems(); i++) {
-			SideItem* child = dynamic_cast<SideItem*>(FullListItemAt(i));
-			if (child == NULL || child->OutlineLevel() <= folder->OutlineLevel())
-				break;
-			if (child->IsPlaceholder()) {
-				RemoveItem(child);
-				delete child;
-				break;
-			}
-		}
-
 		std::vector<SideFolder> folders;
-		BDirectory directory(&folder->Ref());
+		BDirectory directory(&ref);
 		BEntry entry;
 		while (directory.GetNextEntry(&entry, true) == B_OK) {
 			if (!entry.IsDirectory())
@@ -841,6 +837,144 @@ private:
 			folders.push_back(f);
 		}
 		std::sort(folders.begin(), folders.end(), SideFolderBefore);
+		return folders;
+	}
+
+	// the full list index just after a folder's line and all the lines under it
+	int32 _SubtreeEnd(SideItem* folder)
+	{
+		int32 end = FullListIndexOf(folder) + 1;
+		while (end < FullListCountItems()) {
+			BListItem* line = FullListItemAt(end);
+			if (line->OutlineLevel() <= folder->OutlineLevel())
+				break;
+			end++;
+		}
+		return end;
+	}
+
+	void _Sync(SideItem* folder)
+	{
+		std::vector<SideFolder> now = _ReadFolders(folder->Ref());
+		std::vector<SideItem*> kids;
+		std::vector<SideItem*> lines;		// the lines right under it: the folders, or the placeholder
+		const int32 end = _SubtreeEnd(folder);
+		for (int32 i = FullListIndexOf(folder) + 1; i < end; i++) {
+			SideItem* line = dynamic_cast<SideItem*>(FullListItemAt(i));
+			if (line == NULL || line->OutlineLevel() != folder->OutlineLevel() + 1)
+				continue;
+			lines.push_back(line);
+			if (!line->IsPlaceholder())
+				kids.push_back(line);
+		}
+
+		bool same = kids.size() == now.size();
+		for (size_t i = 0; same && i < kids.size(); i++)
+			same = kids[i]->Ref() == now[i].ref;
+		if (same)
+			return;
+
+		const bool programmatic = fProgrammatic;
+		fProgrammatic = true;
+		if (!folder->IsExpanded()) {
+			// closed: it is read again when it is opened
+			for (size_t i = 0; i < lines.size(); i++)
+				RemoveItem(lines[i]);
+			for (size_t i = 0; i < lines.size(); i++)
+				delete lines[i];
+			if (!now.empty()) {
+				folder->SetUnloaded();
+				_AddPlaceholder(folder);
+			}
+		} else {
+			// open: the folders that are gone go, the new ones are put in their place; the open ones keep their lines
+			std::vector<SideItem*> gone;
+			std::vector<SideItem*> kept;
+			for (size_t i = 0; i < kids.size(); i++) {
+				bool found = false;
+				for (size_t j = 0; j < now.size() && !found; j++)
+					found = kids[i]->Ref() == now[j].ref;
+				(found ? kept : gone).push_back(kids[i]);
+			}
+			for (size_t i = 0; i < gone.size(); i++)
+				RemoveItem(gone[i]);
+			for (size_t i = 0; i < gone.size(); i++)
+				delete gone[i];
+			for (size_t j = 0; j < now.size(); j++) {
+				bool found = false;
+				for (size_t i = 0; i < kept.size() && !found; i++)
+					found = kept[i]->Ref() == now[j].ref;
+				if (found)
+					continue;
+				// before the first folder that sorts after it, or after all of them
+				int32 index = _SubtreeEnd(folder);
+				for (size_t i = 0; i < kept.size(); i++) {
+					SideFolder other;
+					other.name = kept[i]->Label();
+					if (SideFolderBefore(now[j], other)) {
+						index = FullListIndexOf(kept[i]);
+						break;
+					}
+				}
+				SideItem* item = new SideItem(&now[j].ref, now[j].name.String(), folder->OutlineLevel() + 1);
+				AddItem(item, index);
+				AddItem(new SideItem(NULL, "", item->OutlineLevel() + 1, false, true), index + 1);
+				Collapse(item);
+				// in line with the others, so that the next one is put after it
+				kept.insert(std::lower_bound(kept.begin(), kept.end(), item, _KeptBefore), item);
+			}
+		}
+		fProgrammatic = programmatic;
+		Invalidate();
+	}
+
+	static bool _KeptBefore(SideItem* a, SideItem* b)
+	{
+		return strcasecmp(a->Label(), b->Label()) < 0;
+	}
+
+public:
+	// something was made, deleted or moved in this folder: the lines under it are brought up to date
+	void SyncDirectory(const node_ref& directory)
+	{
+		bool shown = false;
+		for (int32 i = 0; i < FullListCountItems(); i++) {
+			SideItem* item = dynamic_cast<SideItem*>(FullListItemAt(i));
+			if (item == NULL || !item->IsLoaded() || !item->HasNode() || item->Node() != directory)
+				continue;
+			shown = true;
+			_Sync(item);
+		}
+		// no line shows it any more: it is not watched any more
+		if (!shown) {
+			node_ref stale = directory;
+			watch_node(&stale, B_STOP_WATCHING, BMessenger(fTarget));
+		}
+	}
+
+private:
+	void _Load(SideItem* folder)
+	{
+		folder->SetLoaded();
+		// the folder is watched from now on: folders made, deleted or moved in it show up (or go) here
+		node_ref watched;
+		if (BNode(&folder->Ref()).GetNodeRef(&watched) == B_OK) {
+			folder->SetNode(watched);
+			watch_node(&watched, B_WATCH_DIRECTORY, BMessenger(fTarget));
+		}
+		// the line that stood for what is below
+		for (int32 i = FullListIndexOf(folder) + 1; i < FullListCountItems(); i++) {
+			SideItem* child = dynamic_cast<SideItem*>(FullListItemAt(i));
+			if (child == NULL || child->OutlineLevel() <= folder->OutlineLevel())
+				break;
+			if (child->IsPlaceholder()) {
+				RemoveItem(child);
+				delete child;
+				break;
+			}
+		}
+
+		std::vector<SideFolder> folders = _ReadFolders(folder->Ref());
 
 		int32 index = FullListIndexOf(folder) + 1;
 		for (size_t i = 0; i < folders.size(); i++) {
@@ -866,7 +1000,8 @@ TSidePanel::TSidePanel(BContainerWindow* window)
 	fTree(NULL),
 	fScrollView(NULL),
 	fFollowRunner(NULL),
-	fVolumeRoster(NULL)
+	fVolumeRoster(NULL),
+	fSyncQueued(false)
 {
 	SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
 	BGroupLayout* layout = new BGroupLayout(B_VERTICAL, 0);
@@ -926,11 +1061,37 @@ TSidePanel::MessageReceived(BMessage* message)
 		case B_NODE_MONITOR:
 		{
 			int32 opcode;
-			if (message->FindInt32("opcode", &opcode) == B_OK
-				&& (opcode == B_DEVICE_MOUNTED || opcode == B_DEVICE_UNMOUNTED)) {
+			if (message->FindInt32("opcode", &opcode) != B_OK)
+				break;
+			if (opcode == B_DEVICE_MOUNTED || opcode == B_DEVICE_UNMOUNTED) {
 				fTree->RebuildVolumes();
 				ShowCurrentFolder();
+			} else if (opcode == B_ENTRY_CREATED || opcode == B_ENTRY_REMOVED || opcode == B_ENTRY_MOVED) {
+				// a folder changed: its lines are read again, after the burst of changes (a delete of many)
+				const char* from = opcode == B_ENTRY_MOVED ? "from directory" : "directory";
+				node_ref folder;
+				int64 id;
+				if (message->FindInt32("device", &folder.device) == B_OK && message->FindInt64(from, &id) == B_OK) {
+					folder.node = id;
+					_QueueSync(folder);
+				}
+				if (opcode == B_ENTRY_MOVED && message->FindInt64("to directory", &id) == B_OK
+					&& message->FindInt32("device", &folder.device) == B_OK) {
+					folder.node = id;
+					_QueueSync(folder);
+				}
 			}
+			break;
+		}
+
+		case kSyncFolders:
+		{
+			std::vector<node_ref> folders;
+			folders.swap(fPending);
+			fSyncQueued = false;
+			for (size_t i = 0; i < folders.size(); i++)
+				fTree->SyncDirectory(folders[i]);
+			ShowCurrentFolder();
 			break;
 		}
 
@@ -949,6 +1110,22 @@ TSidePanel::MessageReceived(BMessage* message)
 
 		default:
 			BView::MessageReceived(message);
+	}
+}
+
+
+void
+TSidePanel::_QueueSync(const node_ref& folder)
+{
+	for (size_t i = 0; i < fPending.size(); i++) {
+		if (fPending[i] == folder)
+			return;
+	}
+	fPending.push_back(folder);
+	if (!fSyncQueued) {
+		fSyncQueued = true;
+		BMessage message(kSyncFolders);
+		BMessageRunner::StartSending(BMessenger(this), &message, 200000, 1);
 	}
 }
 

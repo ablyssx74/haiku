@@ -9,6 +9,8 @@
 #include <Entry.h>
 #include <View.h>
 
+#include <vector>
+
 
 class BMessageRunner;
 class BVolumeRoster;
@@ -33,12 +35,16 @@ public:
 			void			ShowCurrentFolder();
 
 private:
+			void				_QueueSync(const node_ref& folder);
+
 			BContainerWindow*	fWindow;
 			SideTree*			fTree;
 			BScrollView*		fScrollView;
 			BMessageRunner*		fFollowRunner;
 			BVolumeRoster*		fVolumeRoster;
 			node_ref			fShown;
+			std::vector<node_ref>	fPending;
+			bool				fSyncQueued;
 };
 
 }	// namespace BPrivate

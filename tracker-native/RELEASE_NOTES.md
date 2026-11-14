@@ -1,8 +1,11 @@
-# snaketracker 1.0.65
+# snaketracker 1.0.66
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **The side panel keeps up with the folders.** A folder you make, delete or move (to the Trash, or to another folder) under a folder that is open in the side panel shows up there (or goes) a moment later; it used to stay as it was until the panel was closed and opened again. The folders you had opened stay open, a folder that is closed is read again when you open it, and the folder the window shows stays selected.
+
+Since 1.0.65 (if you skipped it):
 - **A click on a window under its program's tab in the Deskbar minimizes it or brings it back.** In an expanded tab, a click on the window that is in front minimizes it; a click on any other window brings it to the front (and restores it if it was minimized). Control+click still minimizes in any case.
 
 Since 1.0.64 (if you skipped it):
