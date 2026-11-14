@@ -50,7 +50,7 @@ LIBS := -lbe -llocalestub -ltranslation -lshared -lcolumnlistview $(CXXLIBS)
 
 all: $(OUT)/libtracker.so
 
-$(OUT)/src/kits/tracker/SnakeWallpaperView.o: snaketracker_server.cpp
+$(OUT)/src/kits/tracker/SnakeWallpaperView.o: snaketracker_server.cpp VERSION
 
 $(OUT)/%.o: $(TOP)/%.cpp
 	@mkdir -p $(dir $@)
