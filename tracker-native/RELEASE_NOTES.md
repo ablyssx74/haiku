@@ -1,8 +1,11 @@
-# snaketracker 1.0.68
+# snaketracker 1.0.69
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **ProcessController's menu keeps the raised look when "Enable rounded corners on Tracker" is on.** The menu of a program in the Deskbar's tray, such as ProcessController's list of programs and its Memory usage and Threads and CPU usage menus, is a popup menu of another program. SnakeTracker draws such a menu in the raised pill look, and with the rounded corners setting on it also asked for a picture of the screen behind the menu, to round the menu's own corners. Only a program that hands such pictures over (Cricket) has one, so ProcessController's menu got Haiku's flat highlight instead, and the raised look only showed with the setting off, the wrong way round. A program that does not hand over pictures now keeps the pill, with square corners, whatever the setting is. Programs that do hand them over are as before.
+
+Since 1.0.68 (if you skipped it):
 - **SnakeTracker's own settings are in a file of their own, so other programs stop printing "unknown command".** SnakeTracker kept its settings (the snake look and trail, the colour, the side panel, the corners, and Hide desktop icons) in Tracker's `TrackerSettings` file. Haiku's own library for Tracker, which every program that has a file open or save panel loads, reads that file too and printed a line "unknown command" in its terminal for each setting it did not know, thirteen of them every time the program started. They are now in `~/config/settings/Tracker/SnakeSettings`, and `TrackerSettings` has only the settings Haiku knows. The first time 1.0.68 starts it takes your settings over from the old file, so nothing has to be set again. Going back to an older SnakeTracker would find no settings of its own and use the defaults.
 
 Since 1.0.67 (if you skipped it):
@@ -252,4 +255,4 @@ Since 1.0.17 (if you skipped it):
 - **Flat selector.** The selector is a single flat colour inside the outline. The light top edge and dark bottom edge are still available: turn off **Tracker preferences > Windows > Flat menu selector** to bring them back. The setting applies to Tracker and Deskbar menus, to every program's menus when SnakeControlLook is the control look, to menu bar titles and to the seam between submenu windows. hDesktop can override it with its `nav_snake_flat` setting while it runs.
 
 ## Install
-Two packages are attached: `snaketracker-1.0.68-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.68-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.
+Two packages are attached: `snaketracker-1.0.69-1-x86_64.hpkg` for 64-bit Haiku and `snaketracker-1.0.69-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because the file that tells Haiku to start the new Tracker and Deskbar is only read from the system location.

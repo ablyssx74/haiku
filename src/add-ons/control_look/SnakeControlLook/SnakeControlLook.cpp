@@ -1695,7 +1695,10 @@ PillMenu(BMenu* menu)
 		// pictures (RoundedProgram()) has its popup menus drawn with rounded corners, from the screen taken before they opened
 		const bool popup = dynamic_cast<BPopUpMenu*>(root) != NULL;
 		const bool ok = popup || (root->Supermenu() != NULL && dynamic_cast<BMenuBar*>(root->Supermenu()) != NULL);
-		if (!ok || !popup || !RoundCorners())
+		// (RoundCorners() is Tracker's setting for the Deskbar's team too, which ProcessController's popup menus belong to,
+		// but only a program that hands over the pictures, RoundedProgram(), has them: any other keeps the pill, with
+		// square corners, whatever the setting says; asking for pictures there left it with Haiku's flat highlight)
+		if (!ok || !popup || !RoundedProgram() || !RoundCorners())
 			return ok;
 		BAutolock lock(BackdropLock());
 		BackdropState& state = Backdrop();
