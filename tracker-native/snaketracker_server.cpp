@@ -1077,7 +1077,31 @@ LooksLikeImage(const std::string& data)
 }
 
 
-// Takes the pictures of a source that are not in its folder yet; the oldest beyond kKeepPictures go.
+// The pictures the Desktop folder shows now (any workspace): the cleanup of the cache must not delete them, or the dock and a
+// restarted Tracker are left without a wallpaper.
+static void
+ShownWallpapers(std::vector<std::string>* shown)
+{
+	BPath desktop;
+	if (find_directory(B_DESKTOP_DIRECTORY, &desktop) != B_OK)
+		return;
+	BNode node(desktop.Path());
+	attr_info info;
+	if (node.InitCheck() != B_OK || node.GetAttrInfo("be:bgndimginfo", &info) != B_OK || info.size <= 0)
+		return;
+	char* buffer = new char[info.size];
+	BMessage saved;
+	if (node.ReadAttr("be:bgndimginfo", info.type, 0, buffer, (size_t)info.size) == info.size
+		&& saved.Unflatten(buffer) == B_OK) {
+		const char* path;
+		for (int32 i = 0; saved.FindString("be:bgndimginfopath", i, &path) == B_OK; i++)
+			shown->push_back(path);
+	}
+	delete[] buffer;
+}
+
+
+// Takes the pictures of a source that are not in its folder yet; the oldest beyond kKeepPictures go (not the one that is the wallpaper).
 static void
 FetchSource(const BMessage& settings, const char* source)
 {
@@ -1145,8 +1169,13 @@ FetchSource(const BMessage& settings, const char* source)
 			names.push_back(name);
 	}
 	std::sort(names.begin(), names.end());
+	std::vector<std::string> shown;
+	ShownWallpapers(&shown);
 	for (size_t i = 0; i + kKeepPictures < names.size(); i++) {
 		BPath old(folder.Path(), names[i].c_str());
+		// (the picture that is the wallpaper now stays, however old it is)
+		if (std::find(shown.begin(), shown.end(), std::string(old.Path())) != shown.end())
+			continue;
 		BEntry(old.Path()).Remove();
 	}
 	// (when it was done, so that it is not done again today)

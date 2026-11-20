@@ -1,8 +1,11 @@
-# snaketracker 1.0.69
+# snaketracker 1.0.70
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **The daily clean-up of the online wallpapers no longer deletes the picture that is the wallpaper.** Each online source keeps its newest 14 pictures, and the older ones are deleted when the day's pictures are fetched. A wallpaper that was set days ago (with the rotation off, or a long interval) fell out of the newest 14 and was deleted while it was still the Desktop's background. Tracker kept showing it from memory, but a Tracker restart left the Desktop empty, and programs that read the background setting (hDesktop's dock draws its slice of it) found no file and showed the plain desktop colour. The clean-up now leaves any picture that the Desktop's background setting names, on any workspace.
+
+Since 1.0.69 (if you skipped it):
 - **ProcessController's menu keeps the raised look when "Enable rounded corners on Tracker" is on.** The menu of a program in the Deskbar's tray, such as ProcessController's list of programs and its Memory usage and Threads and CPU usage menus, is a popup menu of another program. SnakeTracker draws such a menu in the raised pill look, and with the rounded corners setting on it also asked for a picture of the screen behind the menu, to round the menu's own corners. Only a program that hands such pictures over (Cricket) has one, so ProcessController's menu got Haiku's flat highlight instead, and the raised look only showed with the setting off, the wrong way round. A program that does not hand over pictures now keeps the pill, with square corners, whatever the setting is. Programs that do hand them over are as before.
 
 Since 1.0.68 (if you skipped it):
