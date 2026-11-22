@@ -1349,6 +1349,38 @@ FindPillSymbols()
 }
 
 
+// Whether the preference "Raised Snake look for Tracker and Deskbar" is on, from Tracker's settings file (read again every couple of
+// seconds). On when the file or the line is not there.
+static bool
+SnakeLookSetting()
+{
+	static bool value = true;
+	static bigtime_t checked = -10000000;
+	const bigtime_t now = system_time();
+	if (now - checked < 2000000)
+		return value;
+	checked = now;
+	bool on = true;
+	BPath path;
+	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) == B_OK && path.Append("Tracker/SnakeSettings") == B_OK) {
+		FILE* file = fopen(path.Path(), "r");
+		if (file != NULL) {
+			char line[256];
+			while (fgets(line, sizeof(line), file) != NULL) {
+				if (strncmp(line, "SnakeLook ", 10) == 0) {
+					on = strncmp(line + 10, "off", 3) != 0 && strncmp(line + 10, "0", 1) != 0
+						&& strncmp(line + 10, "false", 5) != 0;
+					break;
+				}
+			}
+			fclose(file);
+		}
+	}
+	value = on;
+	return value;
+}
+
+
 // Tracker and the Deskbar have the Snake look (the pill menus, the snake trail from the header) whichever control look the system
 // has chosen: when it is not the Snake one, they load the Snake control look themselves and use it in their own program only (the
 // other programs keep the system's). Called first thing in a program's constructor, before any menu is made. Not done when the
@@ -1411,7 +1443,10 @@ CustomLook()
 	// the Snake look of Tracker, the Deskbar and their menus is a preference (Windows > "Snake look for Tracker and Deskbar"):
 	// the control look knows it (it reads the preference's file every so often, in every program)
 	FindPillSymbols();
-	return sCustomLook == NULL || sCustomLook();
+	if (sCustomLook != NULL)
+		return sCustomLook();
+	// (no Snake control look in this program, hDesktop with the look off: the preference's file says)
+	return SnakeLookSetting();
 }
 
 

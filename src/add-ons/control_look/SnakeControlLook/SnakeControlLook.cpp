@@ -327,7 +327,9 @@ CustomLook()
 		app_info info;
 		tracker = be_app != NULL && be_app->GetAppInfo(&info) == B_OK
 			&& (strcmp(info.signature, "application/x-vnd.Be-TSKB") == 0
-				|| strcmp(info.signature, "application/x-vnd.Be-TRAK") == 0) ? 1 : 0;
+				|| strcmp(info.signature, "application/x-vnd.Be-TRAK") == 0
+				// (hDesktop's Tracker menu follows the preference too)
+				|| strcmp(info.signature, kHDesktopSignature) == 0) ? 1 : 0;
 	}
 	if (tracker == 0)
 		return true;
