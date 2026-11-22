@@ -60,6 +60,7 @@ All rights reserved.
 
 #include <DeskbarPrivate.h>
 #include <RosterPrivate.h>
+#include "SnakeSelector.h"
 #include "tracker_private.h"
 
 #include "BarMenuBar.h"
@@ -106,6 +107,7 @@ TBarApp::TBarApp()
 	fClockSettingsFile(NULL),
 	fPreferencesWindow(NULL)
 {
+	SnakeSelector::InstallSnakeLook();
 	InitSettings();
 	InitIconPreloader();
 

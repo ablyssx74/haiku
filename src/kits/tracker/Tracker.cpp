@@ -253,6 +253,7 @@ TTracker::TTracker()
 	fWatchingInterface(new WatchingInterface),
 	fSettingsWindow(NULL)
 {
+	SnakeSelector::InstallSnakeLook();
 	BPathMonitor::SetWatchingInterface(fWatchingInterface);
 
 	// set the cwd to /boot/home, anything that's launched

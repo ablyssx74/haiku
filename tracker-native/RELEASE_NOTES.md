@@ -1,8 +1,11 @@
-# snaketracker 1.0.71
+# snaketracker 1.0.72
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Tracker and the Deskbar have the Snake look even when the system's control look is the default.** The pill menus and the snake trail that starts at the header (the Deskbar's leaf menu, Recent folders, the menus Tracker opens) came from the Snake control look, so they were plain Haiku menus when Appearance had the default look chosen. Tracker and the Deskbar now load the Snake control look themselves, for their own menus only, when the system's is another one; other programs keep the system's look (choose Snake in Appearance to have it in every program). Nothing is loaded when "Raised Snake look for Tracker and Deskbar" is off or when the Snake control look is not installed.
+
+Since 1.0.71 (if you skipped it):
 - **hDesktop's Tracker menu is drawn in SnakeTracker's look.** hDesktop 1.0.81 and later opens Tracker's own menu from the dock icon. With SnakeTracker installed that menu now has SnakeTracker's colours, text and rounded corners, and follows hDesktop's own Use System Colors setting. SnakeTracker takes hDesktop as a program that hands over the screen behind its popup menus (as Cricket does), and a menu made of Tracker's own items inside any other program is drawn as Tracker's own menus are, not as another program's stock menu (dark pill, for a dark theme). Other programs are as before.
 
 Since 1.0.70 (if you skipped it):

@@ -1349,6 +1349,62 @@ FindPillSymbols()
 }
 
 
+// Tracker and the Deskbar have the Snake look (the pill menus, the snake trail from the header) whichever control look the system
+// has chosen: when it is not the Snake one, they load the Snake control look themselves and use it in their own program only (the
+// other programs keep the system's). Called first thing in a program's constructor, before any menu is made. Not done when the
+// preference "Raised Snake look for Tracker and Deskbar" is off, or when the Snake control look is not installed.
+void
+InstallSnakeLook()
+{
+	image_info info;
+	int32 cookie = 0;
+	while (get_next_image_info(B_CURRENT_TEAM, &cookie, &info) == B_OK) {
+		if (strstr(info.name, "SnakeControlLook") != NULL)
+			return;		// (the system's look is the Snake one already)
+	}
+
+	BPath settingsPath;
+	if (find_directory(B_USER_SETTINGS_DIRECTORY, &settingsPath) == B_OK
+		&& settingsPath.Append("Tracker/SnakeSettings") == B_OK) {
+		FILE* file = fopen(settingsPath.Path(), "r");
+		if (file != NULL) {
+			char line[256];
+			while (fgets(line, sizeof(line), file) != NULL) {
+				if (strncmp(line, "SnakeLook ", 10) == 0
+					&& (strncmp(line + 10, "off", 3) == 0 || strncmp(line + 10, "0", 1) == 0
+						|| strncmp(line + 10, "false", 5) == 0)) {
+					fclose(file);
+					return;
+				}
+			}
+			fclose(file);
+		}
+	}
+
+	static const directory_which kDirectories[] = { B_USER_NONPACKAGED_ADDONS_DIRECTORY, B_USER_ADDONS_DIRECTORY,
+		B_SYSTEM_NONPACKAGED_ADDONS_DIRECTORY, B_SYSTEM_ADDONS_DIRECTORY };
+	for (size_t i = 0; i < sizeof(kDirectories) / sizeof(kDirectories[0]); i++) {
+		BPath path;
+		if (find_directory(kDirectories[i], &path) != B_OK || path.Append("control_look/SnakeControlLook") != B_OK
+			|| !BEntry(path.Path()).Exists())
+			continue;
+		image_id image = load_add_on(path.Path());
+		if (image < 0)
+			continue;
+		BControlLook* (*instantiate)(image_id) = NULL;
+		if (get_image_symbol(image, "instantiate_control_look", B_SYMBOL_TYPE_TEXT, (void**)&instantiate) == B_OK
+			&& instantiate != NULL) {
+			BControlLook* look = instantiate(image);
+			if (look != NULL) {
+				be_control_look = look;
+				return;
+			}
+		}
+		unload_add_on(image);
+	}
+}
+
+
 bool
 CustomLook()
 {

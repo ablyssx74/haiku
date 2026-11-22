@@ -72,6 +72,8 @@ bool		MenuPaintsSelector(BMenu* menu);
 // pill look (and so needs the capture at all).
 // whether the Snake look of Tracker, the Deskbar and their menus is on (the preference "Snake look for Tracker and Deskbar")
 bool		CustomLook();
+// load the Snake control look for this program when the system's is another (Tracker and the Deskbar call it first thing)
+void		InstallSnakeLook();
 void		BeginMenuChain();
 bool		WantsMenuTile(BMenu* menu);
 void		CaptureMenuTile(BRect screenRect);
