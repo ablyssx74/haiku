@@ -1,8 +1,11 @@
-# snaketracker 1.0.70
+# snaketracker 1.0.71
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **hDesktop's Tracker menu is drawn in SnakeTracker's look.** hDesktop 1.0.81 and later opens Tracker's own menu from the dock icon. With SnakeTracker installed that menu now has SnakeTracker's colours, text and rounded corners, and follows hDesktop's own Use System Colors setting. SnakeTracker takes hDesktop as a program that hands over the screen behind its popup menus (as Cricket does), and a menu made of Tracker's own items inside any other program is drawn as Tracker's own menus are, not as another program's stock menu (dark pill, for a dark theme). Other programs are as before.
+
+Since 1.0.70 (if you skipped it):
 - **The daily clean-up of the online wallpapers no longer deletes the picture that is the wallpaper.** Each online source keeps its newest 14 pictures, and the older ones are deleted when the day's pictures are fetched. A wallpaper that was set days ago (with the rotation off, or a long interval) fell out of the newest 14 and was deleted while it was still the Desktop's background. Tracker kept showing it from memory, but a Tracker restart left the Desktop empty, and programs that read the background setting (hDesktop's dock draws its slice of it) found no file and showed the plain desktop colour. The clean-up now leaves any picture that the Desktop's background setting names, on any workspace.
 
 Since 1.0.69 (if you skipped it):

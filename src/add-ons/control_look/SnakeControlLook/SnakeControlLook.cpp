@@ -193,6 +193,13 @@ RefreshSettings()
 				trail = value;
 			if (settings.FindBool("nav_snake_flat", &value) == B_OK)
 				flat = value;
+			// hDesktop's own Use System Colors (Selector Color) decides the colours of its own Tracker menu
+			if (be_app != NULL) {
+				app_info info;
+				if (be_app->GetAppInfo(&info) == B_OK && strcmp(info.signature, kHDesktopSignature) == 0
+					&& settings.FindBool("nav_use_system_colors", &value) == B_OK)
+					sysTracker = value;
+			}
 		}
 	}
 	sAccent = accent;
@@ -267,7 +274,7 @@ RoundedProgram()
 	if (rounded < 0) {
 		app_info info;
 		rounded = 0;
-		if (be_app != NULL && be_app->GetAppInfo(&info) == B_OK && strcmp(info.signature, "application/x-vnd.cricket") == 0)
+		if (be_app != NULL && be_app->GetAppInfo(&info) == B_OK && (strcmp(info.signature, "application/x-vnd.cricket") == 0 || strcmp(info.signature, "application/x-vnd.hdesktop") == 0))
 			rounded = 1;
 	}
 	return rounded == 1;
@@ -1570,6 +1577,35 @@ RootMenu(BMenu* menu)
 }
 
 
+// A program that runs on SnakeTracker's own libtracker (hDesktop does when SnakeTracker is installed) has Tracker's menus in it:
+// their items draw themselves in the pill's colours, so those menus are drawn as Tracker's own are, not as another program's stock ones.
+static bool
+TrackerItemsMenu(BMenu* menu)
+{
+	static int snakeLib = -1;
+	if (snakeLib < 0) {
+		snakeLib = 0;
+		image_info info;
+		int32 cookie = 0;
+		while (get_next_image_info(B_CURRENT_TEAM, &cookie, &info) == B_OK) {
+			if (strstr(info.name, "SnakeTracker/lib/libtracker.so") != NULL)
+				snakeLib = 1;
+		}
+	}
+	if (snakeLib != 1 || menu == NULL)
+		return false;
+	BMenu* root = menu;
+	while (root->Supermenu() != NULL && dynamic_cast<BMenuBar*>(root->Supermenu()) == NULL)
+		root = root->Supermenu();
+	for (int32 i = 0; i < root->CountItems(); i++) {
+		const char* name = typeid(*root->ItemAt(i)).name();
+		if (strstr(name, "ModelMenuItem") != NULL || strstr(name, "SnakeMenuItem") != NULL)
+			return true;
+	}
+	return false;
+}
+
+
 // Whether this menu is one of another program's own: a menu of a program other than Tracker and the Deskbar (and, in the
 // Deskbar, a popup of its own that a tray icon opened: not one of its own menus), with Haiku's stock items. They draw their
 // text in the system's menu text color, so the pill is made to suit it (see PillColors()), and the pill look is the
@@ -1581,7 +1617,7 @@ StockMenu(BMenu* menu)
 	if (program == 2)
 		return false;
 	if (program == 0)
-		return AllAppsLook();
+		return AllAppsLook() && !TrackerItemsMenu(menu);
 	if (program != 1)
 		return false;
 	{
