@@ -1635,6 +1635,21 @@ StockMenu(BMenu* menu)
 }
 
 
+// Whether this menu is drawn with round corners. The setting says so for Tracker's and the Deskbar's own menus, which have
+// the screen behind them taken before they open; a popup that another program opens (a tray icon's menu, in the Deskbar's
+// team) has no picture of the screen unless the program hands one over (RoundedProgram()): a rounded pill there would show
+// the window's own corners and its square black frame round it. Such a menu is a pill with square corners.
+static bool
+RoundMenu(BMenu* menu)
+{
+	if (!RoundCorners())
+		return false;
+	if (menu != NULL && StockMenu(menu) && !RoundedProgram())
+		return false;
+	return true;
+}
+
+
 // ProcessController's menus, and hdesktop's CPU graph menu (made the same way): every row of them opens a list, and an
 // arrow on each row is left out (it only crowds the usage bars drawn in the row; the row still opens as before). These
 // menus get the accent-tinted pill like any other program's now, not Haiku's own menu colors; the columns of numbers that
@@ -1840,7 +1855,7 @@ static void
 SquareCorners(BMenu* menu, bool* tl, bool* tr, bool* br, bool* bl)
 {
 	*tl = *tr = *br = *bl = true;
-	if (!RoundCorners())
+	if (!RoundMenu(menu))
 		return;
 	*tl = *tr = *br = *bl = false;
 	const int side = ParentSide(menu);
@@ -2242,7 +2257,7 @@ DrawPillBase(BMenu* menu)
 	menu->SetDrawingMode(B_OP_ALPHA);
 	menu->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
 	menu->SetHighColor(fill);
-	if (RoundCorners()) {
+	if (RoundMenu(menu)) {
 		// rounded: the window system's black outline cannot follow it and shows as a square frame round the pill
 		menu->FillRoundRect(bounds, radius, radius);
 		bool sqTL, sqTR, sqBR, sqBL;
@@ -2261,7 +2276,7 @@ DrawPillBase(BMenu* menu)
 		menu->FillRect(bounds);
 	}
 	menu->PopState();
-	if (RoundCorners())
+	if (RoundMenu(menu))
 		PlaceFrame(menu);
 }
 
@@ -2822,7 +2837,7 @@ public:
 		if (window == NULL || window->IsHidden() || !RoundCorners())
 			return B_SKIP_MESSAGE;
 		BMenu* menu = MenuOfWindow(window);
-		if (menu != NULL && PillMenu(menu))
+		if (menu != NULL && RoundMenu(menu) && PillMenu(menu))
 			PlaceFrame(menu);
 		return B_SKIP_MESSAGE;
 	}
@@ -3378,7 +3393,7 @@ DrawTrail(BMenu* menu, const BRect& updateRect, bool pill = false)
 					// (with the submenu beside its parent, not over it, the corners of its border stay: its top and bottom lines run
 					// on into the parent's own border)
 					// (rounded: the corner pixels of the border, which lie over the parent's panel, are covered as well)
-					const float edge = (kShiftSideways || RoundCorners()) ? 1.0f : 0.0f;
+					const float edge = (kShiftSideways || RoundMenu(menu)) ? 1.0f : 0.0f;
 					const float y0 = std::max(frame.top - edge, link.parentTop), y1 = std::min(frame.bottom + edge, link.parentBottom);
 					sTop = std::max(sTop, y0);
 					sBottom = std::min(sBottom, y1);
