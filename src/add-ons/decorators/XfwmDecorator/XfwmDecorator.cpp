@@ -842,6 +842,12 @@ void
 XfwmDecorator::_MoveBy(BPoint offset)
 {
 	SATDecorator::_MoveBy(offset);
+	// TabDecorator::_MoveBy moves the close and zoom rectangles of the tabs, but not the minimize one. Left behind, the
+	// minimize button was drawn where the window had been, by the size of the move, whenever it was drawn before the
+	// layout was made again (the orange button of agua sat a few pixels off after a click on another window and back,
+	// and far off after a drag).
+	for (int32 i = 0; i < fTabList.CountItems(); i++)
+		fTabList.ItemAt(i)->minimizeRect.OffsetBy(offset);
 	fShown.OffsetBy(offset.x, offset.y);
 	fUnreported.OffsetBy(offset.x, offset.y);
 }
