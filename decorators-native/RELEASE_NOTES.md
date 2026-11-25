@@ -1,9 +1,9 @@
-# xfwm_decorators 1.0.15
+# xfwm_decorators 1.0.16
 
 Window decorators for Haiku made from xfwm4 themes. One decorator draws any xfwm4 theme, and the package carries 96 of them. Pick one in **Appearance > Decorator** (entries named "xfwm4: <theme>"), for example `xfwm4: b6`.
 
 ## Install
-Two packages are attached: `xfwm_decorators-1.0.15-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.15-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
+Two packages are attached: `xfwm_decorators-1.0.16-1-x86_64.hpkg` for 64-bit Haiku and `xfwm_decorators-1.0.16-1-x86_gcc2.hpkg` for 32-bit Haiku (gcc 2 / hybrid). Download the one for your system and install it **for the whole system**, not for "home". A home install is silently ignored, because app_server only loads decorators from the system location.
 
 ## Hover effect (on by default)
 The close, zoom and minimize buttons light up under the pointer. app_server tells a decorator nothing while the pointer only moves over it, so the effect is done from outside and is still young: fast pointer movement over the buttons has occasionally been seen to misdraw on real hardware, and in one or two themes the minimize button stopped answering after its window had been minimized and brought back. If you see either, turn it off:
@@ -16,7 +16,7 @@ xfwm-hover status
 
 It takes effect within a second, with no restart. Themes that ship hover pictures (`default-4.6`, `default-4.8`) use them; for the others the button's own picture is tinted, and the tint follows the button's shape: a round button gets a round highlight and a square one a square highlight, while a button that is only a symbol on the title bar gets the whole box. A dark button gets lighter and a light one darker; the symbol keeps its colors. (`galaxy`'s round buttons still get a square highlight: their pictures have a shadow behind them that can't be told from the button.)
 
-## Changes since 1.0.15 (not released yet)
+## Changes since 1.0.15
 - **The minimize button no longer lands a few pixels off after its window has moved.** app_server's tab decorator moves the close and zoom rectangles with a window but leaves out the minimize one, so a minimize button drawn before the next layout came out where the window had been, by the size of the move: a little after a click on another window and back, a lot after a drag (seen as the orange button of `agua` out of line with the other two). The decorator now moves it too.
 
 ## Changes since 1.0.14
