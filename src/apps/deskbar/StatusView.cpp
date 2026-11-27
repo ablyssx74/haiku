@@ -1052,11 +1052,10 @@ TReplicantTray::RealReplicantAdjustment(int32 startIndex)
 	if (startIndex < 0)
 		return;
 
-	if (startIndex == fLastReplicant)
-		startIndex = 0;
-
-	// reset the locations of all replicants after the one deleted
-	RealignReplicants(startIndex);
+	// Place all of them again, from the first one: the tray's height comes from fRightBottomReplicant, which only moves
+	// further down while replicants are placed after it. Placing just the ones after the one deleted left it in a row
+	// that had been emptied, and the tray kept that row as a gap.
+	RealignReplicants(0);
 
 	float oldWidth = Bounds().Width();
 	float oldHeight = Bounds().Height();

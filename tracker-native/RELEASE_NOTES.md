@@ -1,8 +1,12 @@
-# snaketracker 1.0.76
+# snaketracker 1.0.77
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **No more gap in the Deskbar's system tray.** With enough icons to fill more than one row, removing any icon but the last left the tray as tall as before, with empty space under the icons, until the Deskbar was resized. The tray now shrinks to fit at once.
+- **Otherwise the same as 1.0.76.**
+
+Since 1.0.76 (if you skipped it):
 - **Smoother menus on RenkuOS with the compositor on.** A menu's window is now borderless and see-through at its rounded corners, so the corners show what is really behind them instead of a picture taken before the menu opened, and there is no black outline. The thin vertical line that flashed in Tracker's menus is gone with it. With rounded corners on, the menus of other programs are rounded too (when "Snake look in all programs" is on). These menus have no compositor shadow. Now and then a new submenu can still show as an empty outline for one frame: RenkuOS shows a menu's window with its border before the menu is first drawn.
 - **With the compositor off, and on Haiku, menus look and work as before.**
 
