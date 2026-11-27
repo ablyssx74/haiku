@@ -1,8 +1,16 @@
-# snaketracker 1.0.73
+# snaketracker 1.0.76
 
 Tracker, Deskbar and menus with the hDesktop "snake trail" look.
 
 ## What's new
+- **Smoother menus on RenkuOS with the compositor on.** A menu's window is now borderless and see-through at its rounded corners, so the corners show what is really behind them instead of a picture taken before the menu opened, and there is no black outline. The thin vertical line that flashed in Tracker's menus is gone with it. With rounded corners on, the menus of other programs are rounded too (when "Snake look in all programs" is on). These menus have no compositor shadow. Now and then a new submenu can still show as an empty outline for one frame: RenkuOS shows a menu's window with its border before the menu is first drawn.
+- **With the compositor off, and on Haiku, menus look and work as before.**
+
+Since 1.0.75 (if you skipped it):
+- **The 64-bit package loads on RenkuOS again.** 1.0.74's did not: it was built on a newer Haiku and needed symbols that RenkuOS's libbe lacks, so Tracker, the Deskbar and hDesktop did not start there.
+- A tray icon's popup menu in the Deskbar has square corners where there is no compositor (from 1.0.74).
+
+Since 1.0.73 (if you skipped it):
 - **hDesktop's Tracker menu follows "Raised Snake look for Tracker and Deskbar".** hDesktop (1.0.83 and later) opens Tracker's own menu from the dock's Tracker icon. With that preference off, the menu was still drawn as a pill, because the control look treated every program but Tracker and the Deskbar as always having the look, and the library for Tracker's menus (libtracker) took the look to be on whenever the control look was not loaded. hDesktop is now counted with Tracker and the Deskbar for the preference, and libtracker reads the preference's file itself when the control look is not loaded in the program.
 
 Since 1.0.72 (if you skipped it):

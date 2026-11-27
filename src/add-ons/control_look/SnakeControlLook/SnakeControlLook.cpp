@@ -21,6 +21,7 @@
 
 #include <ControlLook.h>
 
+#include <dlfcn.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,6 +40,7 @@
 #include <Bitmap.h>
 #include <Entry.h>
 #include <GradientLinear.h>
+#include <InterfaceDefs.h>
 #include <File.h>
 #include <FindDirectory.h>
 #include <Locker.h>
@@ -284,10 +286,37 @@ RoundedProgram()
 static bool AllAppsLook();
 
 
+// RenkuOS's flag for a window whose unpainted parts are see-through (B_TRANSPARENT_WINDOW in its Window.h; Haiku's
+// headers don't have it).
+static const uint32 kSeeThroughFlag = 0x80000000;
+
+
+// A composited desktop (RenkuOS, with its compositor on): the corners of a menu can be really see-through, so no picture
+// of the screen behind it is needed. Asked again and again, since the compositor can be switched on and off.
+static bool
+SeeThroughDesktop()
+{
+	// RenkuOS's is_composited_desktop() is looked up by name: Haiku's libbe doesn't have it. It asks the server, and this is
+	// asked for every row that is drawn, so an answer is kept for a moment.
+	typedef bool (*CompositedFunction)();
+	static CompositedFunction function = (CompositedFunction)dlsym(RTLD_DEFAULT, "is_composited_desktop");
+	static bool composited = false;
+	static bigtime_t asked = 0;
+	if (function == NULL)
+		return false;
+	const bigtime_t now = system_time();
+	if (asked == 0 || now - asked > 200000) {
+		composited = function();
+		asked = now;
+	}
+	return composited;
+}
+
+
 static bool
 RoundCorners()
 {
-	if (SnakeProgram() == 0 && !(RoundedProgram() && AllAppsLook()))
+	if (SnakeProgram() == 0 && !((RoundedProgram() || SeeThroughDesktop()) && AllAppsLook()))
 		return false;
 	RefreshSettings();
 	BAutolock lock(SettingsLock());
@@ -1635,6 +1664,55 @@ StockMenu(BMenu* menu)
 }
 
 
+static bool
+SeeThroughWindow(BWindow* window)
+{
+	// (the system is asked first: on Haiku the flag's bit means nothing of this)
+	return window != NULL && window->Look() == B_NO_BORDER_WINDOW_LOOK && (window->Flags() & kSeeThroughFlag) != 0
+		&& dlsym(RTLD_DEFAULT, "is_composited_desktop") != NULL;
+}
+
+
+// Gives a menu's window the size it has now back after a change of its look (the server shrinks it), and has the server
+// show it again where it is.
+static void
+SetMenuLook(BWindow* window, window_look look)
+{
+	const float width = window->Frame().Width(), height = window->Frame().Height();
+	window->SetLook(look);
+	window->ResizeTo(width + 1, height);
+	window->ResizeTo(width, height);
+	window->MoveBy(1, 0);
+	window->MoveBy(-1, 0);
+}
+
+
+// Takes the border off a menu's window and lets what is not painted show what is behind it; false when the window is not
+// a menu window that this can be done to.
+static bool
+MakeSeeThrough(BWindow* window)
+{
+	if (SeeThroughWindow(window))
+		return true;
+	if (window == NULL || window->Look() != B_BORDERED_WINDOW_LOOK)
+		return false;
+	window->SetFlags(window->Flags() | kSeeThroughFlag);
+	SetMenuLook(window, B_NO_BORDER_WINDOW_LOOK);
+	return true;
+}
+
+
+// A menu window that was made see-through and now shows a menu that is not drawn that way.
+static void
+RestoreBorder(BWindow* window)
+{
+	if (!SeeThroughWindow(window))
+		return;
+	window->SetFlags(window->Flags() & ~kSeeThroughFlag);
+	SetMenuLook(window, B_BORDERED_WINDOW_LOOK);
+}
+
+
 // Whether this menu is drawn with round corners. The setting says so for Tracker's and the Deskbar's own menus, which have
 // the screen behind them taken before they open; a popup that another program opens (a tray icon's menu, in the Deskbar's
 // team) has no picture of the screen unless the program hands one over (RoundedProgram()): a rounded pill there would show
@@ -1644,7 +1722,7 @@ RoundMenu(BMenu* menu)
 {
 	if (!RoundCorners())
 		return false;
-	if (menu != NULL && StockMenu(menu) && !RoundedProgram())
+	if (menu != NULL && StockMenu(menu) && !RoundedProgram() && !SeeThroughDesktop())
 		return false;
 	return true;
 }
@@ -1751,7 +1829,7 @@ PillMenu(BMenu* menu)
 		// (RoundCorners() is Tracker's setting for the Deskbar's team too, which ProcessController's popup menus belong to,
 		// but only a program that hands over the pictures, RoundedProgram(), has them: any other keeps the pill, with
 		// square corners, whatever the setting says; asking for pictures there left it with Haiku's flat highlight)
-		if (!ok || !popup || !RoundedProgram() || !RoundCorners())
+		if (!ok || !popup || !RoundedProgram() || !RoundCorners() || SeeThroughDesktop())
 			return ok;
 		BAutolock lock(BackdropLock());
 		BackdropState& state = Backdrop();
@@ -1785,7 +1863,7 @@ PillMenu(BMenu* menu)
 	BAutolock lock(BackdropLock());
 	BackdropState& state = Backdrop();
 	// (the pictures of the screen are for the rounded corners; square, nothing is captured and nothing is needed)
-	const bool needPictures = RoundCorners();
+	const bool needPictures = RoundCorners() && !SeeThroughDesktop();
 	if (needPictures && state.tiles.empty())
 		return false;
 	if (state.eligible == NULL)
@@ -1902,6 +1980,9 @@ SquareCorners(BMenu* menu, bool* tl, bool* tr, bool* br, bool* bl)
 }
 
 
+// (On a composited desktop none of this is needed: the menu's window is made borderless and see-through instead, see
+// MakeSeeThrough(). Renku shows a new menu window with its border for a frame before it is first drawn, which no control
+// look can prevent.)
 // The window system's one pixel border round a menu window shows as a square frame round the pill when its corners are
 // rounded. It can't be left out of the window (a menu window without it never shows), and the corners can't be cut from
 // a window, so four borderless windows, one over each side of the border, show the screen behind the menu: the part of the
@@ -2088,7 +2169,7 @@ static void
 PlaceFrame(BMenu* menu)
 {
 	BWindow* window = menu->Window();
-	if (window == NULL || window->IsHidden())
+	if (window == NULL || window->IsHidden() || SeeThroughWindow(window))
 		return;
 	// a menu joined to the Deskbar's bar or to a menu bar's title runs along that window on one side
 	bool onLeft;
@@ -2236,6 +2317,41 @@ DrawPillBase(BMenu* menu)
 
 	rgb_color fill, hot, text;
 	PillColors(menu, &fill, &hot, &text);
+
+	if (RoundMenu(menu) && SeeThroughDesktop() && MakeSeeThrough(menu->Window())) {
+		// solid pixels are copied with a full alpha; the rounded corners get the part of the alpha that the pill covers
+		const BRect all = menu->Bounds();
+		bool square[4];
+		SquareCorners(menu, &square[0], &square[1], &square[3], &square[2]);
+		menu->PushState();
+		menu->SetDrawingMode(B_OP_COPY);
+		fill.alpha = 255;
+		menu->SetHighColor(fill);
+		menu->FillRect(all);
+		const int r = (int)radius;
+		for (int c = 0; c < 4; c++) {
+			// 0 top left, 1 top right, 2 bottom left, 3 bottom right
+			if (square[c])
+				continue;
+			for (int y = 0; y < r; y++) {
+				for (int x = 0; x < r; x++) {
+					const float dx = r - x - 0.5f, dy = r - y - 0.5f;
+					const float cover = Clamp01(r - sqrtf(dx * dx + dy * dy) + 0.5f);
+					if (cover >= 1)
+						continue;
+					rgb_color color = fill;
+					color.alpha = (uint8)(cover * 255);
+					menu->SetHighColor(color);
+					const BPoint at((c & 1) != 0 ? all.right - x : all.left + x,
+						(c & 2) != 0 ? all.bottom - y : all.top + y);
+					menu->FillRect(BRect(at, at));
+				}
+			}
+		}
+		menu->PopState();
+		return;
+	}
+	RestoreBorder(menu->Window());
 
 	menu->PushState();
 	menu->SetDrawingMode(B_OP_COPY);
@@ -4119,6 +4235,9 @@ public:
 			DrawTrail(menu, updateRect, true);
 			return;
 		}
+
+		if (menu != NULL && dynamic_cast<BMenuBar*>(menu) == NULL)
+			RestoreBorder(menu->Window());
 
 		HaikuControlLook::DrawMenuBackground(view, rect, updateRect, base, flags, borders);
 
